@@ -1,0 +1,74 @@
+# ==========================
+# Dependencies
+# ==========================
+node_modules/
+
+# ==========================
+# Build Output
+# ==========================
+dist/
+build/
+
+# ==========================
+# Environment Variables
+# ==========================
+.env
+.env.*
+!.env.example
+
+# ==========================
+# Logs
+# ==========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================
+# OS Files
+# ==========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================
+# IDE / Editors
+# ==========================
+.vscode/
+.idea/
+
+# Keep workspace recommendations if needed
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ==========================
+# Temporary Files
+# ==========================
+*.tmp
+*.temp
+.cache/
+
+# ==========================
+# Python (Future Backend)
+# ==========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+ENV/
+
+# ==========================
+# Testing
+# ==========================
+coverage/
+
+# ==========================
+# Misc
+# ==========================
+*.swp
+*.swo
