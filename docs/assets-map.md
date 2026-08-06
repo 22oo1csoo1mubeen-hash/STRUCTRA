@@ -20,6 +20,8 @@ design-assets/
 │
 ├── authentication/
 │
+├── MainPage/
+│
 └── logo/
 
 ---
@@ -137,7 +139,115 @@ for both Login and Registration.
 
 ---
 
-# 4. Logo
+# 4. Main Application — Upload Documents Workspace
+
+Location
+
+design-assets/MainPage/Upload Section
+
+Contains
+
+• upload-default-reference.png
+• loading-reference.png
+• result-reference.png
+
+---
+
+## upload-default-reference.png
+
+Purpose
+
+This is the official reference for the Upload Documents page immediately after a user logs in.
+
+Replicate as accurately as possible.
+
+Includes
+
+- Main application layout
+- Left sidebar
+- Global search bar
+- Welcome section
+- Upload Documents selected by default
+- Drag & Drop upload card
+- Browse Files button
+- Supported formats
+- How It Works section
+- Recent Uploads empty state
+- Floating AI Assistant button
+- Background blur
+- Glassmorphism
+- Premium Structra theme
+
+This establishes the shared layout for the entire application.
+
+---
+
+## loading-reference.png
+
+Purpose
+
+Official reference for the document processing experience.
+
+Replicate the loading workflow closely.
+
+Includes
+
+- Upload progress
+- Processing progress
+- Reading Document
+- Extracting Information
+- Verifying Information
+- Progress percentages
+- Animated progress states
+- Human-friendly status messages
+- Rotating helpful tips
+- Sidebar
+- Search bar
+- Premium loading cards
+- Background blur
+
+The purpose is to make waiting feel informative and polished.
+
+---
+
+## result-reference.png
+
+Purpose
+
+Official reference for the Upload Review Workspace displayed after AI extraction completes.
+
+Replicate the layout and visual hierarchy as accurately as possible.
+
+Includes
+
+- Processing Summary
+- AI Summary
+- Document Information
+- Two-column review workspace
+- Original document preview
+- Duplicate warning
+- Review Queue
+- Vendor Information
+- Invoice Details
+- Financial Details
+- Line Items table
+- Confidence indicators
+- Inline validation
+- Sticky bottom action bar
+- Save to Document Library
+- Export
+- Upload Another
+- Discard
+- Premium glassmorphism
+- Structra color palette
+- Floating AI Assistant
+- Production-grade SaaS styling
+
+This screen represents the core workflow of Structra.
+
+---
+
+# 5. Logo
 
 Location
 
@@ -153,19 +263,16 @@ Use this logo throughout the application.
 
 Examples
 
-Landing Page
-
-Authentication
-
-Dashboard
-
-Navbar
-
-Sidebar
-
-Splash Screen
-
-Loading Screen
+- Landing Page
+- Authentication
+- Main Application
+- Sidebar
+- AI Assistant Button
+- Loading Screens
+- Dashboard
+- Document Library
+- Settings
+- Profile
 
 Rules
 
@@ -213,23 +320,71 @@ design-assets/authentication/
 
 4.
 
-Landing → Login Transition
+Forgot Password
 
-(No assets required)
+References
+
+design-assets/authentication/
 
 ↓
 
 5.
 
-Live Background Effects
+Main Application Layout
 
-(No additional assets required)
+Reference
+
+design-assets/MainPage_UploadSection/upload-default-reference.png
 
 ↓
 
 6.
 
+Upload Processing Experience
+
+Reference
+
+design-assets/MainPage_UploadSection/loading-reference.png
+
+↓
+
+7.
+
+Upload Review Workspace
+
+Reference
+
+design-assets/MainPage_UploadSection/result-reference.png
+
+↓
+
+8.
+
+Document Library
+
+(Assets will be added later)
+
+↓
+
+9.
+
 Dashboard
+
+(Assets will be added later)
+
+↓
+
+10.
+
+Settings
+
+(Assets will be added later)
+
+↓
+
+11.
+
+Profile
 
 (Assets will be added later)
 
@@ -241,17 +396,19 @@ Always use the provided design assets.
 
 Never generate replacement assets.
 
-Never redesign components.
+Never redesign approved layouts.
 
-Treat every reference image as the approved final UI.
+Treat every reference image as the final approved UI.
 
 If multiple assets exist for a page:
 
-1. Use the background image as the base.
+1. Use the provided background image (if available).
 
-2. Use the reference image for layout, spacing, sizing, typography, and component positioning.
+2. Use the reference image for layout, spacing, typography, hierarchy, and positioning.
 
-3. Use the logo from the logo folder.
+3. Use the official Structra logo from the logo folder.
+
+4. Preserve the premium Structra design language across every screen.
 
 ---
 
@@ -263,14 +420,16 @@ design-assets/
 
 dashboard/
 
-upload/
+document-library/
 
-chat/
+settings/
 
-documents/
+profile/
+
+notifications/
 
 analytics/
 
-settings/
+chat/
 
 Whenever new assets are added, update this document before implementation begins.
