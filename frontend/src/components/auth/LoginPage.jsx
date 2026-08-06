@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import NavBar from '../landing/NavBar';
@@ -28,14 +28,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
 
   const handleLogin = (e) => {
     e.preventDefault();
-    // Authentication logic will be implemented later
+    // Navigate to the upload section of the main app
+    navigate('/app/upload');
   };
 
   const handleGoogleLogin = () => {
     // Google OAuth logic will be implemented later
+    navigate('/app/upload');
   };
 
   const eyeToggle = (
