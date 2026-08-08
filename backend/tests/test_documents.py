@@ -1,9 +1,12 @@
 """Document upload endpoint tests."""
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import ANY
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
 from app.api.routes import documents as document_routes
@@ -11,6 +14,9 @@ from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.main import app
 from app.schemas.auth import CurrentUser
+from app.services.document_metadata import CreatedDocumentMetadata
+
+TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 @pytest.fixture
@@ -28,13 +34,37 @@ def stored_paths(monkeypatch) -> list[str]:
 
 
 @pytest.fixture
-def authenticated_client(stored_paths: list[str]) -> TestClient:
+def metadata_records(monkeypatch) -> list[dict[str, object]]:
+    """Replace Supabase PostgreSQL with an in-memory metadata boundary."""
+    records: list[dict[str, object]] = []
+
+    async def store_metadata(**kwargs) -> CreatedDocumentMetadata:
+        records.append(kwargs)
+        return CreatedDocumentMetadata(
+            id=uuid4(),
+            user_id=kwargs["user_id"],
+            filename=kwargs["filename"],
+            storage_path=kwargs["storage_path"],
+            content_type=kwargs["content_type"],
+            size=kwargs["size"],
+            status="uploaded",
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+    monkeypatch.setattr(document_routes, "create_document_metadata", store_metadata)
+    return records
+
+
+@pytest.fixture
+def authenticated_client(
+    stored_paths: list[str], metadata_records: list[dict[str, object]]
+) -> TestClient:
     """Provide an authenticated client with an isolated upload size limit."""
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
         document_max_upload_size_bytes=10
     )
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
-        user_id="test-user-id"
+        user_id=TEST_USER_ID
     )
     with TestClient(app) as test_client:
         yield test_client
@@ -53,6 +83,7 @@ def authenticated_client(stored_paths: list[str]) -> TestClient:
 def test_upload_accepts_allowed_document_types(
     authenticated_client: TestClient,
     stored_paths: list[str],
+    metadata_records: list[dict[str, object]],
     filename: str,
     content_type: str,
 ) -> None:
@@ -64,15 +95,26 @@ def test_upload_accepts_allowed_document_types(
 
     assert response.status_code == 200
     response_body = response.json()
-    assert response_body == {
-        "success": True,
-        "filename": filename,
-        "content_type": content_type,
-        "size": 5,
-        "storage_path": stored_paths[0],
-        "message": "Document uploaded successfully.",
-    }
-    assert response_body["storage_path"].startswith("test-user-id/")
+    assert response_body["success"] is True
+    assert response_body["filename"] == filename
+    assert response_body["content_type"] == content_type
+    assert response_body["size"] == 5
+    assert response_body["storage_path"] == stored_paths[0]
+    assert response_body["status"] == "uploaded"
+    assert response_body["message"] == "Document uploaded successfully."
+    assert response_body["document_id"]
+    assert response_body["created_at"] == "2026-01-01T00:00:00Z"
+    assert response_body["storage_path"].startswith(f"{TEST_USER_ID}/")
+    assert metadata_records == [
+        {
+            "user_id": TEST_USER_ID,
+            "filename": filename,
+            "storage_path": stored_paths[0],
+            "content_type": content_type,
+            "size": 5,
+            "settings": ANY,
+        }
+    ]
 
 
 def test_upload_rejects_missing_file(authenticated_client: TestClient) -> None:
@@ -134,7 +176,52 @@ def test_upload_uses_unique_paths_for_duplicate_filenames(
     assert second_response.status_code == 200
     assert len(stored_paths) == 2
     assert stored_paths[0] != stored_paths[1]
-    assert all(path.startswith("test-user-id/") for path in stored_paths)
+    assert all(path.startswith(f"{TEST_USER_ID}/") for path in stored_paths)
+
+
+def test_storage_failure_does_not_create_metadata_record(
+    authenticated_client: TestClient, metadata_records: list[dict[str, object]], monkeypatch
+) -> None:
+    """Metadata insertion is never attempted when Storage rejects an upload."""
+
+    async def storage_failure(*args, **kwargs):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document storage is unavailable.",
+        )
+
+    monkeypatch.setattr(document_routes, "upload_document_to_storage", storage_failure)
+
+    response = authenticated_client.post(
+        "/documents/upload",
+        files={"file": ("receipt.pdf", b"valid", "application/pdf")},
+    )
+
+    assert response.status_code == 503
+    assert metadata_records == []
+
+
+def test_metadata_failure_after_storage_returns_safe_503(
+    authenticated_client: TestClient, stored_paths: list[str], monkeypatch
+) -> None:
+    """A failed metadata insert never produces a successful upload response."""
+
+    async def metadata_failure(**kwargs):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to save document metadata.",
+        )
+
+    monkeypatch.setattr(document_routes, "create_document_metadata", metadata_failure)
+
+    response = authenticated_client.post(
+        "/documents/upload",
+        files={"file": ("receipt.pdf", b"valid", "application/pdf")},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Unable to save document metadata."
+    assert len(stored_paths) == 1
 
 
 @pytest.mark.parametrize(

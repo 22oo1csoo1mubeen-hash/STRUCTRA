@@ -38,7 +38,8 @@ Swagger documentation is available at `http://127.0.0.1:8000/docs`.
 `POST /documents/upload` accepts a single `multipart/form-data` field named
 `file`. It validates PDF, JPG/JPEG, and PNG files up to
 `DOCUMENT_MAX_UPLOAD_SIZE_BYTES` (10 MiB by default), then stores the original
-file in the private `SUPABASE_STORAGE_BUCKET` (`documents` by default).
+file in the private `SUPABASE_STORAGE_BUCKET` (`documents` by default) and
+creates a corresponding `public.documents` metadata record.
 
 ## Test
 

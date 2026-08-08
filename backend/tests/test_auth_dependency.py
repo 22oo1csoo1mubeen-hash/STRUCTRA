@@ -1,6 +1,9 @@
 """Authentication dependency tests."""
 
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, status
@@ -44,6 +47,15 @@ def test_upload_accepts_verified_token(monkeypatch) -> None:
         document_routes,
         "upload_document_to_storage",
         AsyncMock(return_value="user-123/test-document.pdf"),
+    )
+    monkeypatch.setattr(
+        document_routes,
+        "create_document_metadata",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=uuid4(), status="uploaded", created_at=datetime(2026, 1, 1, tzinfo=UTC)
+            )
+        ),
     )
     app.dependency_overrides[get_settings] = lambda: type(
         "Settings", (), {"document_max_upload_size_bytes": 10}
