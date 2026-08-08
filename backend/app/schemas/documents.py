@@ -18,3 +18,15 @@ class DocumentUploadResponse(BaseModel):
     status: str = Field(description="Initial document lifecycle status.")
     created_at: datetime = Field(description="Time the metadata record was created.")
     message: str = "Document uploaded successfully."
+
+
+class DocumentMetadataResponse(BaseModel):
+    """Public metadata returned for a document owned by the current user."""
+
+    document_id: UUID
+    filename: str
+    storage_path: str
+    content_type: str
+    size: int = Field(ge=1)
+    status: str
+    created_at: datetime

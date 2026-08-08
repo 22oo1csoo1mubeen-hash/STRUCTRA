@@ -72,3 +72,67 @@ async def create_document_metadata(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Document metadata service returned an invalid response.",
         ) from None
+
+
+async def list_document_metadata(
+    *, user_id: str, settings: Settings
+) -> list[CreatedDocumentMetadata]:
+    """Return metadata records owned by one authenticated user."""
+    return await _get_document_metadata(
+        params={
+            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at",
+            "user_id": f"eq.{user_id}",
+            "order": "created_at.desc",
+        },
+        settings=settings,
+    )
+
+
+async def get_document_metadata(
+    *, document_id: UUID, user_id: str, settings: Settings
+) -> CreatedDocumentMetadata | None:
+    """Return one metadata record only when it belongs to the current user."""
+    records = await _get_document_metadata(
+        params={
+            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at",
+            "id": f"eq.{document_id}",
+            "user_id": f"eq.{user_id}",
+        },
+        settings=settings,
+    )
+    return records[0] if records else None
+
+
+async def _get_document_metadata(
+    *, params: dict[str, str], settings: Settings
+) -> list[CreatedDocumentMetadata]:
+    """Fetch document rows through the backend-only Supabase REST client."""
+    secret_key = settings.supabase_secret_key.get_secret_value()
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+    }
+    documents_url = f"{settings.supabase_url.rstrip('/')}/rest/v1/documents"
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(documents_url, headers=headers, params=params)
+    except httpx.RequestError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document metadata service is unavailable.",
+        ) from error
+
+    if not response.is_success:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to retrieve document metadata.",
+        )
+
+    try:
+        return [CreatedDocumentMetadata.model_validate(record) for record in response.json()]
+    except (TypeError, ValidationError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document metadata service returned an invalid response.",
+        ) from None

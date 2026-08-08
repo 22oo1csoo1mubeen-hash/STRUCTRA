@@ -1,18 +1,57 @@
 """Document upload API endpoints."""
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.api.dependencies import get_current_user
 from app.core.config import Settings, get_settings
 from app.schemas.auth import CurrentUser
-from app.schemas.documents import DocumentUploadResponse
-from app.services.document_metadata import create_document_metadata
+from app.schemas.documents import DocumentMetadataResponse, DocumentUploadResponse
+from app.services.document_metadata import (
+    create_document_metadata,
+    get_document_metadata,
+    list_document_metadata,
+)
 from app.services.documents import validate_document_upload
 from app.services.storage import upload_document_to_storage
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+@router.get(
+    "",
+    response_model=list[DocumentMetadataResponse],
+    summary="List the current user's document metadata",
+)
+async def list_documents(
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> list[DocumentMetadataResponse]:
+    """Return only metadata records belonging to the authenticated user."""
+    records = await list_document_metadata(user_id=current_user.user_id, settings=settings)
+    return [_metadata_response(record) for record in records]
+
+
+@router.get(
+    "/{document_id}",
+    response_model=DocumentMetadataResponse,
+    summary="Get one document's metadata",
+    responses={404: {"description": "Document not found."}},
+)
+async def get_document(
+    document_id: UUID,
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> DocumentMetadataResponse:
+    """Return a document only if it belongs to the authenticated user."""
+    record = await get_document_metadata(
+        document_id=document_id, user_id=current_user.user_id, settings=settings
+    )
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+    return _metadata_response(record)
 
 
 @router.post(
@@ -64,6 +103,19 @@ async def upload_document(
         size=size,
         storage_path=storage_path,
         document_id=metadata.id,
+        status=metadata.status,
+        created_at=metadata.created_at,
+    )
+
+
+def _metadata_response(metadata) -> DocumentMetadataResponse:
+    """Map internal database metadata to the public API contract."""
+    return DocumentMetadataResponse(
+        document_id=metadata.id,
+        filename=metadata.filename,
+        storage_path=metadata.storage_path,
+        content_type=metadata.content_type,
+        size=metadata.size,
         status=metadata.status,
         created_at=metadata.created_at,
     )

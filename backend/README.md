@@ -41,6 +41,9 @@ Swagger documentation is available at `http://127.0.0.1:8000/docs`.
 file in the private `SUPABASE_STORAGE_BUCKET` (`documents` by default) and
 creates a corresponding `public.documents` metadata record.
 
+Authenticated users can retrieve their own metadata with `GET /documents` or
+`GET /documents/{document_id}`. These endpoints never return another user's records.
+
 ## Test
 
 ```powershell
