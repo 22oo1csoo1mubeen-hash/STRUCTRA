@@ -43,6 +43,8 @@ creates a corresponding `public.documents` metadata record.
 
 Authenticated users can retrieve their own metadata with `GET /documents` or
 `GET /documents/{document_id}`. These endpoints never return another user's records.
+`GET /documents/{document_id}/download` returns the owned original file from the
+private Storage bucket as a download.
 
 ## Test
 

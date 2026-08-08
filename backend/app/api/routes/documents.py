@@ -1,9 +1,10 @@
 """Document upload API endpoints."""
 
 from typing import Annotated
+from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 
 from app.api.dependencies import get_current_user
 from app.core.config import Settings, get_settings
@@ -15,7 +16,7 @@ from app.services.document_metadata import (
     list_document_metadata,
 )
 from app.services.documents import validate_document_upload
-from app.services.storage import upload_document_to_storage
+from app.services.storage import download_document_from_storage, upload_document_to_storage
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -52,6 +53,35 @@ async def get_document(
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
     return _metadata_response(record)
+
+
+@router.get(
+    "/{document_id}/download",
+    summary="Download one owned document",
+    responses={
+        404: {"description": "Document or storage object not found."},
+        503: {"description": "Document storage is unavailable."},
+    },
+)
+async def download_document(
+    document_id: UUID,
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> Response:
+    """Return the original private Storage object only to its authenticated owner."""
+    metadata = await get_document_metadata(
+        document_id=document_id, user_id=current_user.user_id, settings=settings
+    )
+    if metadata is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    content = await download_document_from_storage(metadata.storage_path, settings)
+    download_name = quote(metadata.filename, safe="")
+    return Response(
+        content=content,
+        media_type=metadata.content_type,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{download_name}"},
+    )
 
 
 @router.post(
