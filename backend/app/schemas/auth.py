@@ -15,3 +15,9 @@ class SignupResponse(BaseModel):
     """Public response for a successful signup request."""
 
     message: str
+
+
+class CurrentUser(BaseModel):
+    """Authenticated Supabase user identity available to protected endpoints."""
+
+    user_id: str = Field(min_length=1)

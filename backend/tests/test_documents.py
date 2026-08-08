@@ -5,15 +5,20 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.main import app
+from app.schemas.auth import CurrentUser
 
 
 @pytest.fixture
-def client() -> TestClient:
-    """Provide a client with an isolated upload size limit."""
+def authenticated_client() -> TestClient:
+    """Provide an authenticated client with an isolated upload size limit."""
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
         document_max_upload_size_bytes=10
+    )
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+        user_id="test-user-id"
     )
     with TestClient(app) as test_client:
         yield test_client
@@ -30,10 +35,10 @@ def client() -> TestClient:
     ],
 )
 def test_upload_accepts_allowed_document_types(
-    client: TestClient, filename: str, content_type: str
+    authenticated_client: TestClient, filename: str, content_type: str
 ) -> None:
     """Allowed document types return the validation confirmation."""
-    response = client.post(
+    response = authenticated_client.post(
         "/documents/upload",
         files={"file": (filename, b"valid", content_type)},
     )
@@ -48,17 +53,17 @@ def test_upload_accepts_allowed_document_types(
     }
 
 
-def test_upload_rejects_missing_file(client: TestClient) -> None:
+def test_upload_rejects_missing_file(authenticated_client: TestClient) -> None:
     """A multipart request without a file is invalid."""
-    response = client.post("/documents/upload", files={})
+    response = authenticated_client.post("/documents/upload", files={})
 
     assert response.status_code == 400
     assert response.json()["detail"] == "A document file is required."
 
 
-def test_upload_rejects_unsupported_file_type(client: TestClient) -> None:
+def test_upload_rejects_unsupported_file_type(authenticated_client: TestClient) -> None:
     """A non-document MIME type is rejected."""
-    response = client.post(
+    response = authenticated_client.post(
         "/documents/upload",
         files={"file": ("notes.txt", b"valid", "text/plain")},
     )
@@ -66,9 +71,9 @@ def test_upload_rejects_unsupported_file_type(client: TestClient) -> None:
     assert response.status_code == 415
 
 
-def test_upload_rejects_empty_file(client: TestClient) -> None:
+def test_upload_rejects_empty_file(authenticated_client: TestClient) -> None:
     """An empty allowed document is rejected."""
-    response = client.post(
+    response = authenticated_client.post(
         "/documents/upload",
         files={"file": ("receipt.pdf", b"", "application/pdf")},
     )
@@ -77,9 +82,9 @@ def test_upload_rejects_empty_file(client: TestClient) -> None:
     assert response.json()["detail"] == "Uploaded file is empty."
 
 
-def test_upload_rejects_oversized_file(client: TestClient) -> None:
+def test_upload_rejects_oversized_file(authenticated_client: TestClient) -> None:
     """A file above the configured maximum is rejected."""
-    response = client.post(
+    response = authenticated_client.post(
         "/documents/upload",
         files={"file": ("receipt.pdf", b"01234567890", "application/pdf")},
     )
@@ -87,8 +92,29 @@ def test_upload_rejects_oversized_file(client: TestClient) -> None:
     assert response.status_code == 413
 
 
-def test_upload_rejects_malformed_request(client: TestClient) -> None:
+def test_upload_rejects_malformed_request(authenticated_client: TestClient) -> None:
     """A non-multipart request is rejected as an invalid request."""
-    response = client.post("/documents/upload", content=b"not multipart")
+    response = authenticated_client.post("/documents/upload", content=b"not multipart")
 
     assert response.status_code == 400
+
+
+@pytest.mark.parametrize(
+    "authorization",
+    [None, "abc", "Basic credentials", "Bearer"],
+)
+def test_upload_rejects_missing_or_malformed_authorization(
+    authorization: str | None,
+) -> None:
+    """Missing and malformed authorization headers are rejected."""
+    client = TestClient(app)
+    headers = {"Authorization": authorization} if authorization else {}
+
+    response = client.post(
+        "/documents/upload",
+        files={"file": ("receipt.pdf", b"valid", "application/pdf")},
+        headers=headers,
+    )
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
