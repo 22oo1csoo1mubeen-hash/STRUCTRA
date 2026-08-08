@@ -46,6 +46,10 @@ Authenticated users can retrieve their own metadata with `GET /documents` or
 `GET /documents/{document_id}/download` returns the owned original file from the
 private Storage bucket as a download.
 
+`DELETE /documents/{document_id}` deletes an owned document's private Storage
+object, then its metadata record. Documents that do not belong to the caller
+are reported as not found.
+
 ## Test
 
 ```powershell

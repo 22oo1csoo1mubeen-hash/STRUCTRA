@@ -9,14 +9,23 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from app.api.dependencies import get_current_user
 from app.core.config import Settings, get_settings
 from app.schemas.auth import CurrentUser
-from app.schemas.documents import DocumentMetadataResponse, DocumentUploadResponse
+from app.schemas.documents import (
+    DocumentDeleteResponse,
+    DocumentMetadataResponse,
+    DocumentUploadResponse,
+)
 from app.services.document_metadata import (
     create_document_metadata,
+    delete_document_metadata,
     get_document_metadata,
     list_document_metadata,
 )
 from app.services.documents import validate_document_upload
-from app.services.storage import download_document_from_storage, upload_document_to_storage
+from app.services.storage import (
+    delete_document_from_storage,
+    download_document_from_storage,
+    upload_document_to_storage,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -82,6 +91,35 @@ async def download_document(
         media_type=metadata.content_type,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{download_name}"},
     )
+
+
+@router.delete(
+    "/{document_id}",
+    response_model=DocumentDeleteResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Delete one owned document",
+    responses={
+        404: {"description": "Document not found."},
+        503: {"description": "Storage or metadata service is unavailable."},
+    },
+)
+async def delete_document(
+    document_id: UUID,
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> DocumentDeleteResponse:
+    """Delete a document from Storage and PostgreSQL only when owned by the caller."""
+    metadata = await get_document_metadata(
+        document_id=document_id, user_id=current_user.user_id, settings=settings
+    )
+    if metadata is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    await delete_document_from_storage(metadata.storage_path, settings)
+    await delete_document_metadata(
+        document_id=document_id, user_id=current_user.user_id, settings=settings
+    )
+    return DocumentDeleteResponse()
 
 
 @router.post(

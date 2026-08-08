@@ -103,6 +103,48 @@ async def get_document_metadata(
     return records[0] if records else None
 
 
+async def delete_document_metadata(
+    *, document_id: UUID, user_id: str, settings: Settings
+) -> None:
+    """Delete one metadata row owned by the authenticated user."""
+    secret_key = settings.supabase_secret_key.get_secret_value()
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+        "Prefer": "return=representation",
+    }
+    documents_url = f"{settings.supabase_url.rstrip('/')}/rest/v1/documents"
+    params = {
+        "id": f"eq.{document_id}",
+        "user_id": f"eq.{user_id}",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.delete(documents_url, headers=headers, params=params)
+    except httpx.RequestError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document metadata service is unavailable.",
+        ) from error
+
+    if not response.is_success:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to delete document metadata.",
+        )
+
+    try:
+        deleted_records = response.json()
+    except ValueError:
+        deleted_records = None
+    if not isinstance(deleted_records, list) or len(deleted_records) != 1:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to delete document metadata.",
+        )
+
+
 async def _get_document_metadata(
     *, params: dict[str, str], settings: Settings
 ) -> list[CreatedDocumentMetadata]:

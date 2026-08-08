@@ -30,3 +30,10 @@ class DocumentMetadataResponse(BaseModel):
     size: int = Field(ge=1)
     status: str
     created_at: datetime
+
+
+class DocumentDeleteResponse(BaseModel):
+    """Confirmation returned after a document is fully deleted."""
+
+    success: bool = True
+    message: str = "Document deleted successfully."
