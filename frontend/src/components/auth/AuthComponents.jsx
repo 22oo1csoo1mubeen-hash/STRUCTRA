@@ -180,17 +180,18 @@ export function AuthInput({ id, type = 'text', placeholder, icon: Icon, value, o
 }
 
 /* ─── Google Button ───────────────────────────────────── */
-export function GoogleButton({ id, onClick, text = "Continue with Google" }) {
+export function GoogleButton({ id, onClick, text = "Continue with Google", loading = false, disabled = false }) {
   return (
     <motion.button
       type="button"
       id={id}
-      onClick={onClick}
-      whileHover={{
-        scale: 1.02,
-        boxShadow: '0 0 22px rgba(255,255,255,0.10)',
-      }}
-      whileTap={{ scale: 0.97 }}
+      onClick={disabled ? undefined : onClick}
+      whileHover={
+        !disabled
+          ? { scale: 1.02, boxShadow: '0 0 22px rgba(255,255,255,0.10)' }
+          : {}
+      }
+      whileTap={!disabled ? { scale: 0.97 } : {}}
       transition={{ duration: 0.2, ease: 'easeOut' }}
       style={{
         width: '100%',
@@ -202,19 +203,41 @@ export function GoogleButton({ id, onClick, text = "Continue with Google" }) {
         borderRadius: 10,
         background: 'rgba(255,255,255,0.05)',
         border: '1px solid rgba(255,255,255,0.18)',
-        color: 'rgba(255,255,255,0.88)',
+        color: disabled ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.88)',
         fontSize: 13,
         fontFamily: "'Inter', system-ui, sans-serif",
         fontWeight: 500,
         letterSpacing: '0.01em',
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
-        transition: 'border-color 0.2s ease, background 0.2s ease',
+        transition: 'border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease',
+        opacity: disabled ? 0.65 : 1,
       }}
     >
-      <GoogleIcon />
-      {text}
+      {loading ? (
+        <>
+          <motion.span
+            animate={{ rotate: 360 }}
+            transition={{ duration: 0.75, repeat: Infinity, ease: 'linear' }}
+            style={{
+              display: 'inline-block',
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              border: '2px solid rgba(255,255,255,0.15)',
+              borderTopColor: 'rgba(255,255,255,0.70)',
+              flexShrink: 0,
+            }}
+          />
+          Connecting to Google…
+        </>
+      ) : (
+        <>
+          <GoogleIcon />
+          {text}
+        </>
+      )}
     </motion.button>
   );
 }
@@ -259,18 +282,23 @@ export function AuthDivider() {
 }
 
 /* ─── Primary Submit Button ───────────────────────────── */
-export function AuthSubmitButton({ id, children }) {
+export function AuthSubmitButton({ id, children, loading = false, disabled = false }) {
   return (
     <motion.button
       type="submit"
       id={id}
-      whileHover={{
-        scale: 1.02,
-        boxShadow:
-          '0 0 20px rgba(255, 165, 50, 0.20), inset 0 0 16px rgba(255, 160, 40, 0.20)',
-        filter: 'brightness(1.05)',
-      }}
-      whileTap={{ scale: 0.97 }}
+      disabled={disabled}
+      whileHover={
+        !disabled
+          ? {
+              scale: 1.02,
+              boxShadow:
+                '0 0 20px rgba(255, 165, 50, 0.20), inset 0 0 16px rgba(255, 160, 40, 0.20)',
+              filter: 'brightness(1.05)',
+            }
+          : {}
+      }
+      whileTap={!disabled ? { scale: 0.97 } : {}}
       transition={{ duration: 0.2, ease: 'easeOut' }}
       style={{
         width: '100%',
@@ -280,49 +308,72 @@ export function AuthSubmitButton({ id, children }) {
         gap: 12,
         padding: '11px 20px',
         borderRadius: 10,
-        background: 'rgba(20, 12, 6, 0.65)',
+        background: disabled ? 'rgba(20, 12, 6, 0.45)' : 'rgba(20, 12, 6, 0.65)',
         border: '1px solid rgba(255, 185, 80, 0.55)',
         boxShadow:
           '0 0 12px rgba(255, 165, 50, 0.10), inset 0 0 12px rgba(255, 160, 40, 0.15)',
-        color: '#ffffff',
+        color: disabled ? 'rgba(255,255,255,0.55)' : '#ffffff',
         fontSize: 14,
         fontFamily: "'Inter', system-ui, sans-serif",
         fontWeight: 600,
         letterSpacing: '0.02em',
         textTransform: 'none',
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         transition: 'all 0.2s ease',
+        opacity: disabled ? 0.7 : 1,
       }}
     >
-      {children}
-      <span
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 18 18"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M3 9H15M15 9L10 4M15 9L10 14"
-            stroke="rgba(255,255,255,0.88)"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+      {loading ? (
+        <>
+          <span
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              border: '2px solid rgba(255,185,80,0.25)',
+              borderTopColor: 'rgba(255,185,80,0.85)',
+              animation: 'btnSpin 0.7s linear infinite',
+              display: 'inline-block',
+              flexShrink: 0,
+            }}
           />
-        </svg>
-      </span>
+          <style>{`@keyframes btnSpin { to { transform: rotate(360deg); } }`}</style>
+          {children}
+        </>
+      ) : (
+        <>
+          {children}
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 18 18"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M3 9H15M15 9L10 4M15 9L10 14"
+                stroke="rgba(255,255,255,0.88)"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </>
+      )}
     </motion.button>
   );
 }
+
 
 /* ─── Secondary Button ────────────────────────────────── */
 export function AuthSecondaryButton({ id, onClick, children }) {

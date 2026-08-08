@@ -59,6 +59,23 @@ input::placeholder {
   font-family: var(--font-ui);
 }
 
+/* ─── Browser autofill override ──────────────────────── */
+/* Prevent the browser from painting a white/yellow background
+   when the user selects an email suggestion from the dropdown.
+   We fake the dark glass background using an inset box-shadow
+   (the only property that beats the UA autofill paint). */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px rgba(10, 8, 6, 0.90) inset !important;
+  box-shadow:         0 0 0 1000px rgba(10, 8, 6, 0.90) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+  /* Delay the background transition indefinitely so the override sticks */
+  transition: background-color 86400s ease-in-out 0s;
+}
+
 /* ─── Glass utility ──────────────────────────────────── */
 .glass {
   background: var(--glass-bg);

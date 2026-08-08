@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logo from '../../assets/structra-logo.png';
+import { useAuth } from '../../hooks/useAuth';
 
 /* ─────────────────────────────────────────────────────────
    SVG Icons — hand-crafted to match the reference exactly.
@@ -177,6 +178,13 @@ function Divider() {
 /* ─── Sidebar ────────────────────────────────────────── */
 export default function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   return (
     <aside
@@ -260,6 +268,70 @@ export default function Sidebar() {
       </nav>
 
       <div style={{ flex: 1 }} />
+
+      {/* ── Logout button ─────────────────────────────── */}
+      <Divider />
+      <motion.button
+        id="sidebar-logout-btn"
+        type="button"
+        onClick={handleLogout}
+        whileHover={{ backgroundColor: 'rgba(220, 60, 60, 0.10)', x: 1 }}
+        transition={{ duration: 0.15, ease: 'easeOut' }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 11,
+          padding: '9px 12px',
+          borderRadius: 10,
+          cursor: 'pointer',
+          background: 'transparent',
+          border: '1px solid transparent',
+          width: '100%',
+          textAlign: 'left',
+        }}
+      >
+        {/* Logout icon */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 34,
+            height: 34,
+            borderRadius: 8,
+            background: 'rgba(255,255,255,0.07)',
+            flexShrink: 0,
+          }}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="rgba(255,100,100,0.75)"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </div>
+        <span
+          style={{
+            fontSize: 13.5,
+            fontWeight: 400,
+            color: 'rgba(255,120,120,0.80)',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            letterSpacing: '0.005em',
+            userSelect: 'none',
+          }}
+        >
+          Logout
+        </span>
+      </motion.button>
     </aside>
   );
 }
+

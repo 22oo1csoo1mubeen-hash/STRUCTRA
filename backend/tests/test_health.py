@@ -1,0 +1,18 @@
+"""Health endpoint tests."""
+
+from fastapi.testclient import TestClient
+
+from app.main import app
+
+
+def test_health_check() -> None:
+    """The health endpoint reports the expected service status."""
+    client = TestClient(app)
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "healthy",
+        "service": "Structra Backend",
+    }

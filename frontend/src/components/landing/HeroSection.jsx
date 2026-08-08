@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 
 /**
  * Stagger variants for the hero children
@@ -110,9 +111,17 @@ export default function HeroSection() {
 /* ─── CTA Button ────────────────────────────────────── */
 function CTAButton() {
   const navigate = useNavigate();
+  const { session } = useAuth();
+
+  const handleGetStarted = () => {
+    // If the user already has a valid authenticated session, skip the login
+    // page and take them directly into the application.
+    navigate(session ? '/app/upload' : '/login');
+  };
+
   return (
     <motion.button
-      onClick={() => navigate('/login')}
+      onClick={handleGetStarted}
       id="hero-cta-btn"
       aria-label="Get Started with Structra"
       whileHover="hover"

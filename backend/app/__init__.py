@@ -1,0 +1,1 @@
+"""Structra backend application package."""

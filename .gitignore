@@ -57,6 +57,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+*.db
 .venv/
 venv/
 env/
@@ -72,3 +73,15 @@ coverage/
 # ==========================
 *.swp
 *.swo
+
+# ==========================
+# Python Cache
+# ==========================
+.pytest_cache/
+.mypy_cache/
+.pyre/
+
+# ==========================
+# VS Code History
+# ==========================
+.history/

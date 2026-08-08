@@ -1,20 +1,21 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import NavBar from '../landing/NavBar';
 import loginBg from '../../assets/login-background.webp';
 import logo from '../../assets/structra-logo.png';
+import { useAuth } from '../../hooks/useAuth';
 import {
   AuthCheckbox,
   AuthInput,
-  GoogleButton,
   AuthDivider,
   AuthSubmitButton,
+  GoogleButton,
   AuthGlassCard,
 } from './AuthComponents';
 
-/* ─── Animation variants ──────────────────────────────── */
+/* --- Animation variants -------------------------------- */
 const pageVariants = {
   hidden: { y: 18 },
   visible: {
@@ -28,17 +29,75 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  // Tracks whether login failed because the email isn't confirmed yet
+  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMsg, setResendMsg] = useState('');
 
-  const handleLogin = (e) => {
+  const { login, loginWithGoogle, resendConfirmation, session, loading } = useAuth();
+  const navigate = useNavigate();
+  // Tracks whether the Google OAuth redirect is in progress
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState('');
+
+  // If auth is still initializing, render nothing to avoid a login-page flash
+  // for users who already have a valid session.
+  if (loading) return null;
+
+  // Already authenticated — send directly to the app.
+  if (session) return <Navigate to="/app/upload" replace />;
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    // Navigate to the upload section of the main app
+    setErrorMsg('');
+    setEmailNotConfirmed(false);
+    setResendMsg('');
+    setIsLoading(true);
+    const { error } = await login(email, password, rememberMe);
+    if (error) {
+      // Supabase returns this message when the email hasn't been confirmed yet.
+      if (
+        error.message?.toLowerCase().includes('email not confirmed') ||
+        error.message?.toLowerCase().includes('email_not_confirmed')
+      ) {
+        setEmailNotConfirmed(true);
+      } else {
+        setErrorMsg(error.message ?? 'Login failed. Please try again.');
+      }
+      setIsLoading(false);
+      return;
+    }
     navigate('/app/upload');
   };
 
-  const handleGoogleLogin = () => {
-    // Google OAuth logic will be implemented later
-    navigate('/app/upload');
+  /* ── Resend confirmation email ─────────────────────── */
+  const handleResend = async () => {
+    if (!email) return;
+    setResendMsg('');
+    setResendLoading(true);
+    const { error } = await resendConfirmation(email);
+    setResendLoading(false);
+    if (error) {
+      setResendMsg('Could not resend. Please try again shortly.');
+    } else {
+      setResendMsg('Confirmation email resent. Please check your inbox.');
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setGoogleError('');
+    setGoogleLoading(true);
+    const { error } = await loginWithGoogle(rememberMe);
+    if (error) {
+      // signInWithOAuth only returns an error if the redirect itself fails
+      // (e.g. network down, provider misconfigured). User cancellation is
+      // handled by the callback page via the hash error param.
+      setGoogleError('Could not connect to Google. Please try again.');
+      setGoogleLoading(false);
+    }
+    // On success the browser navigates away — no further action needed here.
   };
 
   const eyeToggle = (
@@ -79,7 +138,6 @@ export default function LoginPage() {
         justifyContent: 'center',
       }}
     >
-      {/* ── 1. Background image ───────────────────────── */}
       <motion.img
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.45 }}
@@ -100,24 +158,16 @@ export default function LoginPage() {
         }}
       />
 
-      {/* ── 2. NavBar ─────────────────────────────────── */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.65 }}>
         <NavBar />
       </motion.div>
 
-      {/* ── 3. Glass authentication card ──────────────── */}
       <AuthGlassCard>
-        {/* ── Logo + Brand ─────────────────────────────── */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <img
             src={logo}
             alt="Structra logo"
-            style={{
-              width: 42,
-              height: 'auto',
-              marginBottom: 8,
-              display: 'inline-block',
-            }}
+            style={{ width: 42, height: 'auto', marginBottom: 8, display: 'inline-block' }}
           />
           <h1
             style={{
@@ -150,7 +200,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* ── Welcome heading ──────────────────────────── */}
         <div style={{ marginBottom: 20 }}>
           <h2
             style={{
@@ -177,30 +226,122 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <form onSubmit={handleLogin} noValidate>
-          {/* ── Google button ─────────────────────────── */}
-          <div style={{ marginBottom: 16 }}>
-            <GoogleButton id="google-login-btn" onClick={handleGoogleLogin} />
+        {/* Generic error (wrong password, etc.) */}
+        {errorMsg && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 14,
+              padding: '9px 14px',
+              borderRadius: 8,
+              background: 'rgba(220, 60, 60, 0.12)',
+              border: '1px solid rgba(220, 60, 60, 0.35)',
+              color: 'rgba(255, 140, 140, 0.95)',
+              fontSize: 12.5,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              lineHeight: 1.4,
+            }}
+          >
+            {errorMsg}
           </div>
+        )}
 
-          {/* ── OR divider ────────────────────────────── */}
+        {/* Google OAuth error */}
+        {googleError && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 14,
+              padding: '9px 14px',
+              borderRadius: 8,
+              background: 'rgba(220, 60, 60, 0.12)',
+              border: '1px solid rgba(220, 60, 60, 0.35)',
+              color: 'rgba(255, 140, 140, 0.95)',
+              fontSize: 12.5,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              lineHeight: 1.4,
+            }}
+          >
+            {googleError}
+          </div>
+        )}
+
+        {/* Unverified email notice */}
+        {emailNotConfirmed && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 14,
+              padding: '11px 14px',
+              borderRadius: 8,
+              background: 'rgba(255,185,80,0.08)',
+              border: '1px solid rgba(255,185,80,0.30)',
+              fontSize: 12.5,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              lineHeight: 1.5,
+            }}
+          >
+            <p style={{ color: 'rgba(255,215,120,0.95)', margin: '0 0 8px', fontWeight: 500 }}>
+              Please confirm your email address before logging in.
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.45)', margin: '0 0 10px', fontSize: 12 }}>
+              Check your inbox for the confirmation link we sent when you registered.
+            </p>
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resendLoading}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: resendLoading ? 'default' : 'pointer',
+                color: resendLoading ? 'rgba(255,185,80,0.40)' : 'rgba(255,185,80,0.85)',
+                fontSize: 12.5,
+                fontFamily: "'Inter', system-ui, sans-serif",
+                fontWeight: 500,
+                textDecoration: 'underline',
+                textUnderlineOffset: 2,
+              }}
+            >
+              {resendLoading ? 'Sending…' : 'Resend confirmation email'}
+            </button>
+            {resendMsg && (
+              <p style={{
+                margin: '6px 0 0',
+                fontSize: 12,
+                color: resendMsg.startsWith('Could')
+                  ? 'rgba(255,140,140,0.85)'
+                  : 'rgba(130,220,160,0.85)',
+              }}>
+                {resendMsg}
+              </p>
+            )}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} noValidate>
+          <div style={{ marginBottom: 16 }}>
+            <GoogleButton
+              id="google-login-btn"
+              onClick={handleGoogleLogin}
+              loading={googleLoading}
+              disabled={googleLoading || isLoading}
+            />
+          </div>
           <div style={{ marginBottom: 16 }}>
             <AuthDivider />
           </div>
-
-          {/* ── Email input ───────────────────────────── */}
           <div style={{ marginBottom: 12 }}>
             <AuthInput
               id="login-email"
-              type="text"
-              placeholder="Username or Email"
+              type="email"
+              placeholder="Email"
               icon={User}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-
-          {/* ── Password input ────────────────────────── */}
           <div style={{ marginBottom: 16 }}>
             <AuthInput
               id="login-password"
@@ -212,8 +353,6 @@ export default function LoginPage() {
               rightElement={eyeToggle}
             />
           </div>
-
-          {/* ── Remember me + Forgot password ────────── */}
           <div
             style={{
               display: 'flex',
@@ -225,7 +364,6 @@ export default function LoginPage() {
             <AuthCheckbox id="remember-me-checkbox" checked={rememberMe} onChange={setRememberMe}>
               Remember me
             </AuthCheckbox>
-
             <Link
               to="/forgot-password"
               id="forgot-password-link"
@@ -244,14 +382,13 @@ export default function LoginPage() {
               Forgot Password?
             </Link>
           </div>
-
-          {/* ── Login button ──────────────────────────── */}
           <div style={{ marginBottom: 20 }}>
-            <AuthSubmitButton id="login-submit-btn">Login</AuthSubmitButton>
+            <AuthSubmitButton id="login-submit-btn" loading={isLoading} disabled={isLoading}>
+              {isLoading ? 'Signing in...' : 'Login'}
+            </AuthSubmitButton>
           </div>
         </form>
 
-        {/* ── Register link ─────────────────────────────── */}
         <p
           style={{
             textAlign: 'center',
