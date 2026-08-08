@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
 from app.api import dependencies
+from app.api.routes import documents as document_routes
 from app.core.config import get_settings
 from app.main import app
 from app.schemas.auth import CurrentUser
@@ -39,6 +40,11 @@ def test_upload_accepts_verified_token(monkeypatch) -> None:
     """A Supabase-verified token allows normal document validation to proceed."""
     verified_token = AsyncMock(return_value=CurrentUser(user_id="user-123"))
     monkeypatch.setattr(dependencies, "get_authenticated_user", verified_token)
+    monkeypatch.setattr(
+        document_routes,
+        "upload_document_to_storage",
+        AsyncMock(return_value="user-123/test-document.pdf"),
+    )
     app.dependency_overrides[get_settings] = lambda: type(
         "Settings", (), {"document_max_upload_size_bytes": 10}
     )()

@@ -1,10 +1,12 @@
 """Document upload endpoint tests."""
 
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.routes import documents as document_routes
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.main import app
@@ -12,7 +14,21 @@ from app.schemas.auth import CurrentUser
 
 
 @pytest.fixture
-def authenticated_client() -> TestClient:
+def stored_paths(monkeypatch) -> list[str]:
+    """Replace Supabase Storage with a deterministic in-memory test boundary."""
+    paths: list[str] = []
+
+    async def store_document(file, user_id: str, settings) -> str:
+        path = f"{user_id}/{uuid4()}{file.filename[file.filename.rfind('.'):]}"
+        paths.append(path)
+        return path
+
+    monkeypatch.setattr(document_routes, "upload_document_to_storage", store_document)
+    return paths
+
+
+@pytest.fixture
+def authenticated_client(stored_paths: list[str]) -> TestClient:
     """Provide an authenticated client with an isolated upload size limit."""
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
         document_max_upload_size_bytes=10
@@ -35,7 +51,10 @@ def authenticated_client() -> TestClient:
     ],
 )
 def test_upload_accepts_allowed_document_types(
-    authenticated_client: TestClient, filename: str, content_type: str
+    authenticated_client: TestClient,
+    stored_paths: list[str],
+    filename: str,
+    content_type: str,
 ) -> None:
     """Allowed document types return the validation confirmation."""
     response = authenticated_client.post(
@@ -44,13 +63,16 @@ def test_upload_accepts_allowed_document_types(
     )
 
     assert response.status_code == 200
-    assert response.json() == {
+    response_body = response.json()
+    assert response_body == {
         "success": True,
         "filename": filename,
         "content_type": content_type,
         "size": 5,
-        "message": "Document received successfully.",
+        "storage_path": stored_paths[0],
+        "message": "Document uploaded successfully.",
     }
+    assert response_body["storage_path"].startswith("test-user-id/")
 
 
 def test_upload_rejects_missing_file(authenticated_client: TestClient) -> None:
@@ -97,6 +119,22 @@ def test_upload_rejects_malformed_request(authenticated_client: TestClient) -> N
     response = authenticated_client.post("/documents/upload", content=b"not multipart")
 
     assert response.status_code == 400
+
+
+def test_upload_uses_unique_paths_for_duplicate_filenames(
+    authenticated_client: TestClient, stored_paths: list[str]
+) -> None:
+    """Repeated source filenames use distinct paths under the same user."""
+    files = {"file": ("receipt.pdf", b"valid", "application/pdf")}
+
+    first_response = authenticated_client.post("/documents/upload", files=files)
+    second_response = authenticated_client.post("/documents/upload", files=files)
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert len(stored_paths) == 2
+    assert stored_paths[0] != stored_paths[1]
+    assert all(path.startswith("test-user-id/") for path in stored_paths)
 
 
 @pytest.mark.parametrize(

@@ -15,6 +15,11 @@ class Settings(BaseSettings):
         gt=0,
         description="Maximum accepted document upload size in bytes.",
     )
+    supabase_storage_bucket: str = Field(
+        default="documents",
+        validation_alias="SUPABASE_STORAGE_BUCKET",
+        min_length=1,
+    )
     supabase_url: str = Field(validation_alias="SUPABASE_URL")
     supabase_publishable_key: SecretStr = Field(
         validation_alias="SUPABASE_PUBLISHABLE_KEY"
