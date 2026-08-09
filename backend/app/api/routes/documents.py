@@ -11,6 +11,7 @@ from app.core.config import Settings, get_settings
 from app.schemas.auth import CurrentUser
 from app.schemas.documents import (
     DocumentDeleteResponse,
+    DocumentExtractionResponse,
     DocumentMetadataResponse,
     DocumentUploadResponse,
 )
@@ -21,6 +22,13 @@ from app.services.document_metadata import (
     list_document_metadata,
 )
 from app.services.documents import validate_document_upload
+from app.services.gemini import (
+    GeminiAuthenticationError,
+    GeminiConfigurationError,
+    GeminiServiceUnavailableError,
+    GeminiUnexpectedResponseError,
+    extract_receipt_invoice_document,
+)
 from app.services.storage import (
     delete_document_from_storage,
     download_document_from_storage,
@@ -91,6 +99,48 @@ async def download_document(
         media_type=metadata.content_type,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{download_name}"},
     )
+
+
+@router.post(
+    "/{document_id}/extract",
+    response_model=DocumentExtractionResponse,
+    summary="Extract structured receipt or invoice data from one owned document",
+    responses={
+        404: {"description": "Document not found."},
+        503: {"description": "Document storage or extraction service is unavailable."},
+    },
+)
+async def extract_document(
+    document_id: UUID,
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> DocumentExtractionResponse:
+    """Extract JSON from an owned private Storage document without persisting it."""
+    metadata = await get_document_metadata(
+        document_id=document_id, user_id=current_user.user_id, settings=settings
+    )
+    if metadata is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    content = await download_document_from_storage(metadata.storage_path, settings)
+    try:
+        extraction = extract_receipt_invoice_document(
+            settings,
+            document_content=content,
+            mime_type=metadata.content_type,
+        )
+    except (
+        GeminiAuthenticationError,
+        GeminiConfigurationError,
+        GeminiServiceUnavailableError,
+        GeminiUnexpectedResponseError,
+    ) as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document extraction is unavailable.",
+        ) from error
+
+    return DocumentExtractionResponse(document_id=metadata.id, extraction=extraction)
 
 
 @router.delete(

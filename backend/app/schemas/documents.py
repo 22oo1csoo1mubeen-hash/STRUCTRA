@@ -3,6 +3,8 @@
 from datetime import datetime
 from uuid import UUID
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -37,3 +39,10 @@ class DocumentDeleteResponse(BaseModel):
 
     success: bool = True
     message: str = "Document deleted successfully."
+
+
+class DocumentExtractionResponse(BaseModel):
+    """Unvalidated structured extraction returned for one owned document."""
+
+    document_id: UUID
+    extraction: dict[str, Any]

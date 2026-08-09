@@ -1,9 +1,11 @@
 """Gemini client operations for backend-only AI services."""
 
 from dataclasses import dataclass
+import json
 from typing import Any
 
 from app.core.config import Settings
+from app.services.prompts import build_receipt_invoice_extraction_prompt
 
 GEMINI_FLASH_MODEL = "gemini-2.5-flash"
 _CONNECTIVITY_PROMPT = "Reply with exactly: STRUCTRA Gemini connectivity confirmed."
@@ -31,6 +33,61 @@ class GeminiConnectivityResult:
 
     model: str
     response_text: str
+
+
+def extract_receipt_invoice_document(
+    settings: Settings,
+    *,
+    document_content: bytes,
+    mime_type: str,
+    client: Any | None = None,
+) -> dict[str, object]:
+    """Extract JSON from one private receipt or invoice document.
+
+    The caller is responsible for retrieving an ownership-checked document from
+    Storage. This service never receives a Storage path or client-provided path.
+    """
+    if settings.gemini_api_key is None:
+        raise GeminiConfigurationError("Gemini API key is not configured.")
+
+    api_key = settings.gemini_api_key.get_secret_value().strip()
+    if not api_key:
+        raise GeminiConfigurationError("Gemini API key is not configured.")
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        if client is None:
+            client = genai.Client(api_key=api_key)
+        document_part = types.Part.from_bytes(data=document_content, mime_type=mime_type)
+        config = types.GenerateContentConfig(response_mime_type="application/json")
+    except Exception as error:
+        raise GeminiServiceUnavailableError("Gemini service is unavailable.") from error
+
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_FLASH_MODEL,
+            contents=[build_receipt_invoice_extraction_prompt(), document_part],
+            config=config,
+        )
+    except Exception as error:
+        if getattr(error, "code", None) in {401, 403}:
+            raise GeminiAuthenticationError("Gemini authentication failed.") from error
+        raise GeminiServiceUnavailableError("Gemini service is unavailable.") from error
+
+    response_text = getattr(response, "text", None)
+    if not isinstance(response_text, str) or not response_text.strip():
+        raise GeminiUnexpectedResponseError("Gemini returned an invalid response.")
+
+    try:
+        extraction = json.loads(response_text)
+    except json.JSONDecodeError as error:
+        raise GeminiUnexpectedResponseError("Gemini returned an invalid response.") from error
+    if not isinstance(extraction, dict):
+        raise GeminiUnexpectedResponseError("Gemini returned an invalid response.")
+
+    return extraction
 
 
 def verify_gemini_connectivity(
