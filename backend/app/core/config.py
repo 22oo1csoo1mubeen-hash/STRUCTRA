@@ -25,6 +25,10 @@ class Settings(BaseSettings):
         validation_alias="SUPABASE_PUBLISHABLE_KEY"
     )
     supabase_secret_key: SecretStr = Field(validation_alias="SUPABASE_SECRET_KEY")
+    gemini_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias="GEMINI_API_KEY",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
