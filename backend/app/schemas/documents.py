@@ -1,6 +1,8 @@
 """Request and response schemas for document endpoints."""
 
 from datetime import datetime
+from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictStr
@@ -59,6 +61,30 @@ class ReceiptInvoiceExtraction(BaseModel):
     date: StrictStr | None = None
     total: StrictFloat | None = None
     line_items: list[ReceiptInvoiceLineItem] = Field(default_factory=list)
+
+
+class MathematicalValidationResult(BaseModel):
+    """Independent arithmetic check for a validated receipt or invoice extraction."""
+
+    validation_performed: bool
+    total_matches: bool | None
+    calculated_total: Decimal | None
+    document_total: Decimal | None
+    difference: Decimal | None
+    reason: Literal[
+        "document_total_missing", "line_items_empty", "line_item_total_missing"
+    ] | None = None
+
+
+class ExtractionQualitySignals(BaseModel):
+    """Deterministic STRUCTRA signals; these are not Gemini confidence scores."""
+
+    schema_validation_succeeded: Literal[True] = True
+    present_document_fields: list[str]
+    missing_document_fields: list[str]
+    line_item_count: int = Field(ge=0)
+    line_items_missing_total: int = Field(ge=0)
+    mathematical_validation: MathematicalValidationResult
 
 
 class DocumentExtractionResponse(BaseModel):
