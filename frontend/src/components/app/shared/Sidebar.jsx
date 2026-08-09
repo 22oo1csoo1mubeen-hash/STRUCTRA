@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import logo from '../../assets/structra-logo.png';
-import { useAuth } from '../../hooks/useAuth';
+import logo from '../../../assets/structra-logo.png';
+import { useAuth } from '../../../hooks/useAuth';
 
 /* ─────────────────────────────────────────────────────────
    SVG Icons — hand-crafted to match the reference exactly.

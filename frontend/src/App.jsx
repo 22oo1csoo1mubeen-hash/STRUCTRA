@@ -7,8 +7,8 @@ import RegisterPage from './components/auth/RegisterPage';
 import ForgotPasswordPage from './components/auth/ForgotPasswordPage';
 import ResetPasswordPage from './components/auth/ResetPasswordPage';
 import AuthCallbackPage from './components/auth/AuthCallbackPage';
-import MainLayout from './components/app/MainLayout';
-import UploadPage from './components/app/UploadPage';
+import MainLayout from './components/app/shared/MainLayout';
+import UploadPage from './components/app/upload/UploadPage';
 
 /**
  * App

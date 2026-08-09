@@ -1,435 +1,516 @@
-# STRUCTRA — Assets Map
-
-> This document specifies where every design asset is located and when it should be used.
->
-> Before implementing any screen, always read:
->
-> 1. docs/features.md
-> 2. docs/design.md
-> 3. docs/assets-map.md
->
-> Then load the corresponding assets from the design-assets folder.
-
----
-
-# Folder Structure
-
-design-assets/
-
-├── landing/
-│
-├── authentication/
-│
-├── MainPage/
-│
-└── logo/
-
----
-
-# 1. Landing Page
-
-Location
-
-design-assets/landing/
-
-Contains
-
-• landing-background.webp
-• landing-reference.png
-
-Usage
-
-landing-background.webp
-
-Purpose
-
-- Full-screen landing page background
-- Must occupy the entire viewport
-- Do not crop unnecessarily
-- Do not replace
-- Do not redesign
-- Use as the base background image
-
-landing-reference.png
-
-Purpose
-
-- Official visual reference for the Landing Page
-- Replicate this design as accurately as possible
-- Match spacing
-- Match typography
-- Match glassmorphism
-- Match glow
-- Match placements
-- Match sizing
-- Match component hierarchy
-
----
-
-# 2. Login Page
-
-Location
-
-design-assets/authentication/
-
-Contains
-
-• login-background.webp
-• login-reference.png
-
-Usage
-
-login-background.webp
-
-Purpose
-
-- Full-screen Login background
-- Use exactly as provided
-- Cover entire viewport
-- Keep background centered
-- Apply only a subtle dark overlay if required
-
-login-reference.png
-
-Purpose
-
-- Official Login UI reference
-- Replicate the design as closely as possible
-- Do not redesign
-- Maintain identical layout
-- Maintain same spacing
-- Maintain same styling
-
----
-
-# 3. Registration Page
-
-Location
-
-design-assets/authentication/
-
-Contains
-
-• registration-reference.png
-
-Usage
-
-registration-reference.png
-
-Purpose
-
-- Official Registration UI reference
-- Follow the Login page design language
-- Replicate layout precisely
-- Match typography
-- Match spacing
-- Match glass card
-- Match buttons
-- Match inputs
-
-Note
-
-Registration currently uses the same background philosophy as Login.
-
-Until another background is provided, use:
-
-login-background.webp
-
-for both Login and Registration.
-
----
-
 # 4. Main Application — Upload Documents Workspace
 
 Location
 
-design-assets/MainPage/Upload Section
+design-assets/MainPage/Upload Section/
 
-Contains
+The Upload Documents workspace is implemented as a sequence of UI states.
 
-• upload-default-reference.png
-• loading-reference.png
-• result-reference.png
+The following reference images are the official approved references for each
+state/group of states.
+
+IMPORTANT:
+
+Do NOT redesign these approved states.
+
+Use the references to reproduce:
+
+- Layout
+- Glassmorphism
+- Background
+- Typography
+- Spacing
+- Borders
+- Glow effects
+- Cards
+- Buttons
+- Icons
+- Visual hierarchy
+- Animations where applicable
+
+All states belong to the same Upload Documents route.
+
+The page should transform between states rather than navigating to separate
+pages.
 
 ---
 
-## upload-default-reference.png
+## stage1-reference.png
 
 Purpose
 
-This is the official reference for the Upload Documents page immediately after a user logs in.
+Official reference for STAGE 1 — Empty / Ready to Upload.
 
-Replicate as accurately as possible.
+This is the default Upload Documents state immediately after entering the
+application.
 
-Includes
+Includes:
 
 - Main application layout
 - Left sidebar
 - Global search bar
-- Welcome section
-- Upload Documents selected by default
-- Drag & Drop upload card
+- User/profile area
+- Upload Documents selected
+- Large glass upload card
+- Drag & Drop area
 - Browse Files button
 - Supported formats
 - How It Works section
-- Recent Uploads empty state
+- Recently Processed section
 - Floating AI Assistant button
-- Background blur
-- Glassmorphism
-- Premium Structra theme
+- STRUCTRA background
+- Premium glassmorphism
 
-This establishes the shared layout for the entire application.
+This stage is already implemented.
+
+DO NOT redesign or replace this stage.
+
+Use it as the foundation for all subsequent Upload-page states.
 
 ---
 
-## loading-reference.png
+## stage2-reference.png
 
 Purpose
 
-Official reference for the document processing experience.
+Official reference for STAGE 2 — File Selected / Ready to Process.
 
-Replicate the loading workflow closely.
+Displayed after the user selects or drops a document.
 
-Includes
+The main upload glass card expands/transforms while the existing application
+shell remains unchanged.
 
+Includes:
+
+- Selected document preview/icon
+- Filename
+- File type
+- File size
+- File-ready indication
+- Process Document action
+- Remove/change file action
+- Expanded glass upload workspace
+- STRUCTRA visual language
+
+The How It Works and Recently Processed sections are no longer shown in this
+state.
+
+Do not start AI processing automatically at this stage.
+
+---
+
+## stage345-reference.png
+
+Purpose
+
+Official reference for STAGES 3, 4 and 5.
+
+This reference represents the animated document-processing workflow.
+
+The same expanded glass card is maintained throughout the processing flow.
+
+STAGE 3 — Uploading
+
+Show:
+
+- Selected document
 - Upload progress
-- Processing progress
+- Progress percentage
+- Upload status
+- Smooth progress animation
+
+Example:
+
+Uploading document...
+
+Receipt.png
+
+78%
+
+Securely uploading your document...
+
+STAGE 4 — AI Processing
+
+Show:
+
+- STRUCTRA AI processing animation
 - Reading Document
 - Extracting Information
-- Verifying Information
-- Progress percentages
-- Animated progress states
-- Human-friendly status messages
-- Rotating helpful tips
-- Sidebar
-- Search bar
-- Premium loading cards
-- Background blur
+- Processing indicators
+- Human-friendly status message
+- Premium animated visual treatment
 
-The purpose is to make waiting feel informative and polished.
+Example:
+
+AI PROCESSING
+
+✓ Document uploaded
+◉ Reading document
+◉ Extracting information
+○ Validating results
+
+STAGE 5 — Validation
+
+Show:
+
+- Extraction completed
+- Information validation
+- Mathematical checking
+- Duplicate checking
+- Smooth transition between validation steps
+
+Example:
+
+✓ Information extracted
+✓ Structure validated
+◉ Checking calculations
+◉ Checking duplicates
+
+IMPORTANT:
+
+Stages 3, 4 and 5 are animation states of the same processing workspace.
+
+Do NOT create three separate pages.
+
+The glass card should remain visually continuous while its contents,
+animation and status change.
+
+The How It Works and Recently Processed sections remain hidden during these
+states.
 
 ---
 
-## result-reference.png
+## stage6-reference.png
 
 Purpose
 
-Official reference for the Upload Review Workspace displayed after AI extraction completes.
+Official reference for STAGE 6 — Processing Complete.
 
-Replicate the layout and visual hierarchy as accurately as possible.
+This is a short transition state between processing and the extraction
+result.
 
-Includes
+Show:
 
-- Processing Summary
-- AI Summary
-- Document Information
-- Two-column review workspace
-- Original document preview
-- Duplicate warning
-- Review Queue
-- Vendor Information
-- Invoice Details
-- Financial Details
-- Line Items table
-- Confidence indicators
-- Inline validation
-- Sticky bottom action bar
-- Save to Document Library
-- Export
-- Upload Another
-- Discard
-- Premium glassmorphism
-- Structra color palette
-- Floating AI Assistant
-- Production-grade SaaS styling
+- Success/check animation
+- Document Ready
+- Preparing your results...
 
-This screen represents the core workflow of Structra.
+Example:
+
+✓
+
+Document Ready
+
+Preparing your results...
+
+This state should transition quickly into STAGE 7.
+
+Do not keep the user on this state unnecessarily.
 
 ---
 
-# 5. Logo
+## stage7-reference.png
 
-Location
+Purpose
 
-design-assets/logo/
+Official reference for STAGE 7 — Extraction Result.
 
-Contains
+This becomes the primary Upload Review workspace after successful AI
+extraction.
 
-• structra-logo.png
+The How It Works and Recently Processed sections are removed.
 
-Usage
+The main glass workspace expands into the document-review layout.
 
-Use this logo throughout the application.
+Layout:
 
-Examples
+LEFT:
 
-- Landing Page
-- Authentication
-- Main Application
-- Sidebar
-- AI Assistant Button
-- Loading Screens
-- Dashboard
-- Document Library
-- Settings
-- Profile
+- Original uploaded document preview
+- Image/PDF preview
+- Preview controls where appropriate
 
-Rules
+RIGHT:
 
-- Never redraw the logo
-- Never change proportions
-- Never recolor
-- Never recreate using SVG manually
-- Use exactly as provided
+- Extracted information
+- Vendor/company
+- Address
+- Date
+- Total
+- Line items
+- Processing status
 
----
+Example:
 
-# Implementation Order
+Receipt.png
+✓ Processed
 
-Always implement pages in the following order.
+EXTRACTED INFORMATION
 
-1.
+Vendor
+ABC MART
 
-Landing Page
+Address
+123 Green Street...
 
-References
+Date
+09 Aug 2025
 
-design-assets/landing/
+Total
+₹1,365
 
-↓
+LINE ITEMS
 
-2.
+Aashirvaad Atta 5kg       ₹289
+Amul Toned Milk 1L        ₹126
+...
 
-Login Page
+IMPORTANT:
 
-References
+STAGE 7 represents the extracted result.
 
-design-assets/authentication/
+Validation information is added to this result workspace in STAGE 8.
 
-↓
+Do NOT treat STAGE 7, STAGE 8 and STAGE 9 as completely separate pages.
 
-3.
-
-Registration Page
-
-References
-
-design-assets/authentication/
-
-↓
-
-4.
-
-Forgot Password
-
-References
-
-design-assets/authentication/
-
-↓
-
-5.
-
-Main Application Layout
-
-Reference
-
-design-assets/MainPage_UploadSection/upload-default-reference.png
-
-↓
-
-6.
-
-Upload Processing Experience
-
-Reference
-
-design-assets/MainPage_UploadSection/loading-reference.png
-
-↓
-
-7.
-
-Upload Review Workspace
-
-Reference
-
-design-assets/MainPage_UploadSection/result-reference.png
-
-↓
-
-8.
-
-Document Library
-
-(Assets will be added later)
-
-↓
-
-9.
-
-Dashboard
-
-(Assets will be added later)
-
-↓
-
-10.
-
-Settings
-
-(Assets will be added later)
-
-↓
-
-11.
-
-Profile
-
-(Assets will be added later)
+They progressively enhance the same review workspace.
 
 ---
 
-# Asset Usage Rules
+## stage8910-reference.png
 
-Always use the provided design assets.
+Purpose
 
-Never generate replacement assets.
+Official reference for STAGES 8, 9 and 10.
 
-Never redesign approved layouts.
-
-Treat every reference image as the final approved UI.
-
-If multiple assets exist for a page:
-
-1. Use the provided background image (if available).
-
-2. Use the reference image for layout, spacing, typography, hierarchy, and positioning.
-
-3. Use the official Structra logo from the logo folder.
-
-4. Preserve the premium Structra design language across every screen.
+These states belong to the same document-review workspace.
 
 ---
 
-# Future Assets
+### STAGE 8 — Validation Results
 
-Future folders may include:
+Add validation information to the Stage 7 result workspace.
 
-design-assets/
+Show friendly user-facing validation states.
 
-dashboard/
+Examples:
 
-document-library/
+✓ Document structure valid
 
-settings/
+✓ Mathematical validation
+All extracted totals match.
 
-profile/
+OR:
 
-notifications/
+⚠ Review recommended
 
-analytics/
+Line-item total: ₹1,361
+Document total: ₹1,365
+Difference: ₹4
 
-chat/
+Duplicate state:
 
-Whenever new assets are added, update this document before implementation begins.
+✓ No duplicate detected
+
+OR:
+
+⚠ Possible duplicate
+
+This document appears similar to an existing document.
+
+The UI must consume the actual M5 validation result during backend
+integration.
+
+Do not invent confidence percentages.
+
+Do not expose internal backend terminology.
+
+---
+
+### STAGE 9 — Review / Edit
+
+Allow the user to review and edit extracted information.
+
+Fields include:
+
+Vendor
+[ ABC MART ]
+
+Address
+[ 123 Green Street... ]
+
+Date
+[ 09 Aug 2025 ]
+
+Total
+[ ₹1,365 ]
+
+Line Items
+
+Aashirvaad Atta 5kg       ₹289
+Amul Toned Milk 1L        ₹126
+...
+
+Requirements:
+
+- Clear editable controls
+- Premium document-review experience
+- Avoid making the entire workspace look like a generic form
+- Make modified values visually clear
+
+Primary actions eventually include:
+
+- Save to Library
+- Download / Export
+- Delete / Discard
+- Process Another
+
+---
+
+### STAGE 10 — Duplicate Warning
+
+This state is conditional.
+
+Only show duplicate-warning UI when duplicate detection requires user
+attention.
+
+LIKELY DUPLICATE:
+
+⚠ Possible duplicate
+
+This document appears similar to:
+
+ABC MART
+09 Aug 2025
+₹1,365
+
+Actions:
+
+[ View Existing ]
+[ Save Anyway ]
+
+DEFINITE DUPLICATE:
+
+⚠ Duplicate document
+
+This exact document already exists in your account.
+
+Actions:
+
+[ View Existing ]
+[ Cancel ]
+
+IMPORTANT:
+
+Do not use fabricated percentages such as:
+
+93% duplicate
+
+Use the actual duplicate classification returned by the backend.
+
+If no duplicate exists, the duplicate-warning UI should not appear.
+
+---
+
+## stage11-reference.png
+
+Purpose
+
+Official reference for STAGE 11 — Saved.
+
+Displayed after the user successfully saves the processed document to the
+Document Library.
+
+Show:
+
+- Success animation
+- Saved confirmation
+- Document summary
+- Vendor
+- Total
+- Saved status
+- View Document action
+- Process Another action
+
+Example:
+
+✓
+
+Saved to your Document Library!
+
+ABC MART
+
+₹1,365
+
+[ View Document ]
+[ Process Another ]
+
+Use a short, polished success transition.
+
+---
+
+## stage12-reference.png
+
+Purpose
+
+Official reference for STAGE 12 — Process Another / Reset.
+
+This state returns the user to the Upload Documents starting experience.
+
+After selecting:
+
+[ Process Another ]
+
+the Upload workspace should reset to STAGE 1.
+
+The user should be able to immediately upload another document.
+
+Do NOT require a page refresh.
+
+The application shell remains unchanged.
+
+---
+
+# Upload Page State Flow
+
+The complete Upload Documents workflow is:
+
+STAGE 1
+Empty / Ready
+        ↓
+STAGE 2
+File Selected
+        ↓
+STAGE 3
+Uploading
+        ↓
+STAGE 4
+AI Processing
+        ↓
+STAGE 5
+Validation
+        ↓
+STAGE 6
+Processing Complete
+        ↓
+STAGE 7
+Extraction Result
+        ↓
+STAGE 8
+Validation Results
+        ↓
+STAGE 9
+Review / Edit
+        ↓
+STAGE 10
+Duplicate Warning
+        ↓
+Save
+        ↓
+STAGE 11
+Saved
+        ↓
+STAGE 12
+Process Another
+        ↓
+STAGE 1

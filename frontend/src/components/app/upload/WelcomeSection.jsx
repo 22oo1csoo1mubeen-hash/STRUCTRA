@@ -1,7 +1,10 @@
 import { motion } from 'framer-motion';
+import { useAuth } from '../../../hooks/useAuth';
 
-function getGreeting() {
-  const h = new Date().getHours();
+function getGreetingIST() {
+  const options = { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false };
+  const formatter = new Intl.DateTimeFormat([], options);
+  const h = parseInt(formatter.format(new Date()), 10);
   if (h < 12) return 'Good Morning';
   if (h < 17) return 'Good Afternoon';
   return 'Good Evening';
@@ -11,7 +14,12 @@ function getGreeting() {
  * WelcomeSection
  * Time-based greeting. Warm white text on the dark glass/bg atmosphere.
  */
-export default function WelcomeSection({ userName = 'Mubeen' }) {
+export default function WelcomeSection() {
+  const { user } = useAuth();
+  
+  const displayName = user?.user_metadata?.full_name?.split(' ')[0] 
+                      || user?.email?.split('@')[0] 
+                      || 'User';
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -31,7 +39,7 @@ export default function WelcomeSection({ userName = 'Mubeen' }) {
           textShadow: '0 2px 16px rgba(0,0,0,0.35), 0 0 20px rgba(255,255,255,0.4), 0 0 40px rgba(249,115,22,0.3)',
         }}
       >
-        {getGreeting()}, {userName}..
+        {getGreetingIST()}, {displayName}..
       </h1>
       <p
         style={{

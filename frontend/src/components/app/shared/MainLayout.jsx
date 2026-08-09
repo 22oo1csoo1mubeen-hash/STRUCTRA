@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import FloatingAIAssistant from './FloatingAIAssistant';
-import bgImage from '../../assets/bg.webp';
+import bgImage from '../../../assets/bg.webp';
 
 /**
  * MainLayout

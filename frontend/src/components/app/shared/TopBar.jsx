@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Bell, ChevronDown, Search, LogOut } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
+import { Bell, Search, ChevronDown, User, Settings, LogOut } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 
 /**

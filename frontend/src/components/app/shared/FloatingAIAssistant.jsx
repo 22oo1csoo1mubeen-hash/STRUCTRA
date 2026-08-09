@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import logo from '../../assets/structra-logo.png';
+import { Sparkles, MessageSquare } from 'lucide-react';
+import logo from '../../../assets/structra-logo.png';
 
 /**
  * FloatingAIAssistant

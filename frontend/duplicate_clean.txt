@@ -1,0 +1,162 @@
+function DuplicateWarningView({ setStage }) {
+  return (
+    <div style={{ 
+      flex: 1, background: 'rgba(249,115,22,0.03)', border: '1px solid rgba(249,115,22,0.15)', 
+      borderRadius: 16, padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', textAlign: 'center',
+      boxShadow: 'inset 0 0 40px rgba(249,115,22,0.05)'
+    }}>
+      <div style={{ 
+        width: 64, height: 64, borderRadius: '50%', background: 'rgba(249,115,22,0.1)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(249,115,22,0.2)',
+        marginBottom: 24, boxShadow: '0 0 20px rgba(249,115,22,0.2)'
+      }}>
+        <AlertTriangle size={32} color="#f97316" />
+      </div>
+      
+      <h3 style={{ fontSize: 20, fontWeight: 600, color: '#fff', marginBottom: 12 }}>Possible Duplicate Detected</h3>
+      <p style={{ fontSize: 14, color: 'rgba(255,240,220,0.6)', marginBottom: 32 }}>
+        This document appears similar to an existing document.
+      </p>
+
+      {/* Existing Document Card */}
+      <div style={{ 
+        width: '100%', maxWidth: 400, background: 'rgba(10,12,16,0.6)', border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32,
+        textAlign: 'left'
+      }}>
+        <div style={{ 
+          width: 40, height: 40, borderRadius: 8, background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <ImageIcon size={20} color="#fff" />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 4 }}>ABC MART</div>
+          <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+            <span>09 Aug 2025</span>
+            <span>₹ 1,365.00</span>
+          </div>
+        </div>
+        <button style={{ 
+          background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', 
+          borderRadius: 20, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6,
+          color: '#10b981', fontSize: 11, cursor: 'pointer'
+        }}>
+          <Search size={12} /> View
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 16 }}>
+        <motion.button
+          whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.05)' }}
+          whileTap={{ scale: 0.98 }}
+          style={{
+            padding: '12px 24px', borderRadius: 8, background: 'transparent',
+            border: '1px solid rgba(255,255,255,0.2)', color: '#fff',
+            fontSize: 14, fontWeight: 600, cursor: 'pointer'
+          }}
+        >
+          View Existing
+        </motion.button>
+        <motion.button
+          onClick={() => setStage(11)} // Direct to final results if they save anyway
+          whileHover={{ scale: 1.02, background: 'linear-gradient(135deg, #e85d04 0%, #dc2f02 100%)' }}
+          whileTap={{ scale: 0.98 }}
+          style={{
+            padding: '12px 24px', borderRadius: 8, background: 'linear-gradient(135deg, #f97316 0%, #e85d04 100%)',
+            border: 'none', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(249,115,22,0.3)'
+          }}
+        >
+          Save Anyway
+        </motion.button>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------
+// RIGHT PANEL: STAGE 9 (Review / Edit)
+// ------------------------------------------------------------------
+function ReviewEditView({ setStage }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        <Edit2 size={20} color="#f97316" />
+        <h3 style={{ fontSize: 16, fontWeight: 600, color: '#fff', margin: 0 }}>Edit Extracted Information</h3>
+      </div>
+
+      {/* Editable Fields Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+        <EditableField icon={Building2} label="Vendor / Company" initialValue={MOCK_RESULT.vendor} />
+        <EditableField icon={MapPin} label="Address" initialValue={MOCK_RESULT.address} isTextarea />
+        <EditableField icon={Calendar} label="Date" initialValue={MOCK_RESULT.date} />
+        <EditableField icon={Hash} label="Invoice / Bill No." initialValue={MOCK_RESULT.invoiceNumber} />
+        <EditableField icon={IndianRupee} label="Total Amount" initialValue={MOCK_RESULT.totalAmount} />
+      </div>
+
+      {/* Editable Line Items */}
+      <div style={{ 
+        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', 
+        borderRadius: 12, overflow: 'hidden', marginBottom: 24
+      }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <h4 style={{ fontSize: 14, fontWeight: 600, color: '#fff', margin: 0 }}>Line Items (5)</h4>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <thead>
+            <tr>
+              <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Item</th>
+              <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Qty</th>
+              <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Rate</th>
+              <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Amount</th>
+              <th style={{ padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {MOCK_RESULT.lineItems.slice(0,3).map((item, idx) => (
+              <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.item}</td>
+                <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.qty}</td>
+                <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.rate}</td>
+                <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.amount}</td>
+                <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                  <button style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+                    <Edit2 size={14} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{ padding: '12px 20px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <span style={{ fontSize: 12, color: '#f97316', fontWeight: 500, cursor: 'pointer' }}>+ 2 more items</span>
+        </div>
+      </div>
+
+      {/* Sticky Action Bar (For Review Mode: Complete Review) */}
+      <div style={{ 
+        marginTop: 'auto', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', 
+        borderRadius: 12, padding: 16, display: 'flex', justifyContent: 'flex-end', alignItems: 'center'
+      }}>
+        <motion.button
+          onClick={() => setStage(11)} // Return to Final Result
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          style={{ 
+            display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', 
+            border: 'none', borderRadius: 8, padding: '10px 24px', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(16,185,129,0.3)'
+          }}
+        >
+          <Check size={16} /> Complete Review
+        </motion.button>
+      </div>
+
+    </div>
+  );
+}
+
+function EditableField
