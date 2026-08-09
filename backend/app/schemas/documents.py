@@ -87,8 +87,39 @@ class ExtractionQualitySignals(BaseModel):
     mathematical_validation: MathematicalValidationResult
 
 
+class DuplicateDocumentCandidate(BaseModel):
+    """Internal metadata and extraction facts used for duplicate comparisons."""
+
+    document_id: UUID
+    user_id: UUID
+    content_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    extraction: ReceiptInvoiceExtraction | None = None
+
+
+class DuplicateDetectionResult(BaseModel):
+    """A deterministic duplicate classification, never a probability score."""
+
+    classification: Literal[
+        "definite_duplicate", "likely_duplicate", "not_duplicate", "insufficient_information"
+    ]
+    matched_document_id: UUID | None = None
+    evidence: list[str]
+
+
 class DocumentExtractionResponse(BaseModel):
     """Validated extraction returned for one owned document."""
 
     document_id: UUID
     extraction: ReceiptInvoiceExtraction
+
+
+DocumentValidationStatus = Literal["valid", "warning", "invalid", "unable_to_validate"]
+
+
+class DocumentValidationResult(BaseModel):
+    """Aggregate result combining all M5 validation components."""
+
+    overall_status: DocumentValidationStatus
+    quality_signals: ExtractionQualitySignals
+    duplicate_detection: DuplicateDetectionResult
+    issues: list[str]

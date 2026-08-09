@@ -24,6 +24,7 @@ class CreatedDocumentMetadata(BaseModel):
     size: int
     status: str
     created_at: datetime
+    content_hash: str | None = None
 
 
 async def create_document_metadata(
@@ -33,6 +34,7 @@ async def create_document_metadata(
     storage_path: str,
     content_type: str,
     size: int,
+    content_hash: str | None = None,
     settings: Settings,
 ) -> CreatedDocumentMetadata:
     """Insert metadata for an already-stored document using the service key."""
@@ -50,6 +52,7 @@ async def create_document_metadata(
         "content_type": content_type,
         "size": size,
         "status": "pending",
+        "content_hash": content_hash,
     }
     documents_url = f"{settings.supabase_url.rstrip('/')}/rest/v1/documents"
 
@@ -83,7 +86,7 @@ async def list_document_metadata(
     """Return metadata records owned by one authenticated user."""
     return await _get_document_metadata(
         params={
-            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at",
+            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at,content_hash",
             "user_id": f"eq.{user_id}",
             "order": "created_at.desc",
         },
@@ -97,13 +100,27 @@ async def get_document_metadata(
     """Return one metadata record only when it belongs to the current user."""
     records = await _get_document_metadata(
         params={
-            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at",
+            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at,content_hash",
             "id": f"eq.{document_id}",
             "user_id": f"eq.{user_id}",
         },
         settings=settings,
     )
     return records[0] if records else None
+
+
+async def find_document_metadata_by_content_hash(
+    *, content_hash: str, user_id: str, settings: Settings
+) -> list[CreatedDocumentMetadata]:
+    """Find same-user metadata rows with one internally calculated content hash."""
+    return await _get_document_metadata(
+        params={
+            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at,content_hash",
+            "user_id": f"eq.{user_id}",
+            "content_hash": f"eq.{content_hash}",
+        },
+        settings=settings,
+    )
 
 
 async def delete_document_metadata(

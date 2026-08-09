@@ -1,6 +1,7 @@
 """Document upload endpoint tests."""
 
 from datetime import UTC, datetime
+from hashlib import sha256
 from types import SimpleNamespace
 from unittest.mock import ANY
 from uuid import uuid4
@@ -112,6 +113,7 @@ def test_upload_accepts_allowed_document_types(
             "storage_path": stored_paths[0],
             "content_type": content_type,
             "size": 5,
+            "content_hash": sha256(b"valid").hexdigest(),
             "settings": ANY,
         }
     ]

@@ -34,6 +34,7 @@ from app.services.gemini import (
     GeminiUnexpectedResponseError,
     extract_receipt_invoice_document,
 )
+from app.services.duplicate_detection import hash_document_content
 from app.services.storage import (
     delete_document_from_storage,
     download_document_from_storage,
@@ -257,6 +258,8 @@ async def upload_document(
         )
 
     size = await validate_document_upload(file, settings)
+    await file.seek(0)
+    content_hash = hash_document_content(await file.read())
     storage_path = await upload_document_to_storage(file, current_user.user_id, settings)
     metadata = await create_document_metadata(
         user_id=current_user.user_id,
@@ -264,6 +267,7 @@ async def upload_document(
         storage_path=storage_path,
         content_type=file.content_type or "",
         size=size,
+        content_hash=content_hash,
         settings=settings,
     )
     return DocumentUploadResponse(
