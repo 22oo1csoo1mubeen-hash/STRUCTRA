@@ -20,8 +20,13 @@ from app.services.document_metadata import (
     delete_document_metadata,
     get_document_metadata,
     list_document_metadata,
+    update_document_status,
 )
 from app.services.documents import validate_document_upload
+from app.services.extraction_validation import (
+    GeminiExtractionValidationError,
+    validate_receipt_invoice_extraction,
+)
 from app.services.gemini import (
     GeminiAuthenticationError,
     GeminiConfigurationError,
@@ -115,32 +120,78 @@ async def extract_document(
     settings: Annotated[Settings, Depends(get_settings)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> DocumentExtractionResponse:
-    """Extract JSON from an owned private Storage document without persisting it."""
+    """Extract JSON from an owned document and persist its processing status."""
     metadata = await get_document_metadata(
         document_id=document_id, user_id=current_user.user_id, settings=settings
     )
     if metadata is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
-    content = await download_document_from_storage(metadata.storage_path, settings)
     try:
-        extraction = extract_receipt_invoice_document(
-            settings,
-            document_content=content,
-            mime_type=metadata.content_type,
+        await update_document_status(
+            document_id=metadata.id,
+            user_id=current_user.user_id,
+            document_status="processing",
+            settings=settings,
         )
-    except (
-        GeminiAuthenticationError,
-        GeminiConfigurationError,
-        GeminiServiceUnavailableError,
-        GeminiUnexpectedResponseError,
-    ) as error:
+    except HTTPException as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Document extraction is unavailable.",
         ) from error
 
-    return DocumentExtractionResponse(document_id=metadata.id, extraction=extraction)
+    try:
+        content = await download_document_from_storage(metadata.storage_path, settings)
+        extraction = extract_receipt_invoice_document(
+            settings,
+            document_content=content,
+            mime_type=metadata.content_type,
+        )
+        validated_extraction = validate_receipt_invoice_extraction(extraction)
+    except HTTPException:
+        await _mark_extraction_failed(metadata.id, current_user.user_id, settings)
+        raise
+    except (
+        GeminiAuthenticationError,
+        GeminiConfigurationError,
+        GeminiServiceUnavailableError,
+        GeminiUnexpectedResponseError,
+        GeminiExtractionValidationError,
+    ) as error:
+        await _mark_extraction_failed(metadata.id, current_user.user_id, settings)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document extraction is unavailable.",
+        ) from error
+
+    try:
+        await update_document_status(
+            document_id=metadata.id,
+            user_id=current_user.user_id,
+            document_status="completed",
+            settings=settings,
+        )
+    except HTTPException as error:
+        await _mark_extraction_failed(metadata.id, current_user.user_id, settings)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document extraction is unavailable.",
+        ) from error
+
+    return DocumentExtractionResponse(document_id=metadata.id, extraction=validated_extraction)
+
+
+async def _mark_extraction_failed(document_id: UUID, user_id: str, settings: Settings) -> None:
+    """Attempt a failure transition without replacing the original safe error."""
+    try:
+        await update_document_status(
+            document_id=document_id,
+            user_id=user_id,
+            document_status="failed",
+            settings=settings,
+        )
+    except Exception:
+        pass
 
 
 @router.delete(

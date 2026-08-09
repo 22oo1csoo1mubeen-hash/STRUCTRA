@@ -1,6 +1,7 @@
 """Supabase PostgreSQL document metadata operations."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 import httpx
@@ -8,6 +9,8 @@ from fastapi import HTTPException, status
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import Settings
+
+DocumentProcessingStatus = Literal["pending", "processing", "completed", "failed"]
 
 
 class CreatedDocumentMetadata(BaseModel):
@@ -46,7 +49,7 @@ async def create_document_metadata(
         "storage_path": storage_path,
         "content_type": content_type,
         "size": size,
-        "status": "uploaded",
+        "status": "pending",
     }
     documents_url = f"{settings.supabase_url.rstrip('/')}/rest/v1/documents"
 
@@ -142,6 +145,58 @@ async def delete_document_metadata(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to delete document metadata.",
+        )
+
+
+async def update_document_status(
+    *,
+    document_id: UUID,
+    user_id: str,
+    document_status: DocumentProcessingStatus,
+    settings: Settings,
+) -> None:
+    """Persist one extraction lifecycle status for an owned document."""
+    secret_key = settings.supabase_secret_key.get_secret_value()
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+    documents_url = f"{settings.supabase_url.rstrip('/')}/rest/v1/documents"
+    params = {
+        "id": f"eq.{document_id}",
+        "user_id": f"eq.{user_id}",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.patch(
+                documents_url,
+                headers=headers,
+                params=params,
+                json={"status": document_status},
+            )
+    except httpx.RequestError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document metadata service is unavailable.",
+        ) from error
+
+    if not response.is_success:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to update document status.",
+        )
+
+    try:
+        updated_records = response.json()
+    except ValueError:
+        updated_records = None
+    if not isinstance(updated_records, list) or len(updated_records) != 1:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to update document status.",
         )
 
 

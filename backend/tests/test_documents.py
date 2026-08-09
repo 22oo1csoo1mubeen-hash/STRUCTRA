@@ -47,7 +47,7 @@ def metadata_records(monkeypatch) -> list[dict[str, object]]:
             storage_path=kwargs["storage_path"],
             content_type=kwargs["content_type"],
             size=kwargs["size"],
-            status="uploaded",
+            status="pending",
             created_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
 
@@ -100,7 +100,7 @@ def test_upload_accepts_allowed_document_types(
     assert response_body["content_type"] == content_type
     assert response_body["size"] == 5
     assert response_body["storage_path"] == stored_paths[0]
-    assert response_body["status"] == "uploaded"
+    assert response_body["status"] == "pending"
     assert response_body["message"] == "Document uploaded successfully."
     assert response_body["document_id"]
     assert response_body["created_at"] == "2026-01-01T00:00:00Z"

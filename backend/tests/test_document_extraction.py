@@ -42,9 +42,10 @@ def _record(content_type: str = "application/pdf") -> CreatedDocumentMetadata:
 
 
 @pytest.fixture
-def authenticated_client() -> TestClient:
+def authenticated_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace()
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(user_id=TEST_USER_ID)
+    monkeypatch.setattr(document_routes, "update_document_status", AsyncMock())
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -56,7 +57,13 @@ def test_authenticated_owner_receives_structured_extraction(
     record = _record()
     monkeypatch.setattr(document_routes, "get_document_metadata", AsyncMock(return_value=record))
     monkeypatch.setattr(document_routes, "download_document_from_storage", AsyncMock(return_value=b"pdf"))
-    extracted = {"vendor_company": "STRUCTRA Store", "line_items": []}
+    extracted = {
+        "vendor_company": "STRUCTRA Store",
+        "address": None,
+        "date": None,
+        "total": None,
+        "line_items": [],
+    }
     monkeypatch.setattr(document_routes, "extract_receipt_invoice_document", lambda *args, **kwargs: extracted)
 
     response = authenticated_client.post(f"/documents/{record.id}/extract")
@@ -107,6 +114,24 @@ def test_extraction_returns_gemini_failure_safely(
         document_routes,
         "extract_receipt_invoice_document",
         lambda *args, **kwargs: (_ for _ in ()).throw(GeminiServiceUnavailableError("SDK detail")),
+    )
+
+    response = authenticated_client.post(f"/documents/{record.id}/extract")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Document extraction is unavailable."
+
+
+def test_extraction_returns_validation_failure_safely(
+    authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    record = _record()
+    monkeypatch.setattr(document_routes, "get_document_metadata", AsyncMock(return_value=record))
+    monkeypatch.setattr(document_routes, "download_document_from_storage", AsyncMock(return_value=b"pdf"))
+    monkeypatch.setattr(
+        document_routes,
+        "extract_receipt_invoice_document",
+        lambda *args, **kwargs: {"total": "not a number"},
     )
 
     response = authenticated_client.post(f"/documents/{record.id}/extract")

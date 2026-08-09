@@ -3,9 +3,8 @@
 from datetime import datetime
 from uuid import UUID
 
-from typing import Any
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictStr
 
-from pydantic import BaseModel, Field
 
 
 class DocumentUploadResponse(BaseModel):
@@ -41,8 +40,29 @@ class DocumentDeleteResponse(BaseModel):
     message: str = "Document deleted successfully."
 
 
+class ReceiptInvoiceLineItem(BaseModel):
+    """One strictly validated extracted receipt or invoice line item."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    description: StrictStr
+    line_total: StrictFloat | None = None
+
+
+class ReceiptInvoiceExtraction(BaseModel):
+    """Strictly validated receipt or invoice data returned by Gemini."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    vendor_company: StrictStr | None = None
+    address: StrictStr | None = None
+    date: StrictStr | None = None
+    total: StrictFloat | None = None
+    line_items: list[ReceiptInvoiceLineItem] = Field(default_factory=list)
+
+
 class DocumentExtractionResponse(BaseModel):
-    """Unvalidated structured extraction returned for one owned document."""
+    """Validated extraction returned for one owned document."""
 
     document_id: UUID
-    extraction: dict[str, Any]
+    extraction: ReceiptInvoiceExtraction
