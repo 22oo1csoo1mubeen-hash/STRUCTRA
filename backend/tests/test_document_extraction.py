@@ -61,6 +61,12 @@ def test_authenticated_owner_receives_structured_extraction(
         "vendor_company": "STRUCTRA Store",
         "address": None,
         "date": None,
+        "invoice_number": None,
+        "subtotal": None,
+        "discount": None,
+        "taxable_amount": None,
+        "tax": None,
+        "tax_components": [],
         "total": None,
         "line_items": [],
     }

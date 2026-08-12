@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CloudUploadIcon, AISparkIcon, ShieldValidationIcon, SuccessReadyIcon } from './ProcessingIcons';
-import { CheckCircle2, Circle, FileText, Image as ImageIcon } from 'lucide-react';
+import { CheckCircle2, Circle, FileText, Image as ImageIcon, AlertCircle, RefreshCw } from 'lucide-react';
 
 // --- Checklist Items ---
 const STAGE4_STEPS = [
@@ -25,7 +25,7 @@ const STAGE4_MESSAGES = [
   "Structuring extracted information..."
 ];
 
-export default function ProcessingWorkspace({ stage, setStage, file }) {
+export default function ProcessingWorkspace({ stage, setStage, file, extractionError, onRetryExtraction, validationError, onRetryValidation }) {
   const workspaceRef = useRef(null);
   // Stage 3 progress
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -62,12 +62,14 @@ export default function ProcessingWorkspace({ stage, setStage, file }) {
       requestAnimationFrame(animateProgress);
     } 
     else if (stage === 4) {
+      if (extractionError) return; // Stop timer if there is an error
       const interval = setInterval(() => {
         setProcessingStep(prev => prev < 4 ? prev + 1 : prev);
       }, 1500);
       return () => clearInterval(interval);
     }
     else if (stage === 5) {
+      if (validationError) return;
       const interval = setInterval(() => {
         setValidationStep(prev => prev < 4 ? prev + 1 : prev);
       }, 1250);
@@ -83,8 +85,10 @@ export default function ProcessingWorkspace({ stage, setStage, file }) {
   // Stage 3 -> 4 Transition
   useEffect(() => {
     if (stage === 3 && uploadProgress === 100) {
-      const t = setTimeout(() => setStage(4), 800);
-      return () => clearTimeout(t);
+      // BACKEND INTEGRATION 1: Isolate mock transition so extraction isn't triggered
+      // TODO (Integration 2): Replace with actual real extraction request
+      // const t = setTimeout(() => setStage(4), 800);
+      // return () => clearTimeout(t);
     }
   }, [stage, uploadProgress, setStage]);
 
@@ -93,8 +97,9 @@ export default function ProcessingWorkspace({ stage, setStage, file }) {
     if (stage === 4) {
       setProcessingMsgIdx(Math.min(processingStep, STAGE4_MESSAGES.length - 1));
       if (processingStep >= 4) {
-        const t = setTimeout(() => setStage(5), 800);
-        return () => clearTimeout(t);
+        // BACKEND INTEGRATION 1: Isolate mock transition
+        // const t = setTimeout(() => setStage(5), 800);
+        // return () => clearTimeout(t);
       }
     }
   }, [stage, processingStep, setStage]);
@@ -102,8 +107,9 @@ export default function ProcessingWorkspace({ stage, setStage, file }) {
   // Stage 5 -> 6 Transition
   useEffect(() => {
     if (stage === 5 && validationStep >= 4) {
-      const t = setTimeout(() => setStage(6), 1200);
-      return () => clearTimeout(t);
+      // BACKEND INTEGRATION 1: Isolate mock transition
+      // const t = setTimeout(() => setStage(6), 1200);
+      // return () => clearTimeout(t);
     }
   }, [stage, validationStep, setStage]);
 
@@ -121,11 +127,21 @@ export default function ProcessingWorkspace({ stage, setStage, file }) {
   } else if (stage === 3) {
     subtitle = "Secure and encrypted upload in progress...";
   } else if (stage === 4) {
-    title = "AI Processing...";
-    subtitle = STAGE4_MESSAGES[processingMsgIdx] || "STRUCTRA AI is analyzing your document.";
+    if (extractionError) {
+      title = "Processing Failed";
+      subtitle = "We encountered an issue while extracting information.";
+    } else {
+      title = "AI Processing...";
+      subtitle = STAGE4_MESSAGES[processingMsgIdx] || "STRUCTRA AI is analyzing your document.";
+    }
   } else if (stage === 5) {
-    title = "Validating document...";
-    subtitle = validationStep >= 4 ? "Validation complete. Preparing your results..." : "We're validating the extracted information to ensure accuracy.";
+    if (validationError) {
+      title = "Validation Failed";
+      subtitle = "We encountered an issue while validating the document.";
+    } else {
+      title = "Validating document...";
+      subtitle = validationStep >= 4 ? "Validation complete. Preparing your results..." : "We're validating the extracted information to ensure accuracy.";
+    }
   } else if (stage === 6) {
     title = "Document Ready";
     subtitle = "Your document has been processed successfully.";
@@ -239,7 +255,7 @@ export default function ProcessingWorkspace({ stage, setStage, file }) {
             </motion.div>
           )}
 
-          {/* STAGE 4: Processing Checklist */}
+          {/* STAGE 4: Processing Checklist or Error */}
           {stage === 4 && (
             <motion.div
               key="checklist4"
@@ -249,13 +265,38 @@ export default function ProcessingWorkspace({ stage, setStage, file }) {
               transition={{ duration: 0.4 }}
               style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}
             >
-              {STAGE4_STEPS.map((step, idx) => {
-                const isComplete = processingStep > idx;
-                const isActive = processingStep === idx;
-                return (
-                  <ChecklistItem key={idx} step={step} isComplete={isComplete} isActive={isActive} />
-                );
-              })}
+              {extractionError ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                  <div style={{ 
+                    padding: '12px 20px', background: 'rgba(239, 68, 68, 0.1)', 
+                    border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 8, 
+                    color: '#fca5a5', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 10, width: '100%' 
+                  }}>
+                    <AlertCircle size={18} />
+                    {extractionError}
+                  </div>
+                  <motion.button
+                    onClick={onRetryExtraction}
+                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.1)' }}
+                    whileTap={{ scale: 0.98 }}
+                    style={{
+                      padding: '10px 24px', borderRadius: 8, background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 14, 
+                      fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8
+                    }}
+                  >
+                    <RefreshCw size={16} /> Retry Extraction
+                  </motion.button>
+                </div>
+              ) : (
+                STAGE4_STEPS.map((step, idx) => {
+                  const isComplete = processingStep > idx;
+                  const isActive = processingStep === idx;
+                  return (
+                    <ChecklistItem key={idx} step={step} isComplete={isComplete} isActive={isActive} />
+                  );
+                })
+              )}
             </motion.div>
           )}
 
@@ -269,13 +310,38 @@ export default function ProcessingWorkspace({ stage, setStage, file }) {
               transition={{ duration: 0.4 }}
               style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}
             >
-              {STAGE5_STEPS.map((step, idx) => {
-                const isComplete = validationStep > idx;
-                const isActive = validationStep === idx;
-                return (
-                  <ChecklistItem key={idx} step={step} isComplete={isComplete} isActive={isActive} isSuccess={true} />
-                );
-              })}
+              {validationError ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                  <div style={{ 
+                    padding: '12px 20px', background: 'rgba(239, 68, 68, 0.1)', 
+                    border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 8, 
+                    color: '#fca5a5', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 10, width: '100%' 
+                  }}>
+                    <AlertCircle size={18} />
+                    {validationError}
+                  </div>
+                  <motion.button
+                    onClick={onRetryValidation}
+                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.1)' }}
+                    whileTap={{ scale: 0.98 }}
+                    style={{
+                      padding: '10px 24px', borderRadius: 8, background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 14, 
+                      fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8
+                    }}
+                  >
+                    <RefreshCw size={16} /> Retry Validation
+                  </motion.button>
+                </div>
+              ) : (
+                STAGE5_STEPS.map((step, idx) => {
+                  const isComplete = validationStep > idx;
+                  const isActive = validationStep === idx;
+                  return (
+                    <ChecklistItem key={idx} step={step} isComplete={isComplete} isActive={isActive} isSuccess={true} />
+                  );
+                })
+              )}
             </motion.div>
           )}
 

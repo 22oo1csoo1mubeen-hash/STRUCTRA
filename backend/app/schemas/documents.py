@@ -51,6 +51,15 @@ class ReceiptInvoiceLineItem(BaseModel):
     line_total: StrictFloat | None = None
 
 
+class TaxComponent(BaseModel):
+    """Detailed extraction of a specific tax component."""
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    rate: float | None = None
+    amount: float | None = None
+
+
 class ReceiptInvoiceExtraction(BaseModel):
     """Strictly validated receipt or invoice data returned by Gemini."""
 
@@ -59,7 +68,13 @@ class ReceiptInvoiceExtraction(BaseModel):
     vendor_company: StrictStr | None = None
     address: StrictStr | None = None
     date: StrictStr | None = None
-    total: StrictFloat | None = None
+    invoice_number: StrictStr | None = None
+    subtotal: float | None = None
+    discount: float | None = None
+    taxable_amount: float | None = None
+    tax: float | None = None
+    tax_components: list[TaxComponent] = Field(default_factory=list)
+    total: float | None = None
     line_items: list[ReceiptInvoiceLineItem] = Field(default_factory=list)
 
 
@@ -71,8 +86,15 @@ class MathematicalValidationResult(BaseModel):
     calculated_total: Decimal | None
     document_total: Decimal | None
     difference: Decimal | None
+    
+    # Subtotal check fields (optional for backward compatibility)
+    subtotal_matches: bool | None = None
+    calculated_subtotal: Decimal | None = None
+    document_subtotal: Decimal | None = None
+    subtotal_difference: Decimal | None = None
+    
     reason: Literal[
-        "document_total_missing", "line_items_empty", "line_item_total_missing"
+        "document_total_missing", "line_items_empty", "line_item_total_missing", "unreconciled_missing_fields"
     ] | None = None
 
 
@@ -116,10 +138,21 @@ class DocumentExtractionResponse(BaseModel):
 DocumentValidationStatus = Literal["valid", "warning", "invalid", "unable_to_validate"]
 
 
+class ValidationIssue(BaseModel):
+    """Structured information about a single validation issue."""
+    type: str
+    title: str
+    message: str
+    expected: Decimal | str | None = None
+    actual: Decimal | str | None = None
+    difference: Decimal | None = None
+    field: str | None = None
+    severity: Literal["warning", "invalid"] = "warning"
+
 class DocumentValidationResult(BaseModel):
     """Aggregate result combining all M5 validation components."""
 
     overall_status: DocumentValidationStatus
     quality_signals: ExtractionQualitySignals
     duplicate_detection: DuplicateDetectionResult
-    issues: list[str]
+    issues: list[ValidationIssue]

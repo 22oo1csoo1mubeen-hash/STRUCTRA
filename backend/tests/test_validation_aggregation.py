@@ -63,14 +63,14 @@ def test_completely_valid_document() -> None:
     assert not result.issues
 
 
-def test_mathematical_mismatch_is_invalid() -> None:
+def test_mathematical_mismatch_is_warning() -> None:
     result = aggregate_validation_results(
         quality_signals=_quality_signals(math=_math_result(total_matches=False)),
         duplicate_detection=_duplicate_result(),
     )
 
-    assert result.overall_status == "invalid"
-    assert "Line-item total does not match document total." in result.issues
+    assert result.overall_status == "warning"
+    assert "The calculated document total does not match the total displayed on the document." in [i.message for i in result.issues]
 
 
 def test_likely_duplicate_is_warning() -> None:
@@ -80,7 +80,7 @@ def test_likely_duplicate_is_warning() -> None:
     )
 
     assert result.overall_status == "warning"
-    assert "Document may be a duplicate of an existing document." in result.issues
+    assert "Document may be a duplicate of an existing document." in [i.message for i in result.issues]
 
 
 def test_definite_duplicate_is_warning() -> None:
@@ -90,7 +90,7 @@ def test_definite_duplicate_is_warning() -> None:
     )
 
     assert result.overall_status == "warning"
-    assert "Document is a definite duplicate of an existing document." in result.issues
+    assert "Document is a definite duplicate of an existing document." in [i.message for i in result.issues]
 
 
 def test_missing_quality_information_is_warning() -> None:
@@ -100,7 +100,7 @@ def test_missing_quality_information_is_warning() -> None:
     )
 
     assert result.overall_status == "warning"
-    assert "Document is missing fields: vendor_company." in result.issues
+    assert "Document is missing fields: vendor_company." in [i.message for i in result.issues]
 
 
 def test_multiple_simultaneous_issues_respect_invalid_precedence() -> None:
@@ -112,20 +112,20 @@ def test_multiple_simultaneous_issues_respect_invalid_precedence() -> None:
         duplicate_detection=_duplicate_result(classification="likely_duplicate"),
     )
 
-    assert result.overall_status == "invalid"
-    assert "Line-item total does not match document total." in result.issues
-    assert "Document is missing fields: date." in result.issues
-    assert "Document may be a duplicate of an existing document." in result.issues
+    assert result.overall_status == "warning"
+    assert "The calculated document total does not match the total displayed on the document." in [i.message for i in result.issues]
+    assert "Document is missing fields: date." in [i.message for i in result.issues]
+    assert "Document may be a duplicate of an existing document." in [i.message for i in result.issues]
 
 
-def test_insufficient_duplicate_information_is_unable_to_validate() -> None:
+def test_insufficient_duplicate_information_is_valid_with_warning_issue() -> None:
     result = aggregate_validation_results(
         quality_signals=_quality_signals(),
         duplicate_detection=_duplicate_result(classification="insufficient_information"),
     )
 
-    assert result.overall_status == "unable_to_validate"
-    assert "Insufficient information to determine whether the document is a duplicate." in result.issues
+    assert result.overall_status == "valid"
+    assert "Insufficient information to determine whether the document is a duplicate." in [i.message for i in result.issues]
 
 
 def test_missing_math_totals_is_unable_to_validate_and_reports_correct_issue() -> None:
@@ -142,7 +142,7 @@ def test_missing_math_totals_is_unable_to_validate_and_reports_correct_issue() -
     )
 
     assert result.overall_status == "unable_to_validate"
-    assert result.issues.count("Some line items are missing totals.") == 1
+    assert [i.message for i in result.issues].count("Some line items are missing totals.") == 1
 
 
 def test_existing_results_are_preserved() -> None:

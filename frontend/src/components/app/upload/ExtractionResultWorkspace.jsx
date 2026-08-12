@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Image as ImageIcon, CheckCircle2, RefreshCw, RefreshCcw, ZoomIn, ZoomOut, Maximize, Maximize2,
@@ -32,15 +32,65 @@ const MOCK_RESULT = {
   ]
 };
 
-const MOCK_VALIDATION = {
-  calculatedTotal: "₹ 1,361.00",
-  documentTotal: "₹ 1,365.00",
-  difference: "₹ 4.00"
-};
+export default function ExtractionResultWorkspace({ file, stage, setStage, resetUpload, extractionResult, validationResult }) {
 
-export default function ExtractionResultWorkspace({ file, stage, setStage, resetUpload }) {
-  // Use state so we can mock/switch scenarios
-  const [validationCase, setValidationCase] = useState('REVIEW_RECOMMENDED');
+  const formatCurrency = (val) => {
+    if (val === null || val === undefined) return '—';
+    return `₹ ${parseFloat(val).toFixed(2)}`;
+  };
+
+  const [editedData, setEditedData] = useState(null);
+  const [successBannerDismissed, setSuccessBannerDismissed] = useState(false);
+  const [warningBannerDismissed, setWarningBannerDismissed] = useState(false);
+  const [showDetailsPopup, setShowDetailsPopup] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && showDetailsPopup) {
+        setShowDetailsPopup(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showDetailsPopup]);
+
+  // Reset editedData and dismiss state when extractionResult changes
+  useEffect(() => {
+    setEditedData(null);
+    setSuccessBannerDismissed(false);
+    setWarningBannerDismissed(false);
+  }, [extractionResult]);
+
+  const baseData = useMemo(() => {
+    return extractionResult?.extraction ? {
+      vendor: extractionResult.extraction.vendor_company || '—',
+      date: extractionResult.extraction.date || '—',
+      address: extractionResult.extraction.address || '—',
+      invoiceNumber: extractionResult.extraction.invoice_number || '—',
+      totalAmount: formatCurrency(extractionResult.extraction.total),
+      lineItems: (extractionResult.extraction.line_items || []).map(li => ({
+        item: li.description || '—',
+        qty: '—',
+        rate: '—',
+        amount: formatCurrency(li.line_total)
+      }))
+    } : MOCK_RESULT;
+  }, [extractionResult]);
+
+  const isImage = file?.type?.startsWith('image/');
+  const isPdf = file?.type === 'application/pdf';
+  const previewUrl = useMemo(() => {
+    if (file && (isImage || isPdf)) {
+      return URL.createObjectURL(file);
+    }
+    return null;
+  }, [file, isImage, isPdf]);
+
+  const displayData = editedData || baseData;
+
+  const handleSaveData = (newData) => {
+    setEditedData(newData);
+  };
   const displayFilename = file?.name || MOCK_RESULT.filename;
   const displayType = file?.name?.split('.').pop()?.toUpperCase() || MOCK_RESULT.fileType;
   const displaySize = file ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : MOCK_RESULT.fileSize;
@@ -52,24 +102,7 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
   const formattedTime = now.toLocaleTimeString('en-US', timeOptions);
   const realtimeProcessedAt = `${formattedDate}, ${formattedTime}`;
 
-  // Dynamic Routing Logic based on ACTIVE_SCENARIO
-  useEffect(() => {
-    
-    if (stage === 8) {
-      if (validationCase === 'VALID') {
-        const t = setTimeout(() => setStage(7), 3500); 
-        return () => clearTimeout(t);
-      }
-      else if (validationCase === 'REVIEW_RECOMMENDED') {
-        const t = setTimeout(() => setStage(9), 3500); 
-        return () => clearTimeout(t);
-      }
-      else if (validationCase === 'POSSIBLE_DUPLICATE') {
-        const t = setTimeout(() => setStage(10), 3500); 
-        return () => clearTimeout(t);
-      }
-    }
-  }, [stage, setStage]);
+  // Dynamic Routing Logic is now handled by UploadPage.jsx
 
   return (
     <motion.div 
@@ -149,20 +182,172 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
         ) : null}
       </div>
 
+      {/* Success Validation Banner */}
+      <AnimatePresence>
+        {stage === 7 && validationResult?.overall_status === 'valid' && !successBannerDismissed && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginTop: 0, marginBottom: 24 }}
+            exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0, padding: 0, overflow: 'hidden' }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            style={{ position: 'relative' }}
+          >
+            <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button 
+                onClick={() => setSuccessBannerDismissed(true)}
+                style={{ position: 'absolute', top: 12, right: 12, background: 'transparent', border: 'none', color: 'rgba(16,185,129,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4, borderRadius: 4, transition: 'all 0.2s' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(16,185,129,0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
+                onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <X size={16} />
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#10b981', fontWeight: 600 }}>
+                <CheckCircle2 size={16} /> Document Validated
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(255,250,242,0.85)', lineHeight: 1.5, paddingRight: 24 }}>
+                All validation checks passed successfully.
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Warning Validation Banner */}
+        {stage === 9 && validationResult?.overall_status === 'warning' && !warningBannerDismissed && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginTop: 0, marginBottom: 24 }}
+            exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0, padding: 0, overflow: 'hidden' }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            style={{ position: 'relative' }}
+          >
+            <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button 
+                onClick={() => setWarningBannerDismissed(true)}
+                style={{ position: 'absolute', top: 12, right: 12, background: 'transparent', border: 'none', color: 'rgba(245,158,11,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4, borderRadius: 4, transition: 'all 0.2s' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
+                onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <X size={16} />
+              </button>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f59e0b', fontWeight: 600 }}>
+                  <AlertTriangle size={16} /> Review Recommended
+                </div>
+                <div style={{ fontSize: 13, color: 'rgba(255,250,242,0.85)', lineHeight: 1.5, paddingRight: 24 }}>
+                  Some extracted values could not be mathematically reconciled. Review the detected discrepancies.
+                </div>
+                <div>
+                  <button 
+                    onClick={() => setShowDetailsPopup(true)}
+                    style={{ background: 'transparent', border: 'none', color: '#f59e0b', fontSize: 13, fontWeight: 500, textDecoration: 'underline', cursor: 'pointer', padding: 0, marginTop: 4 }}
+                  >
+                    Details
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Validation Details Popover */}
+      <AnimatePresence>
+        {showDetailsPopup && validationResult?.issues && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowDetailsPopup(false)}
+              style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 90, background: 'rgba(0,0,0,0.4)' }}
+            />
+            <motion.div 
+              initial={{ opacity: 0, y: '-45%', x: '-50%', scale: 0.98 }}
+              animate={{ opacity: 1, y: '-50%', x: '-50%', scale: 1 }}
+              exit={{ opacity: 0, y: '-45%', x: '-50%', scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+              style={{ 
+                position: 'fixed', top: '50%', left: '50%', zIndex: 100,
+                background: 'rgba(15,20,25,0.95)', backdropFilter: 'blur(16px)', 
+                border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, 
+                width: 400, boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                display: 'flex', flexDirection: 'column', maxHeight: '90vh'
+              }}
+            >
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontWeight: 600, color: '#fff', fontSize: 15 }}>Review Details</div>
+              <button 
+                onClick={() => setShowDetailsPopup(false)}
+                style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 20, maxHeight: 400, overflowY: 'auto' }}>
+              {validationResult.issues.map((issue, idx) => (
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontWeight: 600, color: '#f59e0b', fontSize: 14 }}>{issue.title}</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>
+                    {issue.message}
+                  </div>
+                  {(issue.expected !== undefined && issue.expected !== null) && (
+                    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: 12, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span style={{ color: 'rgba(255,255,255,0.5)' }}>
+                          {issue.type === 'subtotal_mismatch' ? 'Calculated from line items' : 'Calculated / Expected'}
+                        </span>
+                        <span style={{ color: '#fff', fontFamily: 'monospace' }}>{formatCurrency(issue.expected)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span style={{ color: 'rgba(255,255,255,0.5)' }}>
+                          {issue.type === 'subtotal_mismatch' ? 'Document subtotal' : 'Extracted / Document'}
+                        </span>
+                        <span style={{ color: '#fff', fontFamily: 'monospace' }}>{formatCurrency(issue.actual)}</span>
+                      </div>
+                      <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.05)' }}></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span style={{ color: 'rgba(255,255,255,0.5)' }}>Difference</span>
+                        <span style={{ color: '#f97316', fontFamily: 'monospace' }}>{formatCurrency(issue.difference)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Main Layout Conditional */}
       {stage < 11 ? (
-        <div style={{ display: 'flex', gap: 24, width: '100%', alignItems: 'stretch', paddingBottom: 16 }}>
-        
-        {/* Left Column: Document Preview */}
-        <div style={{ 
-          flex: '0 0 42%', 
-          background: 'rgba(10,12,16,0.5)', 
-          border: '1px solid rgba(255,255,255,0.05)',
-          borderRadius: 16,
-          display: 'flex', flexDirection: 'column',
-          overflow: 'hidden',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.02)'
-        }}>
+        <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: 760, paddingBottom: 16 }}>
+          {/* Main columns row */}
+          <div style={{ display: 'flex', gap: 24, width: '100%', alignItems: 'stretch', flex: 1, minHeight: 0 }}>
+          
+            {/* Left Column: Document Preview */}
+            <motion.div 
+              layout
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              style={{ 
+                flex: '0 0 42%', 
+                background: 'rgba(10,12,16,0.5)', 
+                border: '1px solid rgba(255,255,255,0.05)',
+                borderRadius: 16,
+                display: 'flex', flexDirection: 'column',
+                overflow: 'hidden',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.02)',
+                minHeight: 0
+              }}
+            >
           {/* Preview Header */}
           <div style={{ 
             display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
@@ -181,81 +366,35 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
             </div>
           </div>
 
-          {/* Preview Body (Mock Receipt) */}
+          {/* Preview Body (Actual Document) */}
           <div style={{ 
             flex: 1, 
             background: '#0d1117', 
-            display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
-            padding: 32,
-            overflowY: 'auto',
-            minHeight: 400
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            padding: 16,
+            overflowY: 'auto'
           }}>
-            <div style={{ 
-              background: '#f4ecd8',
-              width: '100%', maxWidth: 320,
-              padding: '24px 20px',
-              color: '#333', fontFamily: 'monospace',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-              border: '1px solid #e0d8c3',
-              borderRadius: 2
-            }}>
-              <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <h2 style={{ fontSize: 24, fontWeight: 'bold', margin: '0 0 4px 0', letterSpacing: 1 }}>ABC MART</h2>
-                <p style={{ fontSize: 12, margin: 0 }}>123 Green Street,</p>
-                <p style={{ fontSize: 12, margin: 0 }}>Bangalore, Karnataka - 560001</p>
-                <p style={{ fontSize: 12, margin: 0 }}>Ph: 080-12345678</p>
-              </div>
-              
-              <div style={{ borderBottom: '1px dashed #999', paddingBottom: 12, marginBottom: 12 }}>
-                <table style={{ width: '100%', fontSize: 11 }}>
-                  <tbody>
-                    <tr><td style={{ width: 80 }}>Invoice No</td><td>: {MOCK_RESULT.invoiceNumber}</td></tr>
-                    <tr><td>Date</td><td>: {MOCK_RESULT.date}, 11:23 AM</td></tr>
-                    <tr><td>Cashier</td><td>: Ramesh</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <table style={{ width: '100%', fontSize: 11, marginBottom: 12, borderBottom: '1px dashed #999', paddingBottom: 12 }}>
-                <thead>
-                  <tr style={{ textAlign: 'left' }}>
-                    <th style={{ paddingBottom: 8 }}>Item</th>
-                    <th style={{ paddingBottom: 8 }}>Qty</th>
-                    <th style={{ paddingBottom: 8 }}>Rate</th>
-                    <th style={{ paddingBottom: 8, textAlign: 'right' }}>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {MOCK_RESULT.lineItems.map((item, idx) => (
-                    <tr key={idx}>
-                      <td style={{ paddingBottom: 4 }}>{item.item}</td>
-                      <td style={{ paddingBottom: 4 }}>{item.qty}</td>
-                      <td style={{ paddingBottom: 4 }}>{item.rate}</td>
-                      <td style={{ paddingBottom: 4, textAlign: 'right' }}>{item.amount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
-                <span>Subtotal</span>
-                <span>{MOCK_VALIDATION.documentTotal}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 12, borderBottom: '1px dashed #999', paddingBottom: 12 }}>
-                <span>Tax (18%)</span>
-                <span>209.00</span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 'bold', marginBottom: 24 }}>
-                <span>TOTAL</span>
-                <span>₹ {MOCK_RESULT.totalAmount}</span>
-              </div>
-
-              <div style={{ fontSize: 11, textAlign: 'center' }}>
-                <p style={{ margin: '0 0 8px 0', textAlign: 'left' }}>Paid via : UPI</p>
-                <p style={{ margin: 0 }}>Thank you! Visit Again.</p>
-              </div>
-            </div>
+            {previewUrl ? (
+              isPdf ? (
+                <object 
+                  data={previewUrl} 
+                  type="application/pdf" 
+                  width="100%" 
+                  height="100%"
+                  style={{ borderRadius: 8 }}
+                >
+                  <div style={{ color: '#fff' }}>PDF preview not available in this browser.</div>
+                </object>
+              ) : (
+                <img 
+                  src={previewUrl} 
+                  alt="Document Preview" 
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', borderRadius: 2 }} 
+                />
+              )
+            ) : (
+              <div style={{ color: 'rgba(255,255,255,0.5)' }}>No preview available</div>
+            )}
           </div>
           
           <div style={{ 
@@ -269,41 +408,105 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
               <Maximize2 size={14} /> Zoom
             </button>
           </div>
-        </div>
+            </motion.div>
 
         {/* Right Column: Dynamic Content Based on Stage */}
-        <AnimatePresence mode="wait">
-          {stage === 10 ? (
+        <motion.div 
+          layout 
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          style={{ flex: 1, display: 'grid' }}
+        >
+          <AnimatePresence>
+            {stage === 10 ? (
+              <motion.div
+                key="stage10"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.35 }}
+                style={{ gridArea: '1 / 1 / 2 / 2', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}
+              >
+                <DuplicateWarningView setStage={setStage} displayData={displayData} />
+              </motion.div>
+            ) : stage === 9 ? (
+              <motion.div
+                key="stage9"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.35 }}
+                style={{ gridArea: '1 / 1 / 2 / 2', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}
+              >
+                <ReviewEditView setStage={setStage} displayData={displayData} onSave={handleSaveData} />
+              </motion.div>
+            ) : stage >= 7 ? (
+              <motion.div
+                key="right-panel"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20, position: 'absolute', right: 0 }}
+                transition={{ duration: 0.35 }}
+                style={{ gridArea: '1 / 1 / 2 / 2', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}
+              >
+                <ExtractionResultsRightPanel stage={stage} setStage={setStage} validationResult={validationResult} resetUpload={resetUpload} displayData={displayData} />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </motion.div>
+
+        </div> {/* End of main columns row */}
+
+        {/* Bottom Spanning Action Bar (Stage 7 only) */}
+        <AnimatePresence>
+          {stage === 7 && (
             <motion.div
-              key="stage10"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+              initial={{ opacity: 0, height: 0, y: 15, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', y: 0, marginTop: 24 }}
+              exit={{ opacity: 0, height: 0, y: 15, marginTop: 0 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              style={{ width: '100%', overflow: 'hidden' }}
             >
-              <DuplicateWarningView setStage={setStage} />
+              <div
+                style={{ 
+                  background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', 
+                  borderRadius: 12, padding: 16, display: 'flex', gap: 16, alignItems: 'center',
+                  width: '100%', boxSizing: 'border-box'
+                }}
+              >
+                <motion.button 
+                  whileHover={{ color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)' }}
+                  style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
+                >
+                  <FileDown size={16} /> Export
+                </motion.button>
+                <motion.button 
+                  whileHover={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' }}
+                  style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
+                >
+                  <Trash2 size={16} /> Delete
+                </motion.button>
+                <motion.button 
+                  onClick={resetUpload} 
+                  whileHover={{ color: '#fff', backgroundColor: 'rgba(255,255,255,0.1)' }}
+                  style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
+                >
+                  <RefreshCcw size={16} /> Process Another
+                </motion.button>
+                <motion.button
+                  onClick={() => setStage(11)}
+                  whileHover={{ scale: 1.02, boxShadow: '0 8px 20px rgba(249,115,22,0.4)' }}
+                  whileTap={{ scale: 0.98 }}
+                  style={{ 
+                    flex: 1, justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg, #f97316 0%, #e85d04 100%)', 
+                    border: 'none', borderRadius: 8, padding: '12px 24px', color: '#fff', fontSize: 14, fontWeight: 600, 
+                    cursor: 'pointer', boxShadow: '0 4px 12px rgba(249,115,22,0.3)'
+                  }}
+                >
+                  <Save size={16} /> Save to Library
+                </motion.button>
+              </div>
             </motion.div>
-          ) : stage === 9 ? (
-            <motion.div
-              key="stage9"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
-            >
-              <ReviewEditView setStage={setStage} />
-            </motion.div>
-          ) : stage >= 7 ? (
-            <motion.div
-              key="stage78"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
-            >
-              <ExtractionResultsRightPanel stage={stage} setStage={setStage} validationCase={validationCase} resetUpload={resetUpload} />
-            </motion.div>
-          ) : null}
+          )}
         </AnimatePresence>
 
         </div>
@@ -317,7 +520,7 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               style={{ width: '100%' }}
             >
-              <Stage11SuccessView setStage={setStage} file={file} resetUpload={resetUpload} />
+              <Stage11SuccessView file={file} resetUpload={resetUpload} displayData={displayData} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -330,9 +533,22 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
 // ------------------------------------------------------------------
 // RIGHT PANEL: STAGE 7, 8 & 11 (Results + Validation + Final Result)
 // ------------------------------------------------------------------
-function ExtractionResultsRightPanel({ stage, setStage, validationCase, resetUpload }) {
+function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetUpload, displayData }) {
+  // Determine if there is a math warning
+  const mathVal = validationResult?.quality_signals?.mathematical_validation;
+  const isMathValid = mathVal ? mathVal.total_matches !== false : true;
+  
+  // Calculate difference if needed
+  let diffStr = "₹ 0.00";
+  if (mathVal && mathVal.calculated_total !== null && mathVal.document_total !== null) {
+    diffStr = `₹ ${Math.abs(mathVal.calculated_total - mathVal.document_total).toFixed(2)}`;
+  }
+  
+  // For Review UI: If warning, we might have a specific banner
+  const overallStatus = validationResult?.overall_status || 'valid';
+  
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -340,29 +556,22 @@ function ExtractionResultsRightPanel({ stage, setStage, validationCase, resetUpl
           <Sparkles size={20} color="#f97316" />
           <h3 style={{ fontSize: 16, fontWeight: 600, color: '#fff', margin: 0 }}>Extracted Information</h3>
         </div>
-          <div style={{ display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
-            Confidence: <span style={{ color: '#10b981', fontWeight: 600, marginLeft: 4 }}>{MOCK_RESULT.confidence}</span>
-            <svg width="24" height="12" style={{ marginLeft: 8 }}>
-              <polyline points="0,10 6,4 12,8 20,2" fill="none" stroke="#10b981" strokeWidth="1.5" />
-              <polyline points="20,2 24,0" fill="none" stroke="#10b981" strokeWidth="1.5" opacity="0.3" />
-            </svg>
-          </div>
-        </div>
+      </div>
 
       {/* Cards Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-        <InfoCard icon={Building2} label="Vendor / Company" value={MOCK_RESULT.vendor} />
-        <InfoCard icon={Calendar} label="Date" value={MOCK_RESULT.date} />
-        <InfoCard icon={MapPin} label="Address" value={MOCK_RESULT.address} />
-        <InfoCard icon={Hash} label="Invoice / Bill No." value={MOCK_RESULT.invoiceNumber} />
+        <InfoCard icon={Building2} label="Vendor / Company" value={displayData.vendor} />
+        <InfoCard icon={Calendar} label="Date" value={displayData.date} />
+        <InfoCard icon={MapPin} label="Address" value={displayData.address} />
+        <InfoCard icon={Hash} label="Invoice / Bill No." value={displayData.invoiceNumber} />
         {stage !== 8 && (
-          <InfoCard icon={IndianRupee} label="Total Amount" value={MOCK_RESULT.totalAmount} fullWidth highlight />
+          <InfoCard icon={IndianRupee} label="Total Amount" value={displayData.totalAmount} fullWidth highlight />
         )}
       </div>
 
-      {/* Stage 8 Validation Card - Dynamic Based on Scenario */}
+      {/* Stage 7 & 8 Validation Card - Dynamic Based on Scenario */}
       <AnimatePresence mode="wait">
-        {stage >= 8 && stage !== 11 && (
+        {stage >= 7 && stage !== 11 && overallStatus !== 'valid' && (
           <motion.div 
             key="validation"
             initial={{ opacity: 0, height: 0, scale: 0.95 }}
@@ -370,76 +579,44 @@ function ExtractionResultsRightPanel({ stage, setStage, validationCase, resetUpl
             transition={{ duration: 0.4, type: 'spring', bounce: 0.3 }}
             style={{ marginBottom: 16 }}
           >
-              {validationCase === 'VALID' ? (
-                // SUCCESS STATE
+              {overallStatus === 'warning' || overallStatus === 'invalid' || overallStatus === 'unable_to_validate' ? (
+                // WARNING/ERROR STATE
                 <div style={{ 
-                  background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)', 
+                  background: overallStatus === 'invalid' ? 'rgba(239,68,68,0.05)' : 'rgba(245,158,11,0.05)', 
+                  border: `1px solid ${overallStatus === 'invalid' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'}`, 
                   borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16,
-                  boxShadow: 'inset 0 0 20px rgba(16,185,129,0.05)'
+                  boxShadow: `inset 0 0 20px ${overallStatus === 'invalid' ? 'rgba(239,68,68,0.05)' : 'rgba(245,158,11,0.05)'}`
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <ShieldCheck size={18} color="#10b981" />
-                    <h4 style={{ fontSize: 14, fontWeight: 600, color: '#10b981', margin: 0 }}>Validation Results</h4>
+                    <AlertTriangle size={18} color={overallStatus === 'invalid' ? '#ef4444' : '#f59e0b'} />
+                    <h4 style={{ fontSize: 14, fontWeight: 600, color: overallStatus === 'invalid' ? '#ef4444' : '#f59e0b', margin: 0 }}>Validation Results</h4>
                   </div>
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <CheckCircle2 size={20} color="#10b981" />
-                    <span style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>Document is Valid</span>
+                    <AlertCircle size={20} color={overallStatus === 'invalid' ? '#ef4444' : '#f59e0b'} />
+                    <span style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>
+                      {overallStatus === 'invalid' ? 'Document Invalid' : overallStatus === 'unable_to_validate' ? 'Validation Unavailable' : 'Review Recommended'}
+                    </span>
                   </div>
   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'rgba(255,250,242,0.85)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <CheckCircle2 size={14} color="#10b981" />
-                      <span>Document structure is valid</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <CheckCircle2 size={14} color="#10b981" />
-                      <span>All calculations are correct</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <CheckCircle2 size={14} color="#10b981" />
-                      <span>No duplicates detected</span>
-                    </div>
+                    {validationResult?.issues?.length > 0 ? (
+                      validationResult.issues.map((issue, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <AlertCircle size={14} color={overallStatus === 'invalid' ? '#ef4444' : '#f59e0b'} />
+                          <span>{issue.message || issue.title || issue}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <AlertCircle size={14} color="#f59e0b" />
+                        <span>Please review extracted information.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ) : validationCase === 'REVIEW_RECOMMENDED' ? (
-                // WARNING STATE
-                <div style={{ 
-                  background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.2)', 
-                  borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16,
-                  boxShadow: 'inset 0 0 20px rgba(245,158,11,0.05)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <AlertTriangle size={18} color="#f59e0b" />
-                    <h4 style={{ fontSize: 14, fontWeight: 600, color: '#f59e0b', margin: 0 }}>Validation Results</h4>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <AlertCircle size={20} color="#f59e0b" />
-                    <span style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>Review Recommended</span>
-                  </div>
-  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'rgba(255,250,242,0.85)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', border: '1.5px solid #f59e0b' }} />
-                      <span>Line item total: {MOCK_VALIDATION.calculatedTotal}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', border: '1.5px solid #f59e0b' }} />
-                      <span>Document total: {MOCK_VALIDATION.documentTotal}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', border: '1.5px solid #f59e0b' }} />
-                      <span>Difference: {MOCK_VALIDATION.difference}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', border: '1.5px solid #f59e0b' }} />
-                      <span>Please review the highlighted fields.</span>
-                    </div>
-                  </div>
-                </div>
-              ) : validationCase === 'POSSIBLE_DUPLICATE' ? (
-                // DUPLICATE STATE
+              ) : stage === 10 ? (
+                // DUPLICATE STATE (Stage 10 implies duplicate)
                 <div style={{ 
                   background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)', 
                   borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16,
@@ -456,7 +633,16 @@ function ExtractionResultsRightPanel({ stage, setStage, validationCase, resetUpl
                   </div>
   
                   <div style={{ fontSize: 13, color: 'rgba(255,250,242,0.85)', lineHeight: 1.5 }}>
-                    This document appears similar to an existing document.
+                    {validationResult?.issues?.length > 0 ? (
+                      validationResult.issues.map((issue, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <AlertCircle size={14} color="#3b82f6" />
+                          <span>{issue.message || issue.title || issue}</span>
+                        </div>
+                      ))
+                    ) : (
+                      "This document appears similar to an existing document."
+                    )}
                   </div>
                 </div>
               ) : null}
@@ -468,16 +654,16 @@ function ExtractionResultsRightPanel({ stage, setStage, validationCase, resetUpl
       <AnimatePresence>
         {(stage === 7 || stage === 11) && (
           <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             style={{ 
-              flex: 1, minHeight: 0,
+              flex: '0 1 auto', minHeight: 0, maxHeight: 320,
               background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', 
               borderRadius: 12, overflow: 'hidden', marginBottom: stage === 7 ? 16 : 0, display: 'flex', flexDirection: 'column'
             }}
           >
             <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <h4 style={{ fontSize: 14, fontWeight: 600, color: '#fff', margin: 0 }}>Line Items ({MOCK_RESULT.lineItems.length})</h4>
+              <h4 style={{ fontSize: 14, fontWeight: 600, color: '#fff', margin: 0 }}>Line Items ({displayData.lineItems.length})</h4>
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -490,7 +676,7 @@ function ExtractionResultsRightPanel({ stage, setStage, validationCase, resetUpl
                   </tr>
                 </thead>
                 <tbody>
-                  {MOCK_RESULT.lineItems.map((item, idx) => (
+                  {displayData.lineItems.map((item, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                       <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.item}</td>
                       <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.qty}</td>
@@ -505,49 +691,6 @@ function ExtractionResultsRightPanel({ stage, setStage, validationCase, resetUpl
         )}
       </AnimatePresence>
 
-      {/* Result Page (Stage 7) - Sticky Action Bar */}
-      {stage === 7 && (
-        <div style={{ 
-          marginTop: 'auto', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', 
-          borderRadius: 12, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-        }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <motion.button 
-              whileHover={{ color: '#10b981' }}
-              style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '10px 12px', borderRadius: 8, transition: 'color 0.2s' }}
-            >
-              <FileDown size={16} /> Export
-            </motion.button>
-            <motion.button 
-              whileHover={{ color: '#ef4444' }}
-              style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '10px 12px', borderRadius: 8, transition: 'color 0.2s' }}
-            >
-              <Trash2 size={16} /> Delete
-            </motion.button>
-            <motion.button 
-              onClick={resetUpload} 
-              whileHover={{ color: '#fff' }}
-              style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '10px 12px', borderRadius: 8, transition: 'color 0.2s', textAlign: 'left' }}
-            >
-              <RefreshCcw size={16} /> 
-              <div style={{ lineHeight: 1.2 }}>Process<br/>Another</div>
-            </motion.button>
-          </div>
-          <motion.button
-            onClick={() => setStage(11)}
-            whileHover={{ scale: 1.02, boxShadow: '0 8px 20px rgba(249,115,22,0.4)' }}
-            whileTap={{ scale: 0.98 }}
-            style={{ 
-              display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg, #f97316 0%, #e85d04 100%)', 
-              border: 'none', borderRadius: 8, padding: '10px 24px', color: '#fff', fontSize: 14, fontWeight: 600, 
-              cursor: 'pointer', boxShadow: '0 4px 12px rgba(249,115,22,0.3)', marginLeft: 8
-            }}
-          >
-            <Save size={16} /> Save to Library
-          </motion.button>
-        </div>
-      )}
-
     </div>
   );
 }
@@ -558,9 +701,25 @@ function InfoCard({ icon: Icon, label, value, fullWidth = false, highlight = fal
   const [isTruncated, setIsTruncated] = useState(false);
 
   useEffect(() => {
+    const checkTruncation = () => {
+      if (textRef.current) {
+        setIsTruncated(textRef.current.scrollWidth > textRef.current.clientWidth + 1);
+      }
+    };
+    
+    checkTruncation();
+    
+    const observer = new ResizeObserver(() => {
+      checkTruncation();
+    });
+    
     if (textRef.current) {
-      setIsTruncated(textRef.current.scrollWidth > textRef.current.clientWidth);
+      observer.observe(textRef.current);
     }
+    
+    return () => {
+      observer.disconnect();
+    };
   }, [value]);
 
   const cardStyle = {
@@ -632,7 +791,7 @@ function InfoCard({ icon: Icon, label, value, fullWidth = false, highlight = fal
 // ------------------------------------------------------------------
 // RIGHT PANEL: STAGE 10 (Duplicate Warning)
 // ------------------------------------------------------------------
-function DuplicateWarningView({ setStage, resetUpload }) {
+function DuplicateWarningView({ setStage, resetUpload, displayData }) {
   const [isOpening, setIsOpening] = useState(false);
 
   if (isOpening) {
@@ -709,10 +868,10 @@ function DuplicateWarningView({ setStage, resetUpload }) {
           <ImageIcon size={20} color="#fff" />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 4 }}>ABC MART</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 4 }}>{displayData?.vendor || 'Unknown Vendor'}</div>
           <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
-            <span>09 Aug 2025</span>
-            <span>₹ 1,365.00</span>
+            <span>{displayData?.date || 'Unknown Date'}</span>
+            <span>{displayData?.totalAmount || '₹ 0.00'}</span>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -764,17 +923,32 @@ function DuplicateWarningView({ setStage, resetUpload }) {
 // ------------------------------------------------------------------
 // RIGHT PANEL: STAGE 9 (Review / Edit)
 // ------------------------------------------------------------------
-function ReviewEditView({ setStage }) {
+function ReviewEditView({ setStage, displayData, onSave }) {
+  const [localData, setLocalData] = useState(displayData);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Sync local data if displayData completely changes from upstream (e.g. new file uploaded)
+  useEffect(() => {
+    setLocalData(displayData);
+  }, [displayData]);
 
   const handleSave = () => {
     setIsSaving(true);
     setTimeout(() => {
+      if (onSave) onSave(localData);
       setStage(7);
     }, 1000);
   };
+
+  const updateField = (field, value) => setLocalData(prev => ({ ...prev, [field]: value }));
+  const updateLineItem = (idx, val) => {
+    const newItems = [...localData.lineItems];
+    newItems[idx] = val;
+    setLocalData(prev => ({ ...prev, lineItems: newItems }));
+  };
+
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
@@ -784,21 +958,21 @@ function ReviewEditView({ setStage }) {
 
       {/* Editable Fields Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-        <EditableField icon={Building2} label="Vendor / Company" initialValue={MOCK_RESULT.vendor} />
-        <EditableField icon={Calendar} label="Date" initialValue={MOCK_RESULT.date} />
-        <EditableField icon={MapPin} label="Address" initialValue={MOCK_RESULT.address} />
-        <EditableField icon={Hash} label="Invoice / Bill No." initialValue={MOCK_RESULT.invoiceNumber} />
-        <EditableField icon={IndianRupee} label="Total Amount" initialValue={MOCK_RESULT.totalAmount} fullWidth highlight />
+        <EditableField icon={Building2} label="Vendor / Company" initialValue={localData.vendor} onChange={v => updateField('vendor', v)} />
+        <EditableField icon={Calendar} label="Date" initialValue={localData.date} onChange={v => updateField('date', v)} />
+        <EditableField icon={MapPin} label="Address" initialValue={localData.address} onChange={v => updateField('address', v)} />
+        <EditableField icon={Hash} label="Invoice / Bill No." initialValue={localData.invoiceNumber} onChange={v => updateField('invoiceNumber', v)} />
+        <EditableField icon={IndianRupee} label="Total Amount" initialValue={localData.totalAmount} fullWidth highlight onChange={v => updateField('totalAmount', v)} />
       </div>
 
       {/* Editable Line Items Scrollable */}
       <div style={{ 
-        flex: 1, minHeight: 0,
+        flex: '0 1 auto', minHeight: 0, maxHeight: 320,
         background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', 
         borderRadius: 12, overflow: 'hidden', marginBottom: 16, display: 'flex', flexDirection: 'column'
       }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <h4 style={{ fontSize: 14, fontWeight: 600, color: '#fff', margin: 0 }}>Line Items ({MOCK_RESULT.lineItems.length})</h4>
+          <h4 style={{ fontSize: 14, fontWeight: 600, color: '#fff', margin: 0 }}>Line Items ({localData.lineItems.length})</h4>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -812,8 +986,8 @@ function ReviewEditView({ setStage }) {
               </tr>
             </thead>
             <tbody>
-              {MOCK_RESULT.lineItems.map((item, idx) => (
-                <EditableRow key={idx} initialItem={item} />
+              {localData.lineItems.map((item, idx) => (
+                <EditableRow key={idx} initialItem={item} onChange={v => updateLineItem(idx, v)} />
               ))}
             </tbody>
           </table>
@@ -856,14 +1030,15 @@ function ReviewEditView({ setStage }) {
   );
 }
 
-function EditableRow({ initialItem }) {
+function EditableRow({ initialItem, onChange }) {
   const [isEditing, setIsEditing] = useState(false);
   const [item, setItem] = useState(initialItem);
   const [draft, setDraft] = useState(initialItem);
 
   const inputStyle = {
-    width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', 
-    borderRadius: 4, padding: '6px 8px', color: '#fff', fontSize: 13, outline: 'none'
+    width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', 
+    borderRadius: 6, padding: '8px 12px', color: '#fff', fontSize: 13, outline: 'none',
+    boxSizing: 'border-box'
   };
 
   if (isEditing) {
@@ -881,19 +1056,21 @@ function EditableRow({ initialItem }) {
         <td style={{ padding: '8px 20px' }}>
           <input type="text" value={draft.amount} onChange={e => setDraft({...draft, amount: e.target.value})} style={inputStyle} />
         </td>
-        <td style={{ padding: '8px 20px', textAlign: 'right', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <button 
-            onClick={() => { setItem(draft); setIsEditing(false); }}
-            style={{ background: 'rgba(16,185,129,0.15)', border: 'none', borderRadius: 4, padding: '4px 6px', color: '#10b981', cursor: 'pointer' }}
-          >
-            <Check size={14} />
-          </button>
-          <button 
-            onClick={() => { setDraft(item); setIsEditing(false); }}
-            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 4, padding: '4px 6px', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}
-          >
-            <X size={14} />
-          </button>
+        <td style={{ padding: '8px 20px', textAlign: 'right' }}>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+            <button 
+              onClick={() => { setItem(draft); setIsEditing(false); if (onChange) onChange(draft); }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 6, width: 28, height: 28, color: '#10b981', cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              <Check size={14} />
+            </button>
+            <button 
+              onClick={() => { setDraft(item); setIsEditing(false); }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, width: 28, height: 28, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              <X size={14} />
+            </button>
+          </div>
         </td>
       </tr>
     );
@@ -918,7 +1095,7 @@ function EditableRow({ initialItem }) {
 }
 
 
-function EditableField({ icon: Icon, label, initialValue, isTextarea = false, fullWidth = false, highlight = false }) {
+function EditableField({ icon: Icon, label, initialValue, isTextarea = false, fullWidth = false, highlight = false, onChange }) {
   const [isHovered, setIsHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(initialValue);
@@ -937,7 +1114,7 @@ function EditableField({ icon: Icon, label, initialValue, isTextarea = false, fu
   const cardStyle = {
     background: isEditing ? 'rgba(249,115,22,0.05)' : (highlight ? 'linear-gradient(135deg, rgba(249,115,22,0.1) 0%, rgba(232,93,4,0.02) 100%)' : 'rgba(255,255,255,0.03)'), 
     border: isEditing ? '1px solid rgba(249,115,22,0.4)' : (highlight ? '1px solid rgba(249,115,22,0.3)' : '1px solid rgba(255,255,255,0.06)'), 
-    borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12,
+    borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12, boxSizing: 'border-box'
   };
 
   const expandedBg = isEditing 
@@ -1008,15 +1185,15 @@ function EditableField({ icon: Icon, label, initialValue, isTextarea = false, fu
             </div>
             
             {isEditing ? (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
                 {isTextarea ? (
                   <textarea 
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     style={{
-                      flex: 1, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6,
-                      padding: '8px 12px', color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none',
-                      minHeight: 60, resize: 'vertical'
+                      width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
+                      padding: '12px 14px', color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none',
+                      minHeight: 80, resize: 'vertical', boxSizing: 'border-box'
                     }}
                     autoFocus
                   />
@@ -1026,24 +1203,25 @@ function EditableField({ icon: Icon, label, initialValue, isTextarea = false, fu
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     style={{
-                      flex: 1, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6,
-                      padding: '8px 12px', color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none'
+                      width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
+                      padding: '12px 14px', color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none',
+                      boxSizing: 'border-box'
                     }}
                     autoFocus
                   />
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <button 
-                    onClick={() => { setValue(draft); setIsEditing(false); }}
-                    style={{ background: 'rgba(16,185,129,0.15)', border: 'none', borderRadius: 4, padding: 6, color: '#10b981', cursor: 'pointer' }}
-                  >
-                    <Check size={14} />
-                  </button>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button 
                     onClick={() => { setDraft(value); setIsEditing(false); }}
-                    style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 4, padding: 6, color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '8px 16px', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 13, fontWeight: 500, transition: 'all 0.2s' }}
                   >
-                    <X size={14} />
+                    <X size={14} /> Cancel
+                  </button>
+                  <button 
+                    onClick={() => { setValue(draft); setIsEditing(false); if (onChange) onChange(draft); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none', borderRadius: 6, padding: '8px 16px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500, boxShadow: '0 4px 12px rgba(16,185,129,0.2)' }}
+                  >
+                    <Check size={14} /> Save
                   </button>
                 </div>
               </div>
@@ -1063,7 +1241,24 @@ function EditableField({ icon: Icon, label, initialValue, isTextarea = false, fu
 // ------------------------------------------------------------------
 // STAGE 11 (Saved Successfully - Full Workspace View)
 // ------------------------------------------------------------------
-function Stage11SuccessView({ setStage, file, resetUpload }) {
+function Stage11SuccessView({ file, resetUpload, displayData }) {
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  useEffect(() => {
+    if (file && file.type && file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+  }, [file]);
+
+  useEffect(() => {
+    const scrollArea = document.getElementById('app-scroll-area');
+    if (scrollArea) {
+      scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
+
   return (
     <div style={{
       width: '100%',
@@ -1139,19 +1334,24 @@ function Stage11SuccessView({ setStage, file, resetUpload }) {
         {/* Top Row: Icon and Title */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
           <div style={{ 
-            width: 44, height: 44, borderRadius: 10, background: '#f97316', 
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 
+            width: 44, height: 44, borderRadius: 10, background: previewUrl ? '#0d1117' : '#f97316', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            overflow: 'hidden', border: previewUrl ? '1px solid rgba(255,255,255,0.1)' : 'none'
           }}>
-            <ImageIcon size={20} color="#fff" />
+            {previewUrl ? (
+              <img src={previewUrl} alt="Document thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <ImageIcon size={20} color="#fff" />
+            )}
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, color: '#fff' }}>{file?.name || MOCK_RESULT.filename}</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: '#fff' }}>{file?.name || 'Document'}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#10b981', fontSize: 11, fontWeight: 600 }}>
                 <CheckCircle2 size={14} /> Saved
               </div>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{MOCK_RESULT.vendor}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{displayData?.vendor || 'Unknown Vendor'}</div>
           </div>
         </div>
 
@@ -1160,8 +1360,8 @@ function Stage11SuccessView({ setStage, file, resetUpload }) {
         {/* Bottom Row: Metadata */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
           <div style={{ display: 'flex', gap: 20, color: 'rgba(255,255,255,0.6)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Calendar size={14} /> {MOCK_RESULT.date}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{MOCK_RESULT.totalAmount}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Calendar size={14} /> {displayData?.date || 'Unknown Date'}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{displayData?.totalAmount || '₹ 0.00'}</span>
           </div>
           <div style={{ color: '#10b981', fontWeight: 500 }}>Saved to Library</div>
         </div>

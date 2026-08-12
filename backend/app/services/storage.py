@@ -35,12 +35,14 @@ async def upload_document_to_storage(
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(storage_url, headers=headers, content=file_content)
     except httpx.RequestError as error:
+        print(f"STORAGE REQUEST ERROR: {error}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Document storage is unavailable.",
         ) from error
 
     if not response.is_success:
+        print(f"STORAGE ERROR {response.status_code}: {response.text}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to store the document.",

@@ -63,6 +63,7 @@ async def get_authenticated_user(access_token: str) -> CurrentUser:
         ) from error
 
     if response.is_client_error:
+        print(f"AUTH CLIENT ERROR {response.status_code}: {response.text}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired authentication token.",
@@ -70,6 +71,7 @@ async def get_authenticated_user(access_token: str) -> CurrentUser:
         )
 
     if response.is_server_error:
+        print(f"AUTH SERVER ERROR {response.status_code}: {response.text}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Supabase Auth is unavailable.",

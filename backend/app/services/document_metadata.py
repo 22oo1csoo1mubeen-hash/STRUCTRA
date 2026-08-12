@@ -52,7 +52,6 @@ async def create_document_metadata(
         "content_type": content_type,
         "size": size,
         "status": "pending",
-        "content_hash": content_hash,
     }
     documents_url = f"{settings.supabase_url.rstrip('/')}/rest/v1/documents"
 
@@ -60,12 +59,14 @@ async def create_document_metadata(
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(documents_url, headers=headers, json=payload)
     except httpx.RequestError as error:
+        print(f"METADATA REQUEST ERROR: {error}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Document metadata service is unavailable.",
         ) from error
 
     if not response.is_success:
+        print(f"METADATA ERROR {response.status_code}: {response.text}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to save document metadata.",
@@ -86,7 +87,7 @@ async def list_document_metadata(
     """Return metadata records owned by one authenticated user."""
     return await _get_document_metadata(
         params={
-            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at,content_hash",
+            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at",
             "user_id": f"eq.{user_id}",
             "order": "created_at.desc",
         },
@@ -100,7 +101,7 @@ async def get_document_metadata(
     """Return one metadata record only when it belongs to the current user."""
     records = await _get_document_metadata(
         params={
-            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at,content_hash",
+            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at",
             "id": f"eq.{document_id}",
             "user_id": f"eq.{user_id}",
         },
@@ -115,7 +116,7 @@ async def find_document_metadata_by_content_hash(
     """Find same-user metadata rows with one internally calculated content hash."""
     return await _get_document_metadata(
         params={
-            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at,content_hash",
+            "select": "id,user_id,filename,storage_path,content_type,size,status,created_at",
             "user_id": f"eq.{user_id}",
             "content_hash": f"eq.{content_hash}",
         },

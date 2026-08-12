@@ -10,7 +10,7 @@ import ExtractionResultWorkspace from './ExtractionResultWorkspace';
  * True glassmorphism card — transparent with blur, warm background shows through.
  * Orange top + bottom border. Dashed orange inner border on drop zone.
  */
-export default function UploadCard({ stage, setStage, file, error, onFilesSelected, onRemoveFile, onProcessDocument, resetUpload }) {
+export default function UploadCard({ stage, setStage, file, error, onFilesSelected, onRemoveFile, onProcessDocument, resetUpload, extractionResult, extractionError, onRetryExtraction, validationResult, validationError, onRetryValidation }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -79,7 +79,7 @@ export default function UploadCard({ stage, setStage, file, error, onFilesSelect
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: stage >= 7 ? 'flex-start' : 'center',
           padding: stage === 1 ? '48px 40px 42px' : stage >= 7 ? '24px 32px' : '32px 40px',
           cursor: 'default',
           position: 'relative',
@@ -299,7 +299,7 @@ export default function UploadCard({ stage, setStage, file, error, onFilesSelect
               transition={{ duration: 0.3 }}
               style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
             >
-              <ProcessingWorkspace stage={stage} setStage={setStage} file={file} />
+              <ProcessingWorkspace stage={stage} setStage={setStage} file={file} extractionError={extractionError} onRetryExtraction={onRetryExtraction} validationError={validationError} onRetryValidation={onRetryValidation} />
             </motion.div>
           )}
 
@@ -312,7 +312,7 @@ export default function UploadCard({ stage, setStage, file, error, onFilesSelect
               transition={{ duration: 0.4 }}
               style={{ width: '100%', display: 'flex', flexDirection: 'column' }}
             >
-              <ExtractionResultWorkspace file={file} stage={stage} setStage={setStage} resetUpload={resetUpload} />
+              <ExtractionResultWorkspace file={file} stage={stage} setStage={setStage} resetUpload={resetUpload} extractionResult={extractionResult} validationResult={validationResult} />
             </motion.div>
           )}
         </AnimatePresence>

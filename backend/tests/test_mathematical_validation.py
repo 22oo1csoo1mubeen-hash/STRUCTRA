@@ -8,9 +8,23 @@ from app.schemas.documents import ReceiptInvoiceExtraction
 from app.services.mathematical_validation import validate_extraction_totals
 
 
-def _extraction(*, total: float | None, line_totals: list[float | None]) -> ReceiptInvoiceExtraction:
+def _extraction(
+    *, 
+    total: float | None, 
+    line_totals: list[float | None],
+    subtotal: float | None = None,
+    discount: float | None = 0.0,
+    taxable_amount: float | None = None,
+    tax: float | None = 0.0,
+    tax_components: list[dict] | None = None,
+) -> ReceiptInvoiceExtraction:
     return ReceiptInvoiceExtraction(
         total=total,
+        subtotal=subtotal,
+        discount=discount,
+        taxable_amount=taxable_amount,
+        tax=tax,
+        tax_components=tax_components or [],
         line_items=[
             {"description": f"Item {index}", "line_total": line_total}
             for index, line_total in enumerate(line_totals, start=1)
@@ -95,3 +109,123 @@ def test_half_up_currency_rounding_is_applied_before_comparison() -> None:
 
     assert result.total_matches is True
     assert result.calculated_total == Decimal("1.01")
+
+
+def test_abc_mart_receipt_is_valid() -> None:
+    # subtotal=1361, discount=61, taxable=1300, CGST=32.50, SGST=32.50, total=1365
+    result = validate_extraction_totals(
+        _extraction(
+            total=1365.0,
+            line_totals=[289.0, 126.0, 349.0, 139.0, 159.0, 299.0],
+            subtotal=1361.0,
+            discount=61.0,
+            taxable_amount=1300.0,
+            tax=None,
+            tax_components=[
+                {"name": "CGST", "rate": 2.5, "amount": 32.50},
+                {"name": "SGST", "rate": 2.5, "amount": 32.50},
+            ]
+        )
+    )
+    assert result.validation_performed is True
+    assert result.total_matches is True
+    assert result.calculated_total == Decimal("1365.00")
+
+
+def test_single_gst_amount_is_valid() -> None:
+    # subtotal=1000, discount=0, tax=180, total=1180
+    result = validate_extraction_totals(
+        _extraction(
+            total=1180.0,
+            line_totals=[1000.0],
+            subtotal=1000.0,
+            discount=0.0,
+            tax=180.0,
+            tax_components=[]
+        )
+    )
+    assert result.validation_performed is True
+    assert result.total_matches is True
+    assert result.calculated_total == Decimal("1180.00")
+
+
+def test_cgst_and_sgst_are_valid() -> None:
+    # subtotal=1000, discount=0, CGST=90, SGST=90, total=1180
+    result = validate_extraction_totals(
+        _extraction(
+            total=1180.0,
+            line_totals=[1000.0],
+            subtotal=1000.0,
+            discount=0.0,
+            tax=None,
+            tax_components=[
+                {"name": "CGST", "amount": 90.0},
+                {"name": "SGST", "amount": 90.0},
+            ]
+        )
+    )
+    assert result.validation_performed is True
+    assert result.total_matches is True
+    assert result.calculated_total == Decimal("1180.00")
+
+
+def test_wrong_final_total_reports_difference() -> None:
+    # subtotal=1000, CGST=90, SGST=90, document_total=1200
+    result = validate_extraction_totals(
+        _extraction(
+            total=1200.0,
+            line_totals=[1000.0],
+            subtotal=1000.0,
+            discount=0.0,
+            tax=None,
+            tax_components=[
+                {"name": "CGST", "amount": 90.0},
+                {"name": "SGST", "amount": 90.0},
+            ]
+        )
+    )
+    assert result.validation_performed is True
+    assert result.total_matches is False
+    assert result.calculated_total == Decimal("1180.00")
+    assert result.document_total == Decimal("1200.00")
+    assert result.difference == Decimal("-20.00")
+
+
+def test_wrong_subtotal_is_reported() -> None:
+    # line-item sum = 1000, document subtotal = 950
+    result = validate_extraction_totals(
+        _extraction(
+            total=950.0,
+            line_totals=[1000.0],
+            subtotal=950.0,
+            discount=0.0,
+            tax=0.0,
+            tax_components=[]
+        )
+    )
+    assert result.validation_performed is True
+    # total matches because 950 + 0 = 950
+    assert result.total_matches is True
+    # but subtotal does not match
+    assert result.subtotal_matches is False
+    assert result.calculated_subtotal == Decimal("1000.00")
+    assert result.document_subtotal == Decimal("950.00")
+    assert result.subtotal_difference == Decimal("50.00")
+
+
+def test_missing_tax_information_is_unreconciled() -> None:
+    # subtotal=1000, discount=50, document_total=1050, tax information unavailable
+    result = validate_extraction_totals(
+        _extraction(
+            total=1050.0,
+            line_totals=[1000.0],
+            subtotal=1000.0,
+            discount=50.0,
+            taxable_amount=None,
+            tax=None,
+            tax_components=[]
+        )
+    )
+    assert result.validation_performed is False
+    assert result.reason == "unreconciled_missing_fields"
+

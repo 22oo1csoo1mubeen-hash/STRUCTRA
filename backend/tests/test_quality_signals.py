@@ -45,6 +45,8 @@ def test_quality_signals_report_missing_values_without_claiming_ai_certainty() -
 def test_quality_signals_preserve_existing_mathematical_mismatch() -> None:
     extraction = ReceiptInvoiceExtraction(
         total=12.0,
+        discount=0.0,
+        tax=0.0,
         line_items=[
             {"description": "First", "line_total": 5.0},
             {"description": "Second", "line_total": 6.0},

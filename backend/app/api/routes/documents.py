@@ -14,6 +14,9 @@ from app.schemas.documents import (
     DocumentExtractionResponse,
     DocumentMetadataResponse,
     DocumentUploadResponse,
+    DocumentValidationResult,
+    ReceiptInvoiceExtraction,
+    DuplicateDocumentCandidate,
 )
 from app.services.document_metadata import (
     create_document_metadata,
@@ -34,7 +37,9 @@ from app.services.gemini import (
     GeminiUnexpectedResponseError,
     extract_receipt_invoice_document,
 )
-from app.services.duplicate_detection import hash_document_content
+from app.services.duplicate_detection import hash_document_content, detect_duplicate
+from app.services.quality_signals import derive_extraction_quality_signals
+from app.services.validation_aggregation import aggregate_validation_results
 from app.services.storage import (
     delete_document_from_storage,
     download_document_from_storage,
@@ -278,6 +283,56 @@ async def upload_document(
         document_id=metadata.id,
         status=metadata.status,
         created_at=metadata.created_at,
+    )
+
+
+@router.post(
+    "/{document_id}/validate",
+    response_model=DocumentValidationResult,
+    summary="Validate an extracted document",
+    responses={
+        404: {"description": "Document not found."},
+    },
+)
+async def validate_document(
+    document_id: UUID,
+    extraction: ReceiptInvoiceExtraction,
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> DocumentValidationResult:
+    """Validate extraction using M5.1 to M5.4 rules."""
+    metadata = await get_document_metadata(
+        document_id=document_id, user_id=current_user.user_id, settings=settings
+    )
+    if metadata is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    # M5.1 and M5.2
+    quality_signals = derive_extraction_quality_signals(extraction)
+
+    # M5.3 Duplicate Detection
+    user_docs = await list_document_metadata(user_id=current_user.user_id, settings=settings)
+    existing_documents = [
+        DuplicateDocumentCandidate(
+            document_id=doc.id,
+            user_id=doc.user_id,
+            content_hash=doc.content_hash,
+            extraction=None  # Extractions are not persisted in DB yet
+        )
+        for doc in user_docs if doc.id != document_id
+    ]
+
+    duplicate_result = detect_duplicate(
+        user_id=current_user.user_id,
+        content_hash=metadata.content_hash or "",
+        extraction=extraction,
+        existing_documents=existing_documents,
+    )
+
+    # M5.4 Aggregation
+    return aggregate_validation_results(
+        quality_signals=quality_signals,
+        duplicate_detection=duplicate_result,
     )
 
 
