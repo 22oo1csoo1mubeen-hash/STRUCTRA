@@ -110,14 +110,11 @@ export default function UploadPage() {
       // Wait a moment for Stage 5 animations before routing
       setTimeout(() => {
         if (dupClass === 'likely_duplicate' || dupClass === 'definite_duplicate') {
-          setStage(10); // Duplicate Warning
-        } else if (status === 'warning' || status === 'invalid') {
-          setStage(9); // Review Page
-        } else if (status === 'valid') {
-          setStage(7); // Result Page
+          setStage(9); // Route to Review Page for duplicate handling
+        } else if (status !== 'valid') {
+          setStage(9); // Review Page for any discrepancy
         } else {
-          // unable_to_validate (not handled above)
-          setValidationError('The document could not be validated.');
+          setStage(7); // Result Page
         }
       }, 800);
     } catch (err) {

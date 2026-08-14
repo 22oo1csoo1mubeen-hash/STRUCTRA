@@ -70,9 +70,9 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
       totalAmount: formatCurrency(extractionResult.extraction.total),
       lineItems: (extractionResult.extraction.line_items || []).map(li => ({
         item: li.description || '—',
-        qty: '—',
-        rate: '—',
-        amount: formatCurrency(li.line_total)
+        qty: li.quantity !== null && li.quantity !== undefined ? li.quantity : '—',
+        rate: li.unit_price !== null && li.unit_price !== undefined ? formatCurrency(li.unit_price) : '—',
+        amount: li.line_total !== null && li.line_total !== undefined ? formatCurrency(li.line_total) : '—'
       }))
     } : MOCK_RESULT;
   }, [extractionResult]);
@@ -212,9 +212,8 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
             </div>
           </motion.div>
         )}
-
         {/* Warning Validation Banner */}
-        {stage === 9 && validationResult?.overall_status === 'warning' && !warningBannerDismissed && (
+        {stage === 9 && validationResult?.overall_status !== 'valid' && !warningBannerDismissed && (
           <motion.div 
             initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
             animate={{ opacity: 1, height: 'auto', marginTop: 0, marginBottom: 24 }}
@@ -235,12 +234,25 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
               </button>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f59e0b', fontWeight: 600 }}>
-                  <AlertTriangle size={16} /> Review Recommended
-                </div>
-                <div style={{ fontSize: 13, color: 'rgba(255,250,242,0.85)', lineHeight: 1.5, paddingRight: 24 }}>
-                  Some extracted values could not be mathematically reconciled. Review the detected discrepancies.
-                </div>
+                {validationResult?.duplicate_detection?.classification === 'likely_duplicate' || validationResult?.duplicate_detection?.classification === 'definite_duplicate' ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f59e0b', fontWeight: 600 }}>
+                      <AlertTriangle size={16} /> Duplicate Detected
+                    </div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,250,242,0.85)', lineHeight: 1.5, paddingRight: 24 }}>
+                      This document appears similar to an existing document. Review before proceeding.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f59e0b', fontWeight: 600 }}>
+                      <AlertTriangle size={16} /> Review Recommended
+                    </div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,250,242,0.85)', lineHeight: 1.5, paddingRight: 24 }}>
+                      Some extracted values could not be mathematically reconciled. Review the detected discrepancies.
+                    </div>
+                  </>
+                )}
                 <div>
                   <button 
                     onClick={() => setShowDetailsPopup(true)}
@@ -569,86 +581,7 @@ function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetU
         )}
       </div>
 
-      {/* Stage 7 & 8 Validation Card - Dynamic Based on Scenario */}
-      <AnimatePresence mode="wait">
-        {stage >= 7 && stage !== 11 && overallStatus !== 'valid' && (
-          <motion.div 
-            key="validation"
-            initial={{ opacity: 0, height: 0, scale: 0.95 }}
-            animate={{ opacity: 1, height: 'auto', scale: 1 }}
-            transition={{ duration: 0.4, type: 'spring', bounce: 0.3 }}
-            style={{ marginBottom: 16 }}
-          >
-              {overallStatus === 'warning' || overallStatus === 'invalid' || overallStatus === 'unable_to_validate' ? (
-                // WARNING/ERROR STATE
-                <div style={{ 
-                  background: overallStatus === 'invalid' ? 'rgba(239,68,68,0.05)' : 'rgba(245,158,11,0.05)', 
-                  border: `1px solid ${overallStatus === 'invalid' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'}`, 
-                  borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16,
-                  boxShadow: `inset 0 0 20px ${overallStatus === 'invalid' ? 'rgba(239,68,68,0.05)' : 'rgba(245,158,11,0.05)'}`
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <AlertTriangle size={18} color={overallStatus === 'invalid' ? '#ef4444' : '#f59e0b'} />
-                    <h4 style={{ fontSize: 14, fontWeight: 600, color: overallStatus === 'invalid' ? '#ef4444' : '#f59e0b', margin: 0 }}>Validation Results</h4>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <AlertCircle size={20} color={overallStatus === 'invalid' ? '#ef4444' : '#f59e0b'} />
-                    <span style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>
-                      {overallStatus === 'invalid' ? 'Document Invalid' : overallStatus === 'unable_to_validate' ? 'Validation Unavailable' : 'Review Recommended'}
-                    </span>
-                  </div>
-  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'rgba(255,250,242,0.85)' }}>
-                    {validationResult?.issues?.length > 0 ? (
-                      validationResult.issues.map((issue, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <AlertCircle size={14} color={overallStatus === 'invalid' ? '#ef4444' : '#f59e0b'} />
-                          <span>{issue.message || issue.title || issue}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <AlertCircle size={14} color="#f59e0b" />
-                        <span>Please review extracted information.</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : stage === 10 ? (
-                // DUPLICATE STATE (Stage 10 implies duplicate)
-                <div style={{ 
-                  background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)', 
-                  borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16,
-                  boxShadow: 'inset 0 0 20px rgba(59,130,246,0.05)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <ShieldCheck size={18} color="#3b82f6" />
-                    <h4 style={{ fontSize: 14, fontWeight: 600, color: '#3b82f6', margin: 0 }}>Validation Results</h4>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <AlertCircle size={20} color="#3b82f6" />
-                    <span style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>Possible Duplicate</span>
-                  </div>
-  
-                  <div style={{ fontSize: 13, color: 'rgba(255,250,242,0.85)', lineHeight: 1.5 }}>
-                    {validationResult?.issues?.length > 0 ? (
-                      validationResult.issues.map((issue, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <AlertCircle size={14} color="#3b82f6" />
-                          <span>{issue.message || issue.title || issue}</span>
-                        </div>
-                      ))
-                    ) : (
-                      "This document appears similar to an existing document."
-                    )}
-                  </div>
-                </div>
-              ) : null}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Stage 7 & 8 Validation Card removed per specification */}
 
       {/* Scrollable Line Items in Result - Only show in stage 7 and 11 */}
       <AnimatePresence>
