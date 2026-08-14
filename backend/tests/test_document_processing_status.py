@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -15,6 +15,9 @@ from app.core.config import get_settings
 from app.main import app
 from app.schemas.auth import CurrentUser
 from app.services.document_metadata import CreatedDocumentMetadata
+from app.schemas.documents import ReceiptInvoiceExtraction
+from app.services.ocr import OCRResult
+from app.services.ai import AIProviderUnavailableError, AIExtractionValidationError
 from app.services.gemini import GeminiServiceUnavailableError
 
 TEST_USER_ID = "00000000-0000-0000-0000-000000000041"
@@ -65,10 +68,16 @@ def test_successful_extraction_transitions_from_processing_to_completed(
     record = _record()
     _prepare_owned_extraction(monkeypatch, record)
     updates = _track_status_updates(monkeypatch)
+    extracted_model = ReceiptInvoiceExtraction(vendor_company="STRUCTRA Store")
     monkeypatch.setattr(
-        document_routes,
-        "extract_receipt_invoice_document",
-        lambda *args, **kwargs: {"vendor_company": "STRUCTRA Store", "line_items": []},
+        document_routes.default_ocr_service,
+        "extract_text_from_bytes",
+        MagicMock(return_value=OCRResult(full_text="receipt text", lines=[])),
+    )
+    monkeypatch.setattr(
+        document_routes.default_ai_manager,
+        "extract_document",
+        AsyncMock(return_value=extracted_model),
     )
 
     response = authenticated_client.post(f"/documents/{record.id}/extract")
@@ -85,11 +94,16 @@ def test_processing_failures_transition_to_failed(
     record = _record()
     _prepare_owned_extraction(monkeypatch, record)
     updates = _track_status_updates(monkeypatch)
+    monkeypatch.setattr(
+        document_routes.default_ocr_service,
+        "extract_text_from_bytes",
+        MagicMock(return_value=OCRResult(full_text="receipt text", lines=[])),
+    )
     if failure == "gemini":
         monkeypatch.setattr(
-            document_routes,
-            "extract_receipt_invoice_document",
-            lambda *args, **kwargs: (_ for _ in ()).throw(GeminiServiceUnavailableError("SDK detail")),
+            document_routes.default_ai_manager,
+            "extract_document",
+            AsyncMock(side_effect=AIProviderUnavailableError("SDK detail")),
         )
     elif failure == "storage":
         monkeypatch.setattr(
@@ -104,9 +118,9 @@ def test_processing_failures_transition_to_failed(
         )
     else:
         monkeypatch.setattr(
-            document_routes,
-            "extract_receipt_invoice_document",
-            lambda *args, **kwargs: {"total": "not a number"},
+            document_routes.default_ai_manager,
+            "extract_document",
+            AsyncMock(side_effect=AIExtractionValidationError("Validation failed")),
         )
 
     response = authenticated_client.post(f"/documents/{record.id}/extract")

@@ -5,7 +5,9 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictStr, field_validator
+from typing import Any
+import re
 
 
 
@@ -48,7 +50,24 @@ class ReceiptInvoiceLineItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     description: StrictStr
-    line_total: StrictFloat | None = None
+    quantity: float | None = None
+    unit_price: float | None = None
+    line_total: float | None = None
+
+    @field_validator("quantity", "unit_price", "line_total", mode="before")
+    @classmethod
+    def parse_numeric(cls, v: Any) -> float | None:
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            cleaned = re.sub(r"[^\d.-]", "", v)
+            try:
+                return float(cleaned) if cleaned else None
+            except ValueError:
+                return None
+        return None
 
 
 class TaxComponent(BaseModel):
@@ -58,6 +77,21 @@ class TaxComponent(BaseModel):
     name: str
     rate: float | None = None
     amount: float | None = None
+
+    @field_validator("rate", "amount", mode="before")
+    @classmethod
+    def parse_numeric(cls, v: Any) -> float | None:
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            cleaned = re.sub(r"[^\d.-]", "", v)
+            try:
+                return float(cleaned) if cleaned else None
+            except ValueError:
+                return None
+        return None
 
 
 class ReceiptInvoiceExtraction(BaseModel):
@@ -76,6 +110,21 @@ class ReceiptInvoiceExtraction(BaseModel):
     tax_components: list[TaxComponent] = Field(default_factory=list)
     total: float | None = None
     line_items: list[ReceiptInvoiceLineItem] = Field(default_factory=list)
+
+    @field_validator("subtotal", "discount", "taxable_amount", "tax", "total", mode="before")
+    @classmethod
+    def parse_numeric(cls, v: Any) -> float | None:
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            cleaned = re.sub(r"[^\d.-]", "", v)
+            try:
+                return float(cleaned) if cleaned else None
+            except ValueError:
+                return None
+        return None
 
 
 class MathematicalValidationResult(BaseModel):
@@ -128,11 +177,15 @@ class DuplicateDetectionResult(BaseModel):
     evidence: list[str]
 
 
+from app.services.quality.schemas import ExtractionQualityResult
+
+
 class DocumentExtractionResponse(BaseModel):
     """Validated extraction returned for one owned document."""
 
     document_id: UUID
     extraction: ReceiptInvoiceExtraction
+    quality: ExtractionQualityResult | None = None
 
 
 DocumentValidationStatus = Literal["valid", "warning", "invalid", "unable_to_validate"]

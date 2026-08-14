@@ -1,6 +1,8 @@
 """Document upload API endpoints."""
 
 from typing import Annotated
+import asyncio
+import time
 from urllib.parse import quote
 from uuid import UUID
 
@@ -39,6 +41,10 @@ from app.services.gemini import (
 )
 from app.services.duplicate_detection import hash_document_content, detect_duplicate
 from app.services.quality_signals import derive_extraction_quality_signals
+from app.services.ocr import default_ocr_service, OCRError
+from app.services.ai import default_ai_manager, AIExtractionError
+from app.services.extraction_cache import default_extraction_cache, default_coalescer
+from app.services.quality import evaluate_extraction_quality, ProviderInfo
 from app.services.validation_aggregation import aggregate_validation_results
 from app.services.storage import (
     delete_document_from_storage,
@@ -147,17 +153,68 @@ async def extract_document(
         ) from error
 
     try:
+        t_storage0 = time.perf_counter()
         content = await download_document_from_storage(metadata.storage_path, settings)
-        extraction = extract_receipt_invoice_document(
-            settings,
-            document_content=content,
-            mime_type=metadata.content_type,
+        t_storage1 = time.perf_counter()
+        print(f"[STRUCTRA PERF] Download Document from Storage: {(t_storage1 - t_storage0)*1000:.1f} ms")
+
+        t_hash0 = time.perf_counter()
+        content_hash = hash_document_content(content)
+        t_hash1 = time.perf_counter()
+        print(f"[STRUCTRA PERF] Content hash: {(t_hash1 - t_hash0)*1000:.2f} ms")
+
+        cached_extraction = await default_extraction_cache.get(content_hash, settings=settings)
+        is_cache_miss = False
+        active_provider_info = None
+
+        if cached_extraction is not None:
+            # CACHE HIT PATH: Re-validate cached extraction with Pydantic
+            validated_extraction = ReceiptInvoiceExtraction.model_validate(
+                cached_extraction.model_dump(mode="json")
+            )
+        else:
+            # CACHE MISS PATH: Execute coalesced AI extraction
+            print(f"[STRUCTRA CACHE] MISS | Hash: {content_hash[:8]}")
+            is_cache_miss = True
+
+            async def _perform_ai_extraction() -> ReceiptInvoiceExtraction:
+                ocr_task = asyncio.create_task(
+                    default_ocr_service.extract_text_from_bytes_async(
+                        content, filename=metadata.filename
+                    )
+                )
+                return await default_ai_manager.extract_document(
+                    content,
+                    content_type=metadata.content_type,
+                    ocr_task=ocr_task,
+                )
+
+            t_extract0 = time.perf_counter()
+            validated_extraction = await default_coalescer.run_coalesced(
+                content_hash, _perform_ai_extraction
+            )
+            t_extract1 = time.perf_counter()
+            active_provider_info = getattr(default_ai_manager, "last_used_provider_info", None) or ProviderInfo(
+                provider=default_ai_manager.active_provider.provider_name,
+                model=default_ai_manager.active_provider.model_name,
+            )
+            print(f"[STRUCTRA PERF] AI Extraction ({active_provider_info.provider}): {(t_extract1 - t_extract0)*1000:.1f} ms")
+
+        quality_res = evaluate_extraction_quality(
+            validated_extraction,
+            ocr_result=None,
+            provider_info=active_provider_info,
         )
-        validated_extraction = validate_receipt_invoice_extraction(extraction)
+
+        # Cache STORE: Only store in cache after full downstream extraction/validation succeeds
+        if is_cache_miss:
+            await default_extraction_cache.set(content_hash, validated_extraction, settings=settings)
     except HTTPException:
         await _mark_extraction_failed(metadata.id, current_user.user_id, settings)
         raise
     except (
+        OCRError,
+        AIExtractionError,
         GeminiAuthenticationError,
         GeminiConfigurationError,
         GeminiServiceUnavailableError,
@@ -184,7 +241,11 @@ async def extract_document(
             detail="Document extraction is unavailable.",
         ) from error
 
-    return DocumentExtractionResponse(document_id=metadata.id, extraction=validated_extraction)
+    return DocumentExtractionResponse(
+        document_id=metadata.id,
+        extraction=validated_extraction,
+        quality=quality_res,
+    )
 
 
 async def _mark_extraction_failed(document_id: UUID, user_id: str, settings: Settings) -> None:
@@ -262,10 +323,23 @@ async def upload_document(
             detail="A document file is required.",
         )
 
+    t_upload0 = time.perf_counter()
     size = await validate_document_upload(file, settings)
     await file.seek(0)
+    
+    t_hash0 = time.perf_counter()
     content_hash = hash_document_content(await file.read())
+    t_hash1 = time.perf_counter()
+    print(f"[STRUCTRA PERF] Content Hash: {(t_hash1 - t_hash0)*1000:.1f} ms")
+    
+    await file.seek(0) # reset before upload to storage
+
+    t_store0 = time.perf_counter()
     storage_path = await upload_document_to_storage(file, current_user.user_id, settings)
+    t_store1 = time.perf_counter()
+    print(f"[STRUCTRA PERF] Storage Upload: {(t_store1 - t_store0)*1000:.1f} ms")
+
+    t_db0 = time.perf_counter()
     metadata = await create_document_metadata(
         user_id=current_user.user_id,
         filename=file.filename or "",
@@ -275,6 +349,9 @@ async def upload_document(
         content_hash=content_hash,
         settings=settings,
     )
+    t_db1 = time.perf_counter()
+    print(f"[STRUCTRA PERF] DB metadata: {(t_db1 - t_db0)*1000:.1f} ms")
+    print(f"[STRUCTRA PERF] Upload Total: {(time.perf_counter() - t_upload0)*1000:.1f} ms")
     return DocumentUploadResponse(
         filename=file.filename,
         content_type=file.content_type,
@@ -307,10 +384,15 @@ async def validate_document(
     if metadata is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
+    t_val_total0 = time.perf_counter()
     # M5.1 and M5.2
+    t_math0 = time.perf_counter()
     quality_signals = derive_extraction_quality_signals(extraction)
+    t_math1 = time.perf_counter()
+    print(f"[STRUCTRA PERF] Math validation: {(t_math1 - t_math0)*1000:.1f} ms")
 
     # M5.3 Duplicate Detection
+    t_dup0 = time.perf_counter()
     user_docs = await list_document_metadata(user_id=current_user.user_id, settings=settings)
     existing_documents = [
         DuplicateDocumentCandidate(
@@ -328,12 +410,16 @@ async def validate_document(
         extraction=extraction,
         existing_documents=existing_documents,
     )
+    t_dup1 = time.perf_counter()
+    print(f"[STRUCTRA PERF] Duplicate detection (incl DB lookup): {(t_dup1 - t_dup0)*1000:.1f} ms")
 
     # M5.4 Aggregation
-    return aggregate_validation_results(
+    result = aggregate_validation_results(
         quality_signals=quality_signals,
         duplicate_detection=duplicate_result,
     )
+    print(f"[STRUCTRA PERF] Validation Total: {(time.perf_counter() - t_val_total0)*1000:.1f} ms")
+    return result
 
 
 def _metadata_response(metadata) -> DocumentMetadataResponse:

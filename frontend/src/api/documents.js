@@ -116,3 +116,52 @@ export async function validateDocument(documentId, extraction) {
 
   return await response.json();
 }
+
+/**
+ * Downloads the original uploaded document from storage.
+ * 
+ * @param {string} documentId - The real document_id.
+ * @returns {Promise<{blob: Blob, filename: string}>} The file blob and filename.
+ */
+export async function downloadDocument(documentId) {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  if (sessionError || !session) {
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  const response = await fetch(`${API_URL}/documents/${documentId}/download`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`
+    }
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { detail: response.statusText };
+    }
+    const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Document download failed.');
+    throw new Error(errorMessage);
+  }
+
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = 'document';
+  if (contentDisposition && contentDisposition.includes('filename*=')) {
+    const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = decodeURIComponent(filenameMatch[1]);
+    }
+  } else if (contentDisposition && contentDisposition.includes('filename=')) {
+    const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1];
+    }
+  }
+
+  const blob = await response.blob();
+  return { blob, filename };
+}

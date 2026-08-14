@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -17,6 +17,9 @@ from app.core.config import Settings, get_settings
 from app.main import app
 from app.schemas.auth import CurrentUser
 from app.services.document_metadata import CreatedDocumentMetadata
+from app.schemas.documents import ReceiptInvoiceExtraction
+from app.services.ocr import OCRResult
+from app.services.ai import AIExtractionValidationError
 from app.services.gemini import (
     GEMINI_FLASH_MODEL,
     GeminiServiceUnavailableError,
@@ -57,25 +60,24 @@ def test_authenticated_owner_receives_structured_extraction(
     record = _record()
     monkeypatch.setattr(document_routes, "get_document_metadata", AsyncMock(return_value=record))
     monkeypatch.setattr(document_routes, "download_document_from_storage", AsyncMock(return_value=b"pdf"))
-    extracted = {
-        "vendor_company": "STRUCTRA Store",
-        "address": None,
-        "date": None,
-        "invoice_number": None,
-        "subtotal": None,
-        "discount": None,
-        "taxable_amount": None,
-        "tax": None,
-        "tax_components": [],
-        "total": None,
-        "line_items": [],
-    }
-    monkeypatch.setattr(document_routes, "extract_receipt_invoice_document", lambda *args, **kwargs: extracted)
+    extracted_model = ReceiptInvoiceExtraction(vendor_company="STRUCTRA Store")
+    monkeypatch.setattr(
+        document_routes.default_ocr_service,
+        "extract_text_from_bytes",
+        MagicMock(return_value=OCRResult(full_text="receipt text", lines=[])),
+    )
+    monkeypatch.setattr(
+        document_routes.default_ai_manager,
+        "extract_document",
+        AsyncMock(return_value=extracted_model),
+    )
 
     response = authenticated_client.post(f"/documents/{record.id}/extract")
 
-    assert response.status_code == 200
-    assert response.json() == {"document_id": str(record.id), "extraction": extracted}
+    res_data = response.json()
+    assert res_data["document_id"] == str(record.id)
+    assert res_data["extraction"] == extracted_model.model_dump()
+    assert "quality" in res_data
 
 
 def test_extraction_hides_missing_or_foreign_document(
@@ -117,9 +119,14 @@ def test_extraction_returns_gemini_failure_safely(
     monkeypatch.setattr(document_routes, "get_document_metadata", AsyncMock(return_value=record))
     monkeypatch.setattr(document_routes, "download_document_from_storage", AsyncMock(return_value=b"pdf"))
     monkeypatch.setattr(
-        document_routes,
-        "extract_receipt_invoice_document",
-        lambda *args, **kwargs: (_ for _ in ()).throw(GeminiServiceUnavailableError("SDK detail")),
+        document_routes.default_ocr_service,
+        "extract_text_from_bytes",
+        MagicMock(return_value=OCRResult(full_text="receipt text", lines=[])),
+    )
+    monkeypatch.setattr(
+        document_routes.default_ai_manager,
+        "extract_document",
+        AsyncMock(side_effect=GeminiServiceUnavailableError("SDK detail")),
     )
 
     response = authenticated_client.post(f"/documents/{record.id}/extract")
@@ -135,9 +142,14 @@ def test_extraction_returns_validation_failure_safely(
     monkeypatch.setattr(document_routes, "get_document_metadata", AsyncMock(return_value=record))
     monkeypatch.setattr(document_routes, "download_document_from_storage", AsyncMock(return_value=b"pdf"))
     monkeypatch.setattr(
-        document_routes,
-        "extract_receipt_invoice_document",
-        lambda *args, **kwargs: {"total": "not a number"},
+        document_routes.default_ocr_service,
+        "extract_text_from_bytes",
+        MagicMock(return_value=OCRResult(full_text="receipt text", lines=[])),
+    )
+    monkeypatch.setattr(
+        document_routes.default_ai_manager,
+        "extract_document",
+        AsyncMock(side_effect=AIExtractionValidationError("Validation failure")),
     )
 
     response = authenticated_client.post(f"/documents/{record.id}/extract")
@@ -174,7 +186,8 @@ def test_extraction_rejects_invalid_authentication(monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.parametrize("mime_type", ["application/pdf", "image/jpeg", "image/png"])
-def test_gemini_extraction_uses_prompt_and_document_mime_type(
+@pytest.mark.anyio
+async def test_gemini_extraction_uses_prompt_and_document_mime_type(
     monkeypatch: pytest.MonkeyPatch, mime_type: str
 ) -> None:
     class FakeClient:
@@ -190,7 +203,7 @@ def test_gemini_extraction_uses_prompt_and_document_mime_type(
     monkeypatch.setattr("app.services.gemini.build_receipt_invoice_extraction_prompt", lambda: "PROMPT")
     settings = Settings.model_construct(gemini_api_key=SecretStr("test-key"))
 
-    result = extract_receipt_invoice_document(
+    result = await extract_receipt_invoice_document(
         settings, document_content=b"document", mime_type=mime_type, client=fake_client
     )
 
@@ -202,7 +215,8 @@ def test_gemini_extraction_uses_prompt_and_document_mime_type(
     assert contents[1].inline_data.mime_type == mime_type
 
 
-def test_gemini_extraction_rejects_malformed_json() -> None:
+@pytest.mark.anyio
+async def test_gemini_extraction_rejects_malformed_json() -> None:
     class FakeClient:
         def __init__(self) -> None:
             self.models = self
@@ -212,7 +226,7 @@ def test_gemini_extraction_rejects_malformed_json() -> None:
 
     settings = Settings.model_construct(gemini_api_key=SecretStr("test-key"))
     with pytest.raises(GeminiUnexpectedResponseError, match="Gemini returned an invalid response"):
-        extract_receipt_invoice_document(
+        await extract_receipt_invoice_document(
             settings,
             document_content=b"document",
             mime_type="application/pdf",

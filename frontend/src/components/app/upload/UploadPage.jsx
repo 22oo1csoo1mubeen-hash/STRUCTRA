@@ -111,8 +111,8 @@ export default function UploadPage() {
       setTimeout(() => {
         if (dupClass === 'likely_duplicate' || dupClass === 'definite_duplicate') {
           setStage(9); // Route to Review Page for duplicate handling
-        } else if (status !== 'valid') {
-          setStage(9); // Review Page for any discrepancy
+        } else if (status !== 'valid' || extractionResult?.quality?.needs_review === true) {
+          setStage(9); // Review Page for any discrepancy or quality review signal
         } else {
           setStage(7); // Result Page
         }
@@ -156,6 +156,7 @@ export default function UploadPage() {
         stage={stage}
         setStage={setStage}
         file={selectedFile}
+        uploadedDocument={uploadedDocument}
         error={fileError}
         onFilesSelected={handleFilesSelected}
         onRemoveFile={handleRemoveFile}

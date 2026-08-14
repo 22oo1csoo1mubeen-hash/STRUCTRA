@@ -229,3 +229,44 @@ def test_missing_tax_information_is_unreconciled() -> None:
     assert result.validation_performed is False
     assert result.reason == "unreconciled_missing_fields"
 
+def test_multiple_tax_components_sums_correctly() -> None:
+    # subtotal=1361, CGST=32.50, SGST=32.50, IGST is absent
+    # total tax should be 65.00
+    result = validate_extraction_totals(
+        _extraction(
+            total=1426.0,
+            line_totals=[1361.0],
+            subtotal=1361.0,
+            discount=0.0,
+            tax=None,
+            tax_components=[
+                {"name": "CGST", "amount": 32.50},
+                {"name": "SGST", "amount": 32.50},
+            ]
+        )
+    )
+    assert result.validation_performed is True
+    assert result.total_matches is True
+    assert result.calculated_total == Decimal("1426.00")
+
+def test_legacy_tax_ignored_when_components_present() -> None:
+    # subtotal=1000, CGST=32.50, SGST=32.50 (Sum = 65)
+    # legacy tax = 65.00
+    # Expected total = 1065, NOT 1130.
+    result = validate_extraction_totals(
+        _extraction(
+            total=1065.0,
+            line_totals=[1000.0],
+            subtotal=1000.0,
+            discount=0.0,
+            tax=65.00,
+            tax_components=[
+                {"name": "CGST", "amount": 32.50},
+                {"name": "SGST", "amount": 32.50},
+            ]
+        )
+    )
+    assert result.validation_performed is True
+    assert result.total_matches is True
+    assert result.calculated_total == Decimal("1065.00")
+

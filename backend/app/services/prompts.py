@@ -25,30 +25,33 @@ class ReceiptInvoicePromptConfig:
 def build_receipt_invoice_extraction_prompt(
     config: ReceiptInvoicePromptConfig | None = None,
 ) -> str:
-    """Build the JSON-only prompt for receipt and invoice extraction.
-
-    Document bytes or text are deliberately not accepted here. M4.3 will attach
-    the document to this fixed instruction when it performs extraction.
-    """
+    """Build the JSON-only prompt for receipt and invoice extraction."""
     config = config or ReceiptInvoicePromptConfig()
     output_schema: dict[str, object] = {
         "vendor_company": None,
         "address": None,
         "date": None,
-        "invoice_number": "Extract exact Invoice No., Bill No., or Receipt No., or null if none",
+        "invoice_number": None,
         "subtotal": None,
-        "discount": "Total discount amount, or null if none",
-        "taxable_amount": "Explicit taxable amount (subtotal minus discount) if present, or null",
-        "tax": "Legacy total tax amount (sum of all taxes), or null if none",
+        "discount": None,
+        "taxable_amount": None,
+        "tax": None,
         "tax_components": [
             {
-                "name": "e.g. CGST, SGST, IGST, GST",
-                "rate": "Tax rate as a number (e.g. 2.5 for 2.5%), or null",
-                "amount": "Explicit monetary tax amount in currency, or null"
+                "name": "e.g. CGST, SGST, IGST",
+                "rate": None,
+                "amount": None,
             }
         ],
         "total": None,
-        "line_items": [{"description": None, "line_total": None}],
+        "line_items": [
+            {
+                "description": None,
+                "quantity": None,
+                "unit_price": None,
+                "line_total": None,
+            }
+        ],
     }
     output_schema.update(
         {field_name: None for field_name in config.additional_top_level_fields}
@@ -56,17 +59,46 @@ def build_receipt_invoice_extraction_prompt(
     schema_json = json.dumps(output_schema, ensure_ascii=False, indent=2)
 
     return (
-        "Analyze the provided receipt or invoice. Extract only information that is "
-        "actually present in the document. Never invent, infer, or guess missing "
-        "values. Preserve numbers accurately and preserve original document text "
-        "where appropriate. Keep line items separate from document-level totals.\n"
-        "Extract CGST, SGST, IGST, and other tax components exactly as they appear "
-        "in tax_components. Do not calculate tax percentages yourself if explicit "
-        "monetary amounts are missing.\n\n"
-        "Return only one valid JSON object, with no Markdown, commentary, or "
-        "explanatory prose. Use null for a scalar field that cannot be confidently "
-        "extracted, and use [] when no line items can be confidently extracted. "
-        "For each line item, use null for a missing description or line_total. "
-        "Use this output shape:\n"
+        "Analyze the provided receipt or invoice image carefully. Extract only information that is "
+        "actually present in the document. Never invent, infer, or guess missing values. "
+        "Preserve numbers accurately. Keep line items separate from document-level totals.\n"
+        "Extract EACH tax component (CGST, SGST, IGST, VAT) as a SEPARATE object in tax_components.\n\n"
+        "RULES FOR MULTIMODAL EXTRACTION:\n"
+        "1. AUTHORITATIVE SOURCE: The visual image is the authoritative source. Extract ONLY information actually visible. Do not invent, infer, or guess missing values.\n"
+        "2. VISUAL LAYOUT & TABLES: Use visual layout, table columns, alignment, printed digits, fonts, and spatial relationships to extract table data.\n"
+        "3. IDENTIFIERS & DATES: Preserve exact vendor names, addresses, dates, and invoice/receipt numbers (e.g. preserve 'RCPT-2025-08-09-0015' exactly).\n"
+        "4. LINE ITEMS & QUANTITIES: Extract ALL visible line items into line_items list with description, quantity, unit_price, and line_total. If a line item lists unit_price equal to line_total and quantity is omitted or not printed as a separate column, set quantity to 1.0.\n"
+        "5. NUMERICS & DECIMALS: Preserve exact numbers and decimal values. Keep line item totals distinct from document subtotal, taxes, and final total.\n"
+        "6. TAX COMPONENTS: Extract EACH tax component (CGST, SGST, IGST, VAT) as a SEPARATE object in tax_components with name, rate, and amount.\n"
+        "7. TEXT SPACING: Preserve natural spacing in company names and item descriptions.\n"
+        "8. OUTPUT FORMAT: Return only one valid JSON object conforming to the required schema shape with no explanatory text or markdown wrappers. Use null for a scalar field that cannot be confidently extracted, and use [] when no line items can be confidently extracted.\n\n"
+        "Required JSON Output Shape:\n"
         f"{schema_json}"
+    )
+
+
+def build_multimodal_receipt_extraction_prompt(
+    config: ReceiptInvoicePromptConfig | None = None,
+) -> str:
+    """Build prompt for Gemini Multimodal Vision extraction directly from receipt images."""
+    return build_receipt_invoice_extraction_prompt(config)
+
+
+def build_ocr_receipt_extraction_prompt(
+    ocr_text_content: str,
+    config: ReceiptInvoicePromptConfig | None = None,
+) -> str:
+    """Build the JSON extraction prompt for OCR-derived receipt/invoice text & layout input."""
+    base_instructions = build_receipt_invoice_extraction_prompt(config)
+    return (
+        "You are an expert document understanding AI. The text below was recognized from a receipt/invoice "
+        "by a local OCR engine, organized row by row.\n\n"
+        "RULES FOR EXTRACTION:\n"
+        "1. TEXT SPACING: Restore natural spaces in vendor_company, address, and line item descriptions if OCR merged words together (e.g. convert 'ABCMART' to 'ABC MART', '123Green Street' to '123 Green Street'). Do NOT insert spaces into invoice/receipt numbers or codes (e.g. preserve 'RCPT-2025-08-09-0015' exactly).\n"
+        "2. LINE ITEMS & QUANTITY: Extract ALL line items in the receipt table. For every line item, extract description, quantity, unit_price, and line_total as independent fields. If a line item lists unit_price equal to line_total and quantity is not printed as a separate number, extract quantity as 1.0 (do NOT leave quantity as null for valid line items).\n"
+        "3. NUMERICS & DATES: Preserve exact numeric values, decimal amounts, dates, and invoice numbers.\n"
+        "4. TAX COMPONENTS: Keep CGST, SGST, IGST as separate objects in tax_components list. Do not merge or double-count taxes.\n"
+        "5. OUTPUT: Return ONLY one valid JSON object following the required output shape with no Markdown tags or extra prose.\n\n"
+        f"--- RECOGNIZED OCR DOCUMENT TEXT ---\n{ocr_text_content}\n--- END OCR TEXT ---\n\n"
+        f"{base_instructions}"
     )

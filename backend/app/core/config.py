@@ -29,6 +29,18 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="GEMINI_API_KEY",
     )
+    gemini_model: str = Field(
+        default="gemini-3.1-flash-lite",
+        validation_alias="GEMINI_MODEL",
+    )
+    groq_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias="GROQ_API_KEY",
+    )
+    groq_model: str = Field(
+        default="openai/gpt-oss-120b",
+        validation_alias="GROQ_MODEL",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

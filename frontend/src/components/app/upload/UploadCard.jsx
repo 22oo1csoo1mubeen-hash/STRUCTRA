@@ -10,7 +10,7 @@ import ExtractionResultWorkspace from './ExtractionResultWorkspace';
  * True glassmorphism card — transparent with blur, warm background shows through.
  * Orange top + bottom border. Dashed orange inner border on drop zone.
  */
-export default function UploadCard({ stage, setStage, file, error, onFilesSelected, onRemoveFile, onProcessDocument, resetUpload, extractionResult, extractionError, onRetryExtraction, validationResult, validationError, onRetryValidation }) {
+export default function UploadCard({ stage, setStage, file, uploadedDocument, error, onFilesSelected, onRemoveFile, onProcessDocument, resetUpload, extractionResult, extractionError, onRetryExtraction, validationResult, validationError, onRetryValidation }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -312,7 +312,7 @@ export default function UploadCard({ stage, setStage, file, error, onFilesSelect
               transition={{ duration: 0.4 }}
               style={{ width: '100%', display: 'flex', flexDirection: 'column' }}
             >
-              <ExtractionResultWorkspace file={file} stage={stage} setStage={setStage} resetUpload={resetUpload} extractionResult={extractionResult} validationResult={validationResult} />
+              <ExtractionResultWorkspace file={file} uploadedDocument={uploadedDocument} stage={stage} setStage={setStage} resetUpload={resetUpload} extractionResult={extractionResult} validationResult={validationResult} />
             </motion.div>
           )}
         </AnimatePresence>

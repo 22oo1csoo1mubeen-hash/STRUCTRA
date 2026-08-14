@@ -16,4 +16,5 @@ def validate_receipt_invoice_extraction(
     try:
         return ReceiptInvoiceExtraction.model_validate(raw_extraction)
     except ValidationError as error:
+        print(f"[STRUCTRA ERROR] Pydantic Validation Error during Extraction: {error}")
         raise GeminiExtractionValidationError("Gemini returned an invalid extraction.") from error

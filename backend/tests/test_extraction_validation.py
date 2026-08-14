@@ -50,7 +50,6 @@ def test_multiple_line_items_validate() -> None:
 @pytest.mark.parametrize(
     "raw_extraction",
     [
-        {"total": "not a number"},
         {"line_items": "not a list"},
         {"line_items": [{"description": 42, "line_total": 3.5}]},
         {"line_items": [{"line_total": 3.5}]},

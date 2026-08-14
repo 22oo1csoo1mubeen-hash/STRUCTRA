@@ -6,6 +6,9 @@ import {
   List, ArrowRight, Minus, Plus, AlertTriangle, AlertCircle, X, Check, Save,
   FileDown, Trash2, Edit2, ShieldCheck, Info, Loader2
 } from 'lucide-react';
+import ExtractionConfidenceCard from './ExtractionConfidenceCard';
+import FieldConfidenceIndicator from './FieldConfidenceIndicator';
+import DocumentPreviewViewer from './DocumentPreviewViewer';
 
 // ==========================================
 // SCENARIO CONFIGURATION
@@ -21,22 +24,22 @@ const MOCK_RESULT = {
   date: "09 Aug 2025",
   address: "123 Green Street,\nBangalore, Karnataka - 560001",
   invoiceNumber: "INV-2025-08-0098",
-  totalAmount: "₹ 1,365.00",
+  totalAmount: "₹\u00A01,365.00",
   totalInWords: "One Thousand Three Hundred Sixty Five Rupees Only",
   lineItems: [
-    { item: "Aashirvaad Atta 5kg", qty: 1, rate: "₹289.00", amount: "₹289.00" },
-    { item: "Amul Toned Milk 1L", qty: 2, rate: "₹63.00", amount: "₹126.00" },
-    { item: "Rice 1kg", qty: 1, rate: "₹78.00", amount: "₹78.00" },
-    { item: "Fortune Sunflower Oil 1L", qty: 1, rate: "₹145.00", amount: "₹145.00" },
-    { item: "Tata Tea Premium 250g", qty: 1, rate: "₹110.00", amount: "₹110.00" },
+    { item: "Aashirvaad Atta 5kg", qty: 1, rate: "₹\u00A0289.00", amount: "₹\u00A0289.00" },
+    { item: "Amul Toned Milk 1L", qty: 2, rate: "₹\u00A063.00", amount: "₹\u00A0126.00" },
+    { item: "Rice 1kg", qty: 1, rate: "₹\u00A078.00", amount: "₹\u00A078.00" },
+    { item: "Fortune Sunflower Oil 1L", qty: 1, rate: "₹\u00A0145.00", amount: "₹\u00A0145.00" },
+    { item: "Tata Tea Premium 250g", qty: 1, rate: "₹\u00A0110.00", amount: "₹\u00A0110.00" },
   ]
 };
 
-export default function ExtractionResultWorkspace({ file, stage, setStage, resetUpload, extractionResult, validationResult }) {
+export default function ExtractionResultWorkspace({ file, uploadedDocument, stage, setStage, resetUpload, extractionResult, validationResult }) {
 
   const formatCurrency = (val) => {
     if (val === null || val === undefined) return '—';
-    return `₹ ${parseFloat(val).toFixed(2)}`;
+    return `₹\u00A0${parseFloat(val).toFixed(2)}`;
   };
 
   const [editedData, setEditedData] = useState(null);
@@ -77,22 +80,21 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
     } : MOCK_RESULT;
   }, [extractionResult]);
 
-  const isImage = file?.type?.startsWith('image/');
-  const isPdf = file?.type === 'application/pdf';
-  const previewUrl = useMemo(() => {
-    if (file && (isImage || isPdf)) {
-      return URL.createObjectURL(file);
-    }
-    return null;
-  }, [file, isImage, isPdf]);
-
   const displayData = editedData || baseData;
 
   const handleSaveData = (newData) => {
     setEditedData(newData);
   };
-  const displayFilename = file?.name || MOCK_RESULT.filename;
-  const displayType = file?.name?.split('.').pop()?.toUpperCase() || MOCK_RESULT.fileType;
+  const displayFilename = useMemo(() => {
+    if (file?.name) return file.name;
+    if (uploadedDocument?.original_filename) return uploadedDocument.original_filename;
+    if (uploadedDocument?.filename && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(uploadedDocument.filename)) {
+      return uploadedDocument.filename;
+    }
+    return MOCK_RESULT.filename;
+  }, [file, uploadedDocument]);
+
+  const displayType = file?.name?.split('.').pop()?.toUpperCase() || uploadedDocument?.file_type?.toUpperCase() || MOCK_RESULT.fileType;
   const displaySize = file ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : MOCK_RESULT.fileSize;
   
   const now = new Date();
@@ -124,7 +126,20 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: '#fff', margin: 0, letterSpacing: '-0.01em' }}>
+              <h2
+                style={{
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: '#fff',
+                  margin: 0,
+                  letterSpacing: '-0.01em',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: 440
+                }}
+                title={displayFilename}
+              >
                 {displayFilename}
               </h2>
               <div style={{ 
@@ -142,44 +157,50 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
           </div>
         </div>
 
-        {/* Top Right Action Button */}
-        {stage === 7 || stage === 11 ? (
-          <motion.button
-            whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setStage(9)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '10px 20px', borderRadius: 8,
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: '#fff',
-              fontSize: 14, fontWeight: 500, cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
-            <Edit2 size={16} />
-            Review
-          </motion.button>
-        ) : stage !== 10 ? (
-          <motion.button
-            whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
-            whileTap={{ scale: 0.95 }}
-            onClick={resetUpload}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '10px 20px', borderRadius: 8,
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: '#fff',
-              fontSize: 14, fontWeight: 500, cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
-            <RefreshCw size={16} />
-            Process Another
-          </motion.button>
-        ) : null}
+        {/* Top Right Action Button & Confidence Ring */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {stage !== 10 && stage !== 11 && (
+            <ExtractionConfidenceCard quality={extractionResult?.quality} />
+          )}
+
+          {stage === 7 ? (
+            <motion.button
+              whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setStage(9)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 20px', borderRadius: 8,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: '#fff',
+                fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              <Edit2 size={16} />
+              Review
+            </motion.button>
+          ) : stage !== 10 && stage !== 11 ? (
+            <motion.button
+              whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
+              whileTap={{ scale: 0.95 }}
+              onClick={resetUpload}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 20px', borderRadius: 8,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: '#fff',
+                fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              <RefreshCw size={16} />
+              Process Another
+            </motion.button>
+          ) : null}
+        </div>
       </div>
 
       {/* Success Validation Banner */}
@@ -345,82 +366,11 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
           {/* Main columns row */}
           <div style={{ display: 'flex', gap: 24, width: '100%', alignItems: 'stretch', flex: 1, minHeight: 0 }}>
           
-            {/* Left Column: Document Preview */}
-            <motion.div 
-              layout
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              style={{ 
-                flex: '0 0 42%', 
-                background: 'rgba(10,12,16,0.5)', 
-                border: '1px solid rgba(255,255,255,0.05)',
-                borderRadius: 16,
-                display: 'flex', flexDirection: 'column',
-                overflow: 'hidden',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.02)',
-                minHeight: 0
-              }}
-            >
-          {/* Preview Header */}
-          <div style={{ 
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-            padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)'
-          }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, color: '#fff', margin: 0 }}>Document Preview</h3>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: 6, overflow: 'hidden' }}>
-                <button style={{ background: 'transparent', border: 'none', padding: '6px 10px', color: '#fff', cursor: 'pointer' }}><Minus size={14} /></button>
-                <span style={{ fontSize: 13, color: '#fff', padding: '0 8px', fontWeight: 500 }}>80%</span>
-                <button style={{ background: 'transparent', border: 'none', padding: '6px 10px', color: '#fff', cursor: 'pointer' }}><Plus size={14} /></button>
-              </div>
-              <button style={{ background: 'rgba(255,255,255,0.05)', border: 'none', padding: '6px', borderRadius: 6, color: '#fff', cursor: 'pointer' }}>
-                <Maximize size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* Preview Body (Actual Document) */}
-          <div style={{ 
-            flex: 1, 
-            background: '#0d1117', 
-            display: 'flex', justifyContent: 'center', alignItems: 'center',
-            padding: 16,
-            overflowY: 'auto'
-          }}>
-            {previewUrl ? (
-              isPdf ? (
-                <object 
-                  data={previewUrl} 
-                  type="application/pdf" 
-                  width="100%" 
-                  height="100%"
-                  style={{ borderRadius: 8 }}
-                >
-                  <div style={{ color: '#fff' }}>PDF preview not available in this browser.</div>
-                </object>
-              ) : (
-                <img 
-                  src={previewUrl} 
-                  alt="Document Preview" 
-                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', borderRadius: 2 }} 
-                />
-              )
-            ) : (
-              <div style={{ color: 'rgba(255,255,255,0.5)' }}>No preview available</div>
-            )}
-          </div>
-          
-          <div style={{ 
-            padding: 16, background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.05)',
-            display: 'flex', justifyContent: 'center', gap: 24
-          }}>
-            <button style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <Download size={14} /> Download Original
-            </button>
-            <button style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <Maximize2 size={14} /> Zoom
-            </button>
-          </div>
-            </motion.div>
+            {/* Left Column: Document Preview Component */}
+            <DocumentPreviewViewer
+              file={file}
+              documentId={uploadedDocument?.document_id || extractionResult?.document_id}
+            />
 
         {/* Right Column: Dynamic Content Based on Stage */}
         <motion.div 
@@ -449,7 +399,7 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
                 transition={{ duration: 0.35 }}
                 style={{ gridArea: '1 / 1 / 2 / 2', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}
               >
-                <ReviewEditView setStage={setStage} displayData={displayData} onSave={handleSaveData} />
+                <ReviewEditView setStage={setStage} displayData={displayData} onSave={handleSaveData} extractionResult={extractionResult} />
               </motion.div>
             ) : stage >= 7 ? (
               <motion.div
@@ -460,7 +410,7 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
                 transition={{ duration: 0.35 }}
                 style={{ gridArea: '1 / 1 / 2 / 2', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}
               >
-                <ExtractionResultsRightPanel stage={stage} setStage={setStage} validationResult={validationResult} resetUpload={resetUpload} displayData={displayData} />
+                <ExtractionResultsRightPanel stage={stage} setStage={setStage} validationResult={validationResult} resetUpload={resetUpload} displayData={displayData} extractionResult={extractionResult} />
               </motion.div>
             ) : null}
           </AnimatePresence>
@@ -545,25 +495,12 @@ export default function ExtractionResultWorkspace({ file, stage, setStage, reset
 // ------------------------------------------------------------------
 // RIGHT PANEL: STAGE 7, 8 & 11 (Results + Validation + Final Result)
 // ------------------------------------------------------------------
-function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetUpload, displayData }) {
-  // Determine if there is a math warning
-  const mathVal = validationResult?.quality_signals?.mathematical_validation;
-  const isMathValid = mathVal ? mathVal.total_matches !== false : true;
-  
-  // Calculate difference if needed
-  let diffStr = "₹ 0.00";
-  if (mathVal && mathVal.calculated_total !== null && mathVal.document_total !== null) {
-    diffStr = `₹ ${Math.abs(mathVal.calculated_total - mathVal.document_total).toFixed(2)}`;
-  }
-  
-  // For Review UI: If warning, we might have a specific banner
-  const overallStatus = validationResult?.overall_status || 'valid';
-  
+function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetUpload, displayData, extractionResult }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Sparkles size={20} color="#f97316" />
           <h3 style={{ fontSize: 16, fontWeight: 600, color: '#fff', margin: 0 }}>Extracted Information</h3>
@@ -581,8 +518,6 @@ function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetU
         )}
       </div>
 
-      {/* Stage 7 & 8 Validation Card removed per specification */}
-
       {/* Scrollable Line Items in Result - Only show in stage 7 and 11 */}
       <AnimatePresence>
         {(stage === 7 || stage === 11) && (
@@ -595,26 +530,26 @@ function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetU
               borderRadius: 12, overflow: 'hidden', marginBottom: stage === 7 ? 16 : 0, display: 'flex', flexDirection: 'column'
             }}
           >
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h4 style={{ fontSize: 14, fontWeight: 600, color: '#fff', margin: 0 }}>Line Items ({displayData.lineItems.length})</h4>
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
                   <tr>
-                    <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Item</th>
-                    <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Qty</th>
-                    <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Rate</th>
-                    <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Amount</th>
+                    <th style={{ padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Item</th>
+                    <th style={{ padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>Qty</th>
+                    <th style={{ padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>Rate</th>
+                    <th style={{ padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {displayData.lineItems.map((item, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                      <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.item}</td>
-                      <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.qty}</td>
-                      <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.rate}</td>
-                      <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.amount}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.item}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.qty}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.rate}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.amount}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -856,7 +791,7 @@ function DuplicateWarningView({ setStage, resetUpload, displayData }) {
 // ------------------------------------------------------------------
 // RIGHT PANEL: STAGE 9 (Review / Edit)
 // ------------------------------------------------------------------
-function ReviewEditView({ setStage, displayData, onSave }) {
+function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
   const [localData, setLocalData] = useState(displayData);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -884,7 +819,7 @@ function ReviewEditView({ setStage, displayData, onSave }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <Edit2 size={20} color="#f97316" />
         <h3 style={{ fontSize: 16, fontWeight: 600, color: '#fff', margin: 0 }}>Edit Extracted Information</h3>
       </div>
@@ -904,18 +839,18 @@ function ReviewEditView({ setStage, displayData, onSave }) {
         background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', 
         borderRadius: 12, overflow: 'hidden', marginBottom: 16, display: 'flex', flexDirection: 'column'
       }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h4 style={{ fontSize: 14, fontWeight: 600, color: '#fff', margin: 0 }}>Line Items ({localData.lineItems.length})</h4>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr>
-                <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Item</th>
-                <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Qty</th>
-                <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Rate</th>
-                <th style={{ padding: '10px 20px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Amount</th>
-                <th style={{ padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}></th>
+                <th style={{ padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Item</th>
+                <th style={{ padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>Qty</th>
+                <th style={{ padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>Rate</th>
+                <th style={{ padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>Amount</th>
+                <th style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -977,19 +912,19 @@ function EditableRow({ initialItem, onChange }) {
   if (isEditing) {
     return (
       <tr style={{ background: 'rgba(249,115,22,0.05)', borderBottom: '1px solid rgba(249,115,22,0.2)' }}>
-        <td style={{ padding: '8px 20px' }}>
+        <td style={{ padding: '8px 16px' }}>
           <input type="text" value={draft.item} onChange={e => setDraft({...draft, item: e.target.value})} style={inputStyle} />
         </td>
-        <td style={{ padding: '8px 20px' }}>
+        <td style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
           <input type="text" value={draft.qty} onChange={e => setDraft({...draft, qty: e.target.value})} style={inputStyle} />
         </td>
-        <td style={{ padding: '8px 20px' }}>
+        <td style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
           <input type="text" value={draft.rate} onChange={e => setDraft({...draft, rate: e.target.value})} style={inputStyle} />
         </td>
-        <td style={{ padding: '8px 20px' }}>
+        <td style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
           <input type="text" value={draft.amount} onChange={e => setDraft({...draft, amount: e.target.value})} style={inputStyle} />
         </td>
-        <td style={{ padding: '8px 20px', textAlign: 'right' }}>
+        <td style={{ padding: '8px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
             <button 
               onClick={() => { setItem(draft); setIsEditing(false); if (onChange) onChange(draft); }}
@@ -1011,11 +946,11 @@ function EditableRow({ initialItem, onChange }) {
 
   return (
     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-      <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.item}</td>
-      <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.qty}</td>
-      <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.rate}</td>
-      <td style={{ padding: '12px 20px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.amount}</td>
-      <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.item}</td>
+      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.qty}</td>
+      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.rate}</td>
+      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.amount}</td>
+      <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
         <button 
           onClick={() => setIsEditing(true)}
           style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}
