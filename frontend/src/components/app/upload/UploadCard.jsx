@@ -4,13 +4,14 @@ import { FolderOpen, AlertCircle } from 'lucide-react';
 import Stage2View from './Stage2View';
 import ProcessingWorkspace from './ProcessingWorkspace';
 import ExtractionResultWorkspace from './ExtractionResultWorkspace';
+import DuplicateDetectedWorkspace from './DuplicateDetectedWorkspace';
 
 /**
  * UploadCard
  * True glassmorphism card — transparent with blur, warm background shows through.
  * Orange top + bottom border. Dashed orange inner border on drop zone.
  */
-export default function UploadCard({ stage, setStage, file, uploadedDocument, error, onFilesSelected, onRemoveFile, onProcessDocument, resetUpload, extractionResult, extractionError, onRetryExtraction, validationResult, validationError, onRetryValidation }) {
+export default function UploadCard({ stage, setStage, file, uploadedDocument, error, onFilesSelected, onRemoveFile, onProcessDocument, onProcessAnyway, onSaveToLibrary, resetUpload, extractionResult, extractionError, onRetryExtraction, validationResult, validationError, onRetryValidation }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -303,7 +304,25 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
             </motion.div>
           )}
 
-          {stage >= 7 && (
+          {stage === 12 && (
+            <motion.div
+              key="duplicate"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98, position: 'absolute' }}
+              transition={{ duration: 0.3 }}
+              style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+            >
+              <DuplicateDetectedWorkspace
+                file={file}
+                uploadedDocument={uploadedDocument}
+                resetUpload={resetUpload}
+                onProcessAnyway={onProcessAnyway}
+              />
+            </motion.div>
+          )}
+
+          {stage >= 7 && stage < 12 && (
             <motion.div
               key="result"
               initial={{ opacity: 0, scale: 0.98 }}
@@ -312,7 +331,7 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
               transition={{ duration: 0.4 }}
               style={{ width: '100%', display: 'flex', flexDirection: 'column' }}
             >
-              <ExtractionResultWorkspace file={file} uploadedDocument={uploadedDocument} stage={stage} setStage={setStage} resetUpload={resetUpload} extractionResult={extractionResult} validationResult={validationResult} />
+              <ExtractionResultWorkspace file={file} uploadedDocument={uploadedDocument} stage={stage} setStage={setStage} resetUpload={resetUpload} onSaveToLibrary={onSaveToLibrary} extractionResult={extractionResult} validationResult={validationResult} />
             </motion.div>
           )}
         </AnimatePresence>

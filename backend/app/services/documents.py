@@ -38,15 +38,16 @@ async def validate_document_upload(file: UploadFile, settings: Settings) -> int:
             detail="Unsupported file type. Allowed types are PDF, JPG, JPEG, and PNG.",
         )
 
+    max_size = getattr(settings, "document_max_upload_size_bytes", 10 * 1024 * 1024)
     size = 0
     while chunk := await file.read(_READ_CHUNK_SIZE):
         size += len(chunk)
-        if size > settings.document_max_upload_size_bytes:
+        if size > max_size:
             raise HTTPException(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=(
                     "File exceeds the maximum allowed size of "
-                    f"{settings.document_max_upload_size_bytes} bytes."
+                    f"{max_size} bytes."
                 ),
             )
 

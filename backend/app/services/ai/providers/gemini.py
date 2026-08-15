@@ -40,13 +40,45 @@ def _get_genai_client(api_key: str) -> Any:
     return _CACHED_GENAI_CLIENTS[api_key]
 
 
-def _clean_schema_for_gemini(d: Any) -> Any:
-    """Strip OpenAPI attributes unsupported by Gemini OpenAPI JSON schema validator."""
-    if isinstance(d, dict):
-        return {k: _clean_schema_for_gemini(v) for k, v in d.items() if k not in ("additionalProperties", "title")}
-    elif isinstance(d, list):
-        return [_clean_schema_for_gemini(x) for x in d]
-    return d
+def _clean_schema_for_gemini(raw_schema: Any) -> Any:
+    """Dereference $defs, flatten anyOf, and strip attributes unsupported by Gemini OpenAPI JSON schema validator."""
+    if not isinstance(raw_schema, dict):
+        return raw_schema
+
+    defs = raw_schema.get("$defs", {})
+
+    def resolve(node: Any) -> Any:
+        if not isinstance(node, dict):
+            return node
+
+        if "$ref" in node:
+            ref_key = node["$ref"].split("/")[-1]
+            if ref_key in defs:
+                return resolve(defs[ref_key])
+
+        cleaned = {}
+        for k, v in node.items():
+            if k in ("additionalProperties", "title", "$defs", "$ref"):
+                continue
+
+            if k == "anyOf" and isinstance(v, list):
+                non_null_types = [x for x in v if isinstance(x, dict) and x.get("type") != "null"]
+                if len(non_null_types) == 1:
+                    resolved_inner = resolve(non_null_types[0])
+                    if isinstance(resolved_inner, dict):
+                        cleaned.update(resolved_inner)
+                        continue
+
+            if isinstance(v, dict):
+                cleaned[k] = resolve(v)
+            elif isinstance(v, list):
+                cleaned[k] = [resolve(x) if isinstance(x, dict) else x for x in v]
+            else:
+                cleaned[k] = v
+
+        return cleaned
+
+    return resolve(raw_schema)
 
 
 class GeminiExtractionProvider(AIExtractionProvider):
@@ -108,7 +140,8 @@ class GeminiExtractionProvider(AIExtractionProvider):
                 response_schema=clean_schema,
                 temperature=0.1,
             )
-            image_part = types.Part.from_bytes(data=document_bytes, mime_type=content_type)
+            mime_type = "image/jpeg" if content_type in ("image/jpg", "image/jpeg") else content_type
+            image_part = types.Part.from_bytes(data=document_bytes, mime_type=mime_type)
         except Exception as err:
             raise AIProviderUnavailableError(
                 f"Failed to initialize Gemini GenAI client/parts: {err}"

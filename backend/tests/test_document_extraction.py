@@ -49,6 +49,7 @@ def authenticated_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace()
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(user_id=TEST_USER_ID)
     monkeypatch.setattr(document_routes, "update_document_status", AsyncMock())
+    monkeypatch.setattr(document_routes, "update_document_extraction_and_quality", AsyncMock())
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

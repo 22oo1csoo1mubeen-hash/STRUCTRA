@@ -8,7 +8,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
  * @param {File} file - The file object to upload.
  * @returns {Promise<Object>} The backend upload response containing document_id.
  */
-export async function uploadDocument(file) {
+export async function uploadDocument(file, forceDuplicate = false) {
   // 1. Get the current authenticated user's session
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   
@@ -21,11 +21,14 @@ export async function uploadDocument(file) {
   formData.append('file', file);
 
   // 3. Send the request to the real backend
-  const response = await fetch(`${API_URL}/documents/upload`, {
+  const url = forceDuplicate
+    ? `${API_URL}/documents/upload?force_duplicate=true`
+    : `${API_URL}/documents/upload`;
+
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${session.access_token}`
-      // Do NOT set Content-Type manually, fetch will automatically set it to multipart/form-data with the correct boundary
     },
     body: formData
   });
@@ -165,3 +168,175 @@ export async function downloadDocument(documentId) {
   const blob = await response.blob();
   return { blob, filename };
 }
+
+/**
+ * Retrieves detailed metadata, saved extraction, and quality signals for one document.
+ * 
+ * @param {string} documentId - The target document ID.
+ * @returns {Promise<Object>} The DocumentDetailResponse object.
+ */
+export async function getDocumentDetail(documentId) {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  if (sessionError || !session) {
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  const response = await fetch(`${API_URL}/documents/${documentId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`
+    }
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { detail: response.statusText };
+    }
+    const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Failed to fetch document detail.');
+    throw new Error(errorMessage);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Lists the authenticated user's documents for the Document Library.
+ *
+ * @param {number} [page=1]        - 1-indexed page number.
+ * @param {number} [pageSize=20]   - Items per page (1–100).
+ * @param {Object} [options={}]    - Optional query filters (search, docType, status, sortBy).
+ * @returns {Promise<Object>}      DocumentListResponse { items, page, page_size, total, has_next, stats }
+ */
+export async function listDocuments(page = 1, pageSize = 20, options = {}) {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError || !session) {
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  // Ensure page_size is strictly within backend supported bounds 1..100
+  const validPageSize = Math.min(100, Math.max(1, Number(pageSize) || 20));
+  const validPage = Math.max(1, Number(page) || 1);
+
+  const params = new URLSearchParams({
+    page: String(validPage),
+    page_size: String(validPageSize),
+  });
+
+  if (options.search && options.search.trim()) {
+    params.set('q', options.search.trim());
+  }
+  if (options.docType && options.docType !== 'all') {
+    params.set('doc_type', options.docType);
+  }
+  if (options.status && options.status !== 'all') {
+    params.set('status_filter', options.status);
+  }
+  if (options.sortBy) {
+    params.set('sort_by', options.sortBy);
+  }
+
+  const response = await fetch(`${API_URL}/documents?${params}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { detail: response.statusText };
+    }
+    const errorMessage = typeof errorData.detail === 'string'
+      ? errorData.detail
+      : (errorData.detail?.[0]?.msg || 'Failed to fetch documents.');
+    throw new Error(errorMessage);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Deletes one owned document (storage + metadata).
+ *
+ * @param {string} documentId - The document ID to delete.
+ * @returns {Promise<Object>}  DocumentDeleteResponse { success, message }
+ */
+export async function deleteDocument(documentId) {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError || !session) {
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  const response = await fetch(`${API_URL}/documents/${documentId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { detail: response.statusText };
+    }
+    const errorMessage = typeof errorData.detail === 'string'
+      ? errorData.detail
+      : (errorData.detail?.[0]?.msg || 'Failed to delete document.');
+    throw new Error(errorMessage);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Saves a processed document to the user's Document Library.
+ *
+ * @param {string} documentId - The document ID to save.
+ * @param {boolean} forceSaveDuplicate - If true, allow saving a duplicate copy.
+ * @returns {Promise<Object>} DocumentDetailResponse
+ */
+export async function saveDocument(documentId, forceSaveDuplicate = false) {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError || !session) {
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  const url = forceSaveDuplicate
+    ? `${API_URL}/documents/${documentId}/save?force_save_duplicate=true`
+    : `${API_URL}/documents/${documentId}/save`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { detail: response.statusText };
+    }
+    const errorMessage = typeof errorData.detail === 'string'
+      ? errorData.detail
+      : (errorData.detail?.[0]?.msg || 'Failed to save document to library.');
+    throw new Error(errorMessage);
+  }
+
+  return await response.json();
+}
+

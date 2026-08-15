@@ -42,16 +42,22 @@ class ExtractionCache:
 
         # 2. Supabase PostgreSQL cache check
         cfg = settings or get_settings()
-        if not getattr(cfg, "supabase_url", None) or not getattr(cfg, "supabase_secret_key", None):
+        supabase_url = getattr(cfg, "supabase_url", None)
+        secret_key_attr = getattr(cfg, "supabase_secret_key", None)
+        if not supabase_url or not secret_key_attr:
             return None
 
-        secret_key = cfg.supabase_secret_key.get_secret_value()
+        secret_key = (
+            secret_key_attr.get_secret_value()
+            if hasattr(secret_key_attr, "get_secret_value")
+            else str(secret_key_attr)
+        )
         headers = {
             "apikey": secret_key,
             "Authorization": f"Bearer {secret_key}",
             "Content-Type": "application/json",
         }
-        url = f"{cfg.supabase_url.rstrip('/')}/rest/v1/extraction_cache"
+        url = f"{str(supabase_url).rstrip('/')}/rest/v1/extraction_cache"
         params = {
             "select": "content_hash,extraction_result",
             "content_hash": f"eq.{content_hash}",
@@ -107,17 +113,23 @@ class ExtractionCache:
 
         # Asynchronously store to Supabase PostgreSQL table
         cfg = settings or get_settings()
-        if not getattr(cfg, "supabase_url", None) or not getattr(cfg, "supabase_secret_key", None):
+        supabase_url = getattr(cfg, "supabase_url", None)
+        secret_key_attr = getattr(cfg, "supabase_secret_key", None)
+        if not supabase_url or not secret_key_attr:
             return
 
-        secret_key = cfg.supabase_secret_key.get_secret_value()
+        secret_key = (
+            secret_key_attr.get_secret_value()
+            if hasattr(secret_key_attr, "get_secret_value")
+            else str(secret_key_attr)
+        )
         headers = {
             "apikey": secret_key,
             "Authorization": f"Bearer {secret_key}",
             "Content-Type": "application/json",
             "Prefer": "resolution=merge-duplicates",
         }
-        url = f"{cfg.supabase_url.rstrip('/')}/rest/v1/extraction_cache"
+        url = f"{str(supabase_url).rstrip('/')}/rest/v1/extraction_cache"
         payload = {
             "content_hash": content_hash,
             "extraction_result": validated.model_dump(mode="json"),

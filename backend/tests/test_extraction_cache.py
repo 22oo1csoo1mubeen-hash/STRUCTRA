@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from hashlib import sha256
@@ -62,11 +63,12 @@ def _clear_cache():
 async def test_cache_miss_and_store():
     """Requirement 13A: Cache MISS -> Stores validated extraction upon completion."""
     cache = ExtractionCache()
-    sample_bytes = RETAIL_RECEIPT_PATH.read_bytes()
+    sample_bytes = b"unique_uncached_receipt_bytes_13a"
     content_hash = hash_document_content(sample_bytes)
+    mock_cfg = SimpleNamespace(supabase_url=None, supabase_secret_key=None)
 
     # Initial check should be cache miss
-    cached = await cache.get(content_hash)
+    cached = await cache.get(content_hash, settings=mock_cfg)
     assert cached is None
 
     # Store extraction
@@ -140,7 +142,7 @@ async def test_gemini_fallback_result_is_cached():
 async def test_both_providers_fail_not_cached():
     """Requirement 13D: Provider failure is NEVER cached."""
     cache = ExtractionCache()
-    sample_bytes = RETAIL_RECEIPT_PATH.read_bytes()
+    sample_bytes = b"unique_uncached_receipt_bytes_13d"
     content_hash = hash_document_content(sample_bytes)
 
     gemini_p = GeminiExtractionProvider()

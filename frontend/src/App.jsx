@@ -9,6 +9,7 @@ import ResetPasswordPage from './components/auth/ResetPasswordPage';
 import AuthCallbackPage from './components/auth/AuthCallbackPage';
 import MainLayout from './components/app/shared/MainLayout';
 import UploadPage from './components/app/upload/UploadPage';
+import DocumentLibraryPage from './components/app/library/DocumentLibraryPage';
 
 /**
  * App
@@ -46,7 +47,8 @@ function App() {
             {/* Default redirect to upload */}
             <Route index element={<Navigate to="upload" replace />} />
             <Route path="upload" element={<UploadPage />} />
-            {/* Future routes: dashboard, library, assistant, settings, profile */}
+            <Route path="library" element={<DocumentLibraryPage />} />
+            {/* Future routes: dashboard, assistant, settings, profile */}
           </Route>
         </Routes>
       </BrowserRouter>

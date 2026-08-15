@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from hashlib import sha256
 from types import SimpleNamespace
-from unittest.mock import ANY
+from unittest.mock import ANY, AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -15,6 +15,7 @@ from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.main import app
 from app.schemas.auth import CurrentUser
+from app.schemas.documents import ReceiptInvoiceExtraction
 from app.services.document_metadata import CreatedDocumentMetadata
 
 TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
@@ -25,7 +26,7 @@ def stored_paths(monkeypatch) -> list[str]:
     """Replace Supabase Storage with a deterministic in-memory test boundary."""
     paths: list[str] = []
 
-    async def store_document(file, user_id: str, settings) -> str:
+    async def store_document(file, user_id: str, settings, document_id=None) -> str:
         path = f"{user_id}/{uuid4()}{file.filename[file.filename.rfind('.'):]}"
         paths.append(path)
         return path
@@ -41,8 +42,9 @@ def metadata_records(monkeypatch) -> list[dict[str, object]]:
 
     async def store_metadata(**kwargs) -> CreatedDocumentMetadata:
         records.append(kwargs)
+        doc_id = kwargs.get("document_id") or uuid4()
         return CreatedDocumentMetadata(
-            id=uuid4(),
+            id=doc_id,
             user_id=kwargs["user_id"],
             filename=kwargs["filename"],
             storage_path=kwargs["storage_path"],
@@ -104,19 +106,9 @@ def test_upload_accepts_allowed_document_types(
     assert response_body["status"] == "pending"
     assert response_body["message"] == "Document uploaded successfully."
     assert response_body["document_id"]
-    assert response_body["created_at"] == "2026-01-01T00:00:00Z"
+    assert response_body["created_at"]
     assert response_body["storage_path"].startswith(f"{TEST_USER_ID}/")
-    assert metadata_records == [
-        {
-            "user_id": TEST_USER_ID,
-            "filename": filename,
-            "storage_path": stored_paths[0],
-            "content_type": content_type,
-            "size": 5,
-            "content_hash": sha256(b"valid").hexdigest(),
-            "settings": ANY,
-        }
-    ]
+    assert metadata_records == []
 
 
 def test_upload_rejects_missing_file(authenticated_client: TestClient) -> None:
@@ -203,10 +195,16 @@ def test_storage_failure_does_not_create_metadata_record(
     assert metadata_records == []
 
 
-def test_metadata_failure_after_storage_returns_safe_503(
+def test_metadata_failure_on_save_returns_safe_503(
     authenticated_client: TestClient, stored_paths: list[str], monkeypatch
 ) -> None:
-    """A failed metadata insert never produces a successful upload response."""
+    """A failed metadata insert during save produces a safe 503 response."""
+    upload_res = authenticated_client.post(
+        "/documents/upload",
+        files={"file": ("receipt.pdf", b"valid", "application/pdf")},
+    )
+    assert upload_res.status_code == 200
+    doc_id = upload_res.json()["document_id"]
 
     async def metadata_failure(**kwargs):
         raise HTTPException(
@@ -214,16 +212,23 @@ def test_metadata_failure_after_storage_returns_safe_503(
             detail="Unable to save document metadata.",
         )
 
+    fake_ext = ReceiptInvoiceExtraction.model_validate({
+        "vendor_company": "Test",
+        "date": "2026-01-01",
+        "total": 10.0,
+        "line_items": [],
+    })
     monkeypatch.setattr(document_routes, "create_document_metadata", metadata_failure)
+    monkeypatch.setattr(document_routes, "download_document_from_storage", AsyncMock(return_value=b"valid"))
+    monkeypatch.setattr(document_routes, "get_document_metadata", AsyncMock(return_value=None))
+    monkeypatch.setattr(document_routes.default_ai_manager, "extract_document", AsyncMock(return_value=fake_ext))
 
-    response = authenticated_client.post(
-        "/documents/upload",
-        files={"file": ("receipt.pdf", b"valid", "application/pdf")},
-    )
+    response = authenticated_client.post(f"/documents/{doc_id}/save")
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Unable to save document metadata."
-    assert len(stored_paths) == 1
+
+
 
 
 @pytest.mark.parametrize(

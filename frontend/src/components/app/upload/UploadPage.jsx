@@ -4,7 +4,7 @@ import WelcomeSection from './WelcomeSection';
 import UploadCard from './UploadCard';
 import HowItWorks from './HowItWorks';
 import RecentUploads from './RecentUploads';
-import { uploadDocument, extractDocument, validateDocument } from '../../../api/documents';
+import { uploadDocument, extractDocument, validateDocument, getDocumentDetail, saveDocument } from '../../../api/documents';
 
 /**
  * UploadPage
@@ -16,12 +16,13 @@ export default function UploadPage() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileError, setFileError] = useState(null);
   const [uploadedDocument, setUploadedDocument] = useState(null);
+  const [isForcedDuplicate, setIsForcedDuplicate] = useState(false);
   const [extractionResult, setExtractionResult] = useState(null);
   const [extractionError, setExtractionError] = useState(null);
   const [validationResult, setValidationResult] = useState(null);
   const [validationError, setValidationError] = useState(null);
 
-  const handleFilesSelected = (files) => {
+  const handleFilesSelected = async (files) => {
     if (!files || files.length === 0) return;
     const file = files[0];
     
@@ -40,18 +41,92 @@ export default function UploadPage() {
 
     setFileError(null);
     setSelectedFile(file);
-    setStage(2);
+    
+    // 1. Perform upload & duplicate check (Stage 1 checking)
+    await handleCheckDuplicateAndUpload(file, false);
+  };
+
+  const handleCheckDuplicateAndUpload = async (fileObj, forceDuplicate = false) => {
+    if (!fileObj) return;
+    setFileError(null);
+    setIsForcedDuplicate(forceDuplicate);
+
+    // Show Stage 3 upload/checking animation for ~2 seconds
+    setStage(3);
+
+    const minAnimationPromise = new Promise(resolve => setTimeout(resolve, 2000));
+    const uploadPromise = uploadDocument(fileObj, forceDuplicate);
+
+    try {
+      const [_, response] = await Promise.all([minAnimationPromise, uploadPromise]);
+      setUploadedDocument(response);
+
+      if (response.is_duplicate && !forceDuplicate) {
+        // STOP normal processing flow and switch immediately to Stage 12 (Duplicate Detected)
+        setStage(12);
+        return;
+      }
+
+      // Non-duplicate (or forced duplicate) -> Move to Stage 2 (File Selected / Ready to Process)
+      setStage(2);
+    } catch (err) {
+      setFileError(err.message || 'Upload failed. Please try again.');
+      setStage(1);
+    }
+  };
+
+  const handleStartProcessing = async () => {
+    const targetDocId = uploadedDocument?.document_id;
+    if (!targetDocId) {
+      if (selectedFile) {
+        await handleCheckDuplicateAndUpload(selectedFile, isForcedDuplicate);
+      }
+      return;
+    }
+
+    // UI transition: Stage 2 -> Stage 3 (Uploading) -> Stage 4 (AI Processing)
+    setStage(3);
+    setFileError(null);
+
+    // Auto-scroll smooth animation to the bottom of the workspace so the card appears fully
+    setTimeout(() => {
+      const scrollArea = document.getElementById('app-scroll-area');
+      if (scrollArea) {
+        scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' });
+      } else if (uploadContainerRef.current) {
+        uploadContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
+    }, 60);
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+      await handleExtractDocument(targetDocId);
+    } catch (err) {
+      setFileError(err.message || 'Processing failed. Please try again.');
+      setStage(2);
+    }
+  };
+
+  const handleProcessAnyway = async () => {
+    if (!selectedFile) return;
+    await handleCheckDuplicateAndUpload(selectedFile, true);
   };
 
   const handleRemoveFile = () => {
     setSelectedFile(null);
+    setUploadedDocument(null);
     setFileError(null);
     setStage(1);
   };
 
   const resetUpload = () => {
     setSelectedFile(null);
+    setUploadedDocument(null);
+    setIsForcedDuplicate(false);
     setFileError(null);
+    setExtractionResult(null);
+    setValidationResult(null);
     setStage(1);
     const scrollArea = document.getElementById('app-scroll-area');
     if (scrollArea) {
@@ -59,27 +134,33 @@ export default function UploadPage() {
     }
   };
 
-  const handleProcessDocument = async () => {
-    if (!selectedFile) return;
-    
-    // UI transition to Stage 3 (Uploading)
-    setStage(3);
-    setFileError(null);
+  const handleSaveToLibrary = async () => {
+    const targetDocId = uploadedDocument?.document_id;
+    if (!targetDocId) return;
 
-    // Yield to browser to ensure Stage 3 renders before the upload blocks or fails
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // Immediately switch to Stage 11 ("Saved to your Document Library") with zero delay
+    setStage(11);
 
+    // Automatically push scrollbar smoothly to the middle of the page
+    setTimeout(() => {
+      const scrollArea = document.getElementById('app-scroll-area');
+      if (scrollArea) {
+        const middleScroll = Math.max(0, (scrollArea.scrollHeight - scrollArea.clientHeight) / 2);
+        scrollArea.scrollTo({ top: middleScroll, behavior: 'smooth' });
+      } else if (uploadContainerRef.current) {
+        uploadContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 60);
+
+    // Perform database persistence asynchronously
     try {
-      const response = await uploadDocument(selectedFile);
-      setUploadedDocument(response);
-      
-      // Integration 2: Proceed to Extraction (Stage 4)
-      await handleExtractDocument(response.document_id);
+      await saveDocument(targetDocId, isForcedDuplicate);
     } catch (err) {
-      setFileError(err.message || 'Upload failed. Please try again.');
-      setStage(2); // Return to stage 2 on failure
+      console.error('Failed to save document in background:', err);
+      setFileError(err.message || 'Failed to save document to library.');
     }
   };
+
 
   const handleExtractDocument = async (docId) => {
     setStage(4);
@@ -127,13 +208,20 @@ export default function UploadPage() {
   useEffect(() => {
     if (stage === 11) {
       setTimeout(() => {
-        if (uploadContainerRef.current) {
-          uploadContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const scrollArea = document.getElementById('app-scroll-area');
+        if (scrollArea) {
+          const middleScroll = Math.max(0, (scrollArea.scrollHeight - scrollArea.clientHeight) / 2);
+          scrollArea.scrollTo({ top: middleScroll, behavior: 'smooth' });
         }
       }, 100);
     } else if (stage === 1) {
       setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        const scrollArea = document.getElementById('app-scroll-area');
+        if (scrollArea) {
+          scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
       }, 100);
     }
   }, [stage]);
@@ -160,7 +248,9 @@ export default function UploadPage() {
         error={fileError}
         onFilesSelected={handleFilesSelected}
         onRemoveFile={handleRemoveFile}
-        onProcessDocument={handleProcessDocument}
+        onProcessDocument={handleStartProcessing}
+        onProcessAnyway={handleProcessAnyway}
+        onSaveToLibrary={handleSaveToLibrary}
         resetUpload={resetUpload}
         extractionResult={extractionResult}
         extractionError={extractionError}

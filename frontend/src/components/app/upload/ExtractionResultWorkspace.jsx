@@ -35,7 +35,7 @@ const MOCK_RESULT = {
   ]
 };
 
-export default function ExtractionResultWorkspace({ file, uploadedDocument, stage, setStage, resetUpload, extractionResult, validationResult }) {
+export default function ExtractionResultWorkspace({ file, uploadedDocument, stage, setStage, resetUpload, onSaveToLibrary, extractionResult, validationResult }) {
 
   const formatCurrency = (val) => {
     if (val === null || val === undefined) return '—';
@@ -455,7 +455,13 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
                   <RefreshCcw size={16} /> Process Another
                 </motion.button>
                 <motion.button
-                  onClick={() => setStage(11)}
+                  onClick={() => {
+                    if (onSaveToLibrary) {
+                      onSaveToLibrary();
+                    } else {
+                      setStage(11);
+                    }
+                  }}
                   whileHover={{ scale: 1.02, boxShadow: '0 8px 20px rgba(249,115,22,0.4)' }}
                   whileTap={{ scale: 0.98 }}
                   style={{ 
@@ -1121,10 +1127,13 @@ function Stage11SuccessView({ file, resetUpload, displayData }) {
   }, [file]);
 
   useEffect(() => {
-    const scrollArea = document.getElementById('app-scroll-area');
-    if (scrollArea) {
-      scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    setTimeout(() => {
+      const scrollArea = document.getElementById('app-scroll-area');
+      if (scrollArea) {
+        const middleScroll = Math.max(0, (scrollArea.scrollHeight - scrollArea.clientHeight) / 2);
+        scrollArea.scrollTo({ top: middleScroll, behavior: 'smooth' });
+      }
+    }, 100);
   }, []);
 
   return (

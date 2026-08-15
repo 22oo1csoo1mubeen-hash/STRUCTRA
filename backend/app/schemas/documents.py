@@ -23,6 +23,8 @@ class DocumentUploadResponse(BaseModel):
     status: str = Field(description="Initial document lifecycle status.")
     created_at: datetime = Field(description="Time the metadata record was created.")
     message: str = "Document uploaded successfully."
+    is_duplicate: bool = Field(default=False, description="True if document content already exists for this user.")
+    existing_document_id: UUID | None = Field(default=None, description="ID of the existing matching document if duplicate.")
 
 
 class DocumentMetadataResponse(BaseModel):
@@ -209,3 +211,70 @@ class DocumentValidationResult(BaseModel):
     quality_signals: ExtractionQualitySignals
     duplicate_detection: DuplicateDetectionResult
     issues: list[ValidationIssue]
+
+
+class DocumentListItem(BaseModel):
+    """High-level summary view for a document in the Document Library list."""
+
+    document_id: UUID
+    filename: str
+    storage_path: str
+    content_type: str
+    size: int = Field(ge=1)
+    status: str
+    created_at: datetime
+    processed_at: datetime | None = None
+    content_hash: str | None = None
+    has_extraction: bool = False
+    vendor_name: str | None = None
+    total_amount: float | None = None
+    document_date: str | None = None
+    confidence_level: str | None = None
+    needs_review: bool | None = None
+
+
+class DocumentLibraryStats(BaseModel):
+    """Aggregate summary statistics for the user's document library."""
+
+    total: int = Field(ge=0, description="Total count of documents owned by user.")
+    processed: int = Field(ge=0, description="Count of successfully processed documents.")
+    needs_review: int = Field(ge=0, description="Count of documents requiring review.")
+
+
+class DocumentListResponse(BaseModel):
+    """Paginated collection of user-owned documents for the Document Library."""
+
+    items: list[DocumentListItem]
+    page: int = Field(ge=1, description="Current 1-indexed page number.")
+    page_size: int = Field(ge=1, le=100, description="Items returned per page.")
+    total: int = Field(ge=0, description="Total count of documents owned by user.")
+    has_next: bool = Field(description="True if more pages exist.")
+    stats: DocumentLibraryStats | None = None
+
+
+class OriginalDocumentInfo(BaseModel):
+    """Access information for retrieving the original stored document."""
+
+    download_url: str
+    content_type: str
+    filename: str
+
+
+class DocumentPreviewResponse(BaseModel):
+    """Short-lived preview access information for an owned document."""
+
+    preview_url: str = Field(description="Short-lived signed URL for previewing the original document.")
+    expires_in: int = Field(default=3600, description="Expiration duration in seconds.")
+    content_type: str = Field(description="Content MIME type.")
+    filename: str = Field(description="Original document filename.")
+
+
+class DocumentDetailResponse(BaseModel):
+    """Detailed view for a single document owned by the authenticated user."""
+
+    document: DocumentMetadataResponse
+    extraction: ReceiptInvoiceExtraction | None = None
+    quality: ExtractionQualityResult | None = None
+    validation: MathematicalValidationResult | None = None
+    original: OriginalDocumentInfo
+

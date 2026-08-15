@@ -49,9 +49,14 @@ def _track_status_updates(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     updates: list[str] = []
 
     async def update_status(**kwargs: object) -> None:
-        updates.append(str(kwargs["document_status"]))
+        if "document_status" in kwargs:
+            updates.append(str(kwargs["document_status"]))
+
+    async def update_ext_and_qual(**kwargs: object) -> None:
+        updates.append("completed")
 
     monkeypatch.setattr(document_routes, "update_document_status", update_status)
+    monkeypatch.setattr(document_routes, "update_document_extraction_and_quality", update_ext_and_qual)
     return updates
 
 
@@ -60,6 +65,7 @@ def _prepare_owned_extraction(
 ) -> None:
     monkeypatch.setattr(document_routes, "get_document_metadata", AsyncMock(return_value=record))
     monkeypatch.setattr(document_routes, "download_document_from_storage", AsyncMock(return_value=b"pdf"))
+    monkeypatch.setattr(document_routes, "update_document_extraction_and_quality", AsyncMock())
 
 
 def test_successful_extraction_transitions_from_processing_to_completed(
@@ -178,4 +184,4 @@ def test_document_retrieval_returns_current_processing_status(
     response = authenticated_client.get(f"/documents/{record.id}")
 
     assert response.status_code == 200
-    assert response.json()["status"] == document_status
+    assert response.json()["document"]["status"] == document_status

@@ -49,29 +49,31 @@ def test_list_documents_returns_only_authenticated_user_records(
 ) -> None:
     """The list route returns the metadata supplied for the current user."""
     records = [_record(), _record()]
-    listed = AsyncMock(return_value=records)
+    listed = AsyncMock(return_value=(records, 2))
     monkeypatch.setattr(document_routes, "list_document_metadata", listed)
 
     response = authenticated_client.get("/documents")
 
     assert response.status_code == 200
-    assert [item["document_id"] for item in response.json()] == [
+    data = response.json()
+    assert [item["document_id"] for item in data["items"]] == [
         str(record.id) for record in records
     ]
-    assert all(item["storage_path"].startswith(f"{TEST_USER_ID}/") for item in response.json())
-    listed.assert_awaited_once_with(user_id=TEST_USER_ID, settings=ANY)
+    assert all(item["storage_path"].startswith(f"{TEST_USER_ID}/") for item in data["items"])
+    listed.assert_awaited_once_with(user_id=TEST_USER_ID, page=1, page_size=20, settings=ANY)
 
 
 def test_list_documents_returns_empty_list_when_user_has_no_documents(
     authenticated_client: TestClient, monkeypatch
 ) -> None:
     """An authenticated user with no rows receives an empty list."""
-    monkeypatch.setattr(document_routes, "list_document_metadata", AsyncMock(return_value=[]))
+    monkeypatch.setattr(document_routes, "list_document_metadata", AsyncMock(return_value=([], 0)))
 
     response = authenticated_client.get("/documents")
 
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json()["items"] == []
+    assert response.json()["total"] == 0
 
 
 def test_get_document_returns_owned_metadata(authenticated_client: TestClient, monkeypatch) -> None:
@@ -83,8 +85,8 @@ def test_get_document_returns_owned_metadata(authenticated_client: TestClient, m
     response = authenticated_client.get(f"/documents/{record.id}")
 
     assert response.status_code == 200
-    assert response.json()["document_id"] == str(record.id)
-    assert response.json()["filename"] == "receipt.pdf"
+    assert response.json()["document"]["document_id"] == str(record.id)
+    assert response.json()["document"]["filename"] == "receipt.pdf"
     retrieved.assert_awaited_once_with(document_id=record.id, user_id=TEST_USER_ID, settings=ANY)
 
 

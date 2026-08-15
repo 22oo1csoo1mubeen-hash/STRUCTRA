@@ -39,10 +39,15 @@ export default function ProcessingWorkspace({ stage, setStage, file, extractionE
 
   // --- Mock Timing Controller ---
   useEffect(() => {
-    // Scroll so the card is perfectly centered in the screen
-    if (workspaceRef.current) {
-      workspaceRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    // Auto-scroll smooth animation to the bottom of the workspace so the card appears fully
+    setTimeout(() => {
+      const scrollArea = document.getElementById('app-scroll-area');
+      if (scrollArea) {
+        scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' });
+      } else if (workspaceRef.current) {
+        workspaceRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
+    }, 60);
 
     let timer;
     if (stage === 3) {
