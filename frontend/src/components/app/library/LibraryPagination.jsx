@@ -91,7 +91,7 @@ export default function LibraryPagination({
           onChange={(e) => onPageSizeChange(Number(e.target.value))}
           style={{ padding: '5px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.11)', color: 'rgba(255,248,238,0.86)', fontSize: 13, fontFamily: "'Inter', system-ui, sans-serif", cursor: 'pointer', outline: 'none' }}
         >
-          {[4, 8, 12, 20].map((n) => (
+          {[6, 9, 12, 18].map((n) => (
             <option key={n} value={n} style={{ background: '#0e0704' }}>{n} per page</option>
           ))}
         </select>

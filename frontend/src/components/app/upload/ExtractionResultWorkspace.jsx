@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Image as ImageIcon, CheckCircle2, RefreshCw, RefreshCcw, ZoomIn, ZoomOut, Maximize, Maximize2,
@@ -488,7 +489,13 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               style={{ width: '100%' }}
             >
-              <Stage11SuccessView file={file} resetUpload={resetUpload} displayData={displayData} />
+              <Stage11SuccessView 
+                file={file} 
+                resetUpload={resetUpload} 
+                displayData={displayData} 
+                docId={uploadedDocument?.document_id || uploadedDocument?.id || extractionResult?.document_id}
+                displayFilename={displayFilename}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1115,7 +1122,8 @@ function EditableField({ icon: Icon, label, initialValue, isTextarea = false, fu
 // ------------------------------------------------------------------
 // STAGE 11 (Saved Successfully - Full Workspace View)
 // ------------------------------------------------------------------
-function Stage11SuccessView({ file, resetUpload, displayData }) {
+function Stage11SuccessView({ file, resetUpload, displayData, docId, displayFilename }) {
+  const navigate = useNavigate();
   const [previewUrl, setPreviewUrl] = useState(null);
 
   useEffect(() => {
@@ -1256,7 +1264,15 @@ function Stage11SuccessView({ file, resetUpload, displayData }) {
       >
         <ShieldCheck size={18} color="#f97316" flexShrink={0} />
         <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 1.4 }}>
-          You can view, edit or download this document anytime from your <span style={{ color: '#f97316', cursor: 'pointer', fontWeight: 500 }}>Document Library</span>.
+          You can view, edit or download this document anytime from your{' '}
+          <span 
+            id="saved-doc-library-link"
+            onClick={() => navigate('/app/library')} 
+            style={{ color: '#f97316', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 3 }}
+          >
+            Document Library
+          </span>
+          .
         </div>
       </motion.div>
 
@@ -1268,6 +1284,14 @@ function Stage11SuccessView({ file, resetUpload, displayData }) {
         style={{ display: 'flex', gap: 16, marginBottom: 24 }}
       >
         <motion.button 
+          id="saved-view-document-btn"
+          onClick={() => {
+            if (docId) {
+              navigate('/app/library', { state: { selectedDocId: docId, filename: file?.name || displayFilename || 'Document' } });
+            } else {
+              navigate('/app/library');
+            }
+          }}
           whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.05)' }}
           whileTap={{ scale: 0.98 }}
           style={{ 

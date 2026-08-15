@@ -37,6 +37,7 @@ from app.services.document_metadata import (
     delete_document_metadata,
     find_document_metadata_by_content_hash,
     get_document_metadata,
+    get_user_document_library_stats,
     list_document_metadata,
     update_document_extraction_and_quality,
     update_document_status,
@@ -154,28 +155,33 @@ async def list_documents(
         kwargs["status_filter"] = db_status
     if db_needs_review is not None:
         kwargs["needs_review"] = db_needs_review
+    if doc_type and doc_type != "all":
+        kwargs["doc_type"] = doc_type
     if q:
         kwargs["search"] = q
     if sort_by and sort_by != "newest":
         kwargs["sort_by"] = sort_by
 
     records, total = await list_document_metadata(**kwargs)
+    global_total, stats_processed, stats_needs_review = await get_user_document_library_stats(
+        user_id=current_user.user_id, settings=settings
+    )
+
+    if global_total == 0 and records:
+        global_total = total
+        for doc in records:
+            if doc.status == "completed":
+                if (doc.quality_result or {}).get("needs_review") is True:
+                    stats_needs_review += 1
+                else:
+                    stats_processed += 1
 
     items: list[DocumentListItem] = []
-    stats_processed = 0
-    stats_needs_review = 0
 
     for doc in records:
         ext_data = doc.extraction_result or {}
         qual_data = doc.quality_result or {}
         has_ext = doc.extraction_result is not None or doc.status == "completed"
-        is_review = qual_data.get("needs_review") is True
-
-        if doc.status == "completed":
-            if is_review:
-                stats_needs_review += 1
-            else:
-                stats_processed += 1
 
         items.append(
             DocumentListItem(
@@ -193,12 +199,13 @@ async def list_documents(
                 total_amount=ext_data.get("total"),
                 document_date=ext_data.get("date"),
                 confidence_level=qual_data.get("confidence_level"),
+                confidence_score=qual_data.get("overall_confidence"),
                 needs_review=qual_data.get("needs_review"),
             )
         )
 
     stats = DocumentLibraryStats(
-        total=total,
+        total=global_total,
         processed=stats_processed,
         needs_review=stats_needs_review,
     )

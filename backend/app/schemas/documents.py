@@ -230,6 +230,7 @@ class DocumentListItem(BaseModel):
     total_amount: float | None = None
     document_date: str | None = None
     confidence_level: str | None = None
+    confidence_score: float | None = None
     needs_review: bool | None = None
 
 

@@ -123,6 +123,7 @@ async def list_document_metadata(
     page_size: int = 20,
     status_filter: str | None = None,
     needs_review: bool | None = None,
+    doc_type: str | None = None,
     search: str | None = None,
     sort_by: str | None = "newest",
     settings: Settings,
@@ -142,6 +143,8 @@ async def list_document_metadata(
         "offset": str(offset),
     }
 
+    and_conditions: list[str] = []
+
     effective_status = status_filter if status_filter is not None else "completed"
     if effective_status and effective_status != "all":
         params["status"] = f"eq.{effective_status.strip()}"
@@ -149,14 +152,36 @@ async def list_document_metadata(
     if needs_review is True:
         params["quality_result->needs_review"] = "eq.true"
     elif needs_review is False:
-        params["or"] = "(quality_result->needs_review.is.null,quality_result->needs_review.eq.false)"
+        and_conditions.append("or(quality_result->needs_review.is.null,quality_result->needs_review.eq.false)")
+
+    if doc_type and doc_type != "all":
+        dt = doc_type.upper()
+        if dt == "RECEIPT":
+            and_conditions.append("not.filename.ilike.*invoice*")
+        elif dt == "INVOICE":
+            and_conditions.append("or(filename.ilike.*invoice*,filename.ilike.*inv_*)")
 
     if search and search.strip():
-        q_str = search.strip()
-        params["filename"] = f"ilike.*{q_str}*"
+        q_clean = search.strip().replace("(", "").replace(")", "").replace('"', '').replace(",", " ")
+        if q_clean:
+            search_clause = (
+                f"or(filename.ilike.*{q_clean}*,"
+                f"extraction_result->>vendor_company.ilike.*{q_clean}*,"
+                f"extraction_result->>invoice_number.ilike.*{q_clean}*,"
+                f"extraction_result->>date.ilike.*{q_clean}*,"
+                f"extraction_result->>address.ilike.*{q_clean}*)"
+            )
+            and_conditions.append(search_clause)
+
+    if and_conditions:
+        params["and"] = f"({','.join(and_conditions)})"
 
     if sort_by == "oldest":
         params["order"] = "created_at.asc"
+    elif sort_by == "amount_desc":
+        params["order"] = "extraction_result->>total.desc.nullslast"
+    elif sort_by == "amount_asc":
+        params["order"] = "extraction_result->>total.asc.nullslast"
     else:
         params["order"] = "created_at.desc"
 
@@ -194,6 +219,35 @@ async def list_document_metadata(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Document metadata service returned an invalid response.",
         ) from None
+
+
+async def get_user_document_library_stats(
+    *, user_id: str, settings: Settings
+) -> tuple[int, int, int]:
+    """Return permanent lifetime library stats (total, processed, needs_review) for an authenticated user."""
+    supabase_url, secret_key = _extract_settings(settings)
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+    }
+    params = {
+        "select": "id,status,quality_result",
+        "user_id": f"eq.{user_id}",
+        "status": "eq.completed",
+    }
+    documents_url = f"{supabase_url.rstrip('/')}/rest/v1/documents"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(documents_url, headers=headers, params=params)
+            if response.is_success:
+                docs = response.json()
+                total = len(docs)
+                needs_review = sum(1 for d in docs if (d.get("quality_result") or {}).get("needs_review") is True)
+                processed = total - needs_review
+                return total, processed, needs_review
+    except Exception:
+        pass
+    return 0, 0, 0
 
 
 async def get_document_metadata(

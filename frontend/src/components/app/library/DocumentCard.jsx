@@ -76,21 +76,6 @@ function inferDocType(filename = '') {
   return f.includes('invoice') || f.includes('inv_') ? 'INVOICE' : 'RECEIPT';
 }
 
-function getConfidenceScore(docId, level = 'HIGH') {
-  const L = String(level).toUpperCase();
-  if (!docId) return L === 'HIGH' ? 95 : 68;
-  let hash = 0;
-  const str = String(docId);
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  const abs = Math.abs(hash);
-  if (L === 'HIGH') return 91 + (abs % 8);   // 91% - 98%
-  if (L === 'MEDIUM') return 65 + (abs % 12); // 65% - 76%
-  return 45 + (abs % 14);                     // 45% - 58%
-}
-
 /* ─── Badges ─────────────────────────────────────── */
 function TypeBadge({ type }) {
   const inv = type === 'INVOICE';
@@ -184,10 +169,15 @@ function StatusBadge({ status, needsReview }) {
   );
 }
 
-function ConfidenceBadge({ docId, level }) {
-  if (!level) return null;
-  const L = String(level).toUpperCase();
-  const score = getConfidenceScore(docId, L);
+function ConfidenceBadge({ level, score }) {
+  if (!level && score == null) return null;
+  const L = String(level || 'HIGH').toUpperCase();
+  
+  let percentage = null;
+  if (typeof score === 'number') {
+    percentage = score <= 1.0 ? Math.round(score * 100) : Math.round(score);
+  }
+
   const isHigh = L === 'HIGH';
   const isMed = L === 'MEDIUM';
 
@@ -214,12 +204,12 @@ function ConfidenceBadge({ docId, level }) {
         letterSpacing: '0.03em',
       }}
     >
-      {L} <span style={{ fontWeight: 600, opacity: 0.9 }}>{score}%</span>
+      {L} {percentage !== null && <span style={{ fontWeight: 600, opacity: 0.9 }}>{percentage}%</span>}
     </span>
   );
 }
 
-/* ─── Realistic Mini Document Paper Thumbnail ─────── */
+/* ─── Realistic Mini Document Paper Thumbnail (Grid View) ─────── */
 function DocThumbnail({ filename = '', vendorName = '', docType = 'RECEIPT' }) {
   const isInvoice = docType === 'INVOICE';
   const displayTitle = vendorName || filename.split('.')[0].replace(/_/g, ' ');
@@ -228,16 +218,17 @@ function DocThumbnail({ filename = '', vendorName = '', docType = 'RECEIPT' }) {
     <div
       style={{
         width: '100%',
-        height: 126,
-        background: 'radial-gradient(ellipse at center, rgba(30, 20, 10, 0.45) 0%, rgba(10, 5, 2, 0.75) 100%)',
-        borderRadius: 8,
+        height: 130,
+        background: 'radial-gradient(ellipse at center, rgba(38, 22, 12, 0.55) 0%, rgba(12, 6, 2, 0.85) 100%)',
+        borderRadius: 10,
         overflow: 'hidden',
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '8px 12px',
-        border: '1px solid rgba(255, 255, 255, 0.05)',
+        padding: '10px 14px',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        boxShadow: 'inset 0 0 20px rgba(0,0,0,0.40)',
       }}
     >
       {/* Paper mock */}
@@ -245,24 +236,24 @@ function DocThumbnail({ filename = '', vendorName = '', docType = 'RECEIPT' }) {
         style={{
           width: '100%',
           height: '100%',
-          borderRadius: 5,
-          background: 'linear-gradient(180deg, #f6f3eb 0%, #eae5d8 100%)',
-          boxShadow: '0 6px 16px rgba(0, 0, 0, 0.38)',
-          padding: '8px 10px',
+          borderRadius: 6,
+          background: 'linear-gradient(180deg, #faf7f0 0%, #ede8dc 100%)',
+          boxShadow: '0 8px 20px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0,0,0,0.2)',
+          padding: '8px 11px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
           position: 'relative',
-          transform: 'perspective(400px) rotateX(3deg)',
+          transform: 'perspective(400px) rotateX(2deg)',
           transformOrigin: 'center bottom',
-          border: '1px solid rgba(255, 255, 255, 0.7)',
+          border: '1px solid rgba(255, 255, 255, 0.85)',
         }}
       >
         {/* Paper Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span
             style={{
-              fontSize: 9.5,
+              fontSize: 10,
               fontWeight: 800,
               color: '#1a1614',
               fontFamily: "'Inter', system-ui, sans-serif",
@@ -277,7 +268,7 @@ function DocThumbnail({ filename = '', vendorName = '', docType = 'RECEIPT' }) {
           </span>
           <span
             style={{
-              fontSize: 7,
+              fontSize: 7.5,
               fontWeight: 800,
               color: isInvoice ? '#0284c7' : '#ea580c',
               fontFamily: "'Inter', system-ui, sans-serif",
@@ -289,32 +280,87 @@ function DocThumbnail({ filename = '', vendorName = '', docType = 'RECEIPT' }) {
         </div>
 
         {/* Separator */}
-        <div style={{ width: '100%', height: 1, background: '#d0ca9e', opacity: 0.8, margin: '3px 0 2px' }} />
+        <div style={{ width: '100%', height: 1.2, background: '#d5cfb0', opacity: 0.9, margin: '3px 0 2px' }} />
 
         {/* Line items */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, marginTop: 2 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3.5, flex: 1, marginTop: 2 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ width: '55%', height: 3, borderRadius: 1.5, background: '#a09888' }} />
-            <div style={{ width: '22%', height: 3, borderRadius: 1.5, background: '#847c6e' }} />
+            <div style={{ width: '55%', height: 3, borderRadius: 1.5, background: '#9e9686' }} />
+            <div style={{ width: '22%', height: 3, borderRadius: 1.5, background: '#80786a' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ width: '42%', height: 3, borderRadius: 1.5, background: '#b2aa9a' }} />
-            <div style={{ width: '18%', height: 3, borderRadius: 1.5, background: '#948c7e' }} />
+            <div style={{ width: '42%', height: 3, borderRadius: 1.5, background: '#b0a898' }} />
+            <div style={{ width: '18%', height: 3, borderRadius: 1.5, background: '#90887a' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ width: '64%', height: 3, borderRadius: 1.5, background: '#c0b8a8' }} />
-            <div style={{ width: '24%', height: 3, borderRadius: 1.5, background: '#9c9484' }} />
+            <div style={{ width: '64%', height: 3, borderRadius: 1.5, background: '#beb6a6' }} />
+            <div style={{ width: '24%', height: 3, borderRadius: 1.5, background: '#9a9282' }} />
           </div>
         </div>
 
         {/* Paper Footer / Barcode */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 2 }}>
-          <div style={{ display: 'flex', gap: 1.2, alignItems: 'center', height: 9, opacity: 0.65 }}>
+          <div style={{ display: 'flex', gap: 1.2, alignItems: 'center', height: 9.5, opacity: 0.75 }}>
             {[2, 1, 3, 1, 2, 4, 1, 2, 1, 3].map((w, idx) => (
               <div key={idx} style={{ width: w, height: '100%', background: '#25201c' }} />
             ))}
           </div>
-          <div style={{ width: '32%', height: 3.5, borderRadius: 1.5, background: '#25201c' }} />
+          <div style={{ width: '32%', height: 4, borderRadius: 2, background: '#25201c' }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Miniature Receipt Graphic Tile (List View) ─────── */
+function MiniDocThumbnail({ filename = '', vendorName = '', docType = 'RECEIPT' }) {
+  const isInvoice = docType === 'INVOICE';
+  return (
+    <div
+      style={{
+        width: 48,
+        height: 52,
+        borderRadius: 9,
+        background: 'radial-gradient(ellipse at center, rgba(38, 22, 12, 0.6) 0%, rgba(12, 6, 2, 0.9) 100%)',
+        border: '1px solid rgba(249,115,22,0.25)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        padding: 4,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.30)',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          borderRadius: 4,
+          background: 'linear-gradient(180deg, #faf7f0 0%, #ebe6da 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          padding: '4px 4px 3px',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+        }}
+      >
+        {/* Top bar with color dot */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ width: 14, height: 2.5, borderRadius: 1.5, background: '#25201c' }} />
+          <div style={{ width: 3.5, height: 3.5, borderRadius: '50%', background: isInvoice ? '#0284c7' : '#ea580c' }} />
+        </div>
+        {/* Mini lines */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div style={{ width: '80%', height: 2, borderRadius: 1, background: '#a09888' }} />
+          <div style={{ width: '60%', height: 2, borderRadius: 1, background: '#b2aa9a' }} />
+        </div>
+        {/* Mini barcode */}
+        <div style={{ display: 'flex', gap: 1, alignItems: 'center', height: 5, opacity: 0.8 }}>
+          {[2, 1, 2, 1, 3, 1, 2].map((w, idx) => (
+            <div key={idx} style={{ width: w, height: '100%', background: '#25201c' }} />
+          ))}
         </div>
       </div>
     </div>
@@ -345,23 +391,25 @@ function MoreMenu({ onDelete, onDownload }) {
           setOpen((v) => !v);
         }}
         style={{
-          width: 30,
-          height: 30,
+          width: 32,
+          height: 32,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          borderRadius: 7,
+          borderRadius: 8,
           background: 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.10)',
+          border: '1px solid rgba(255,255,255,0.11)',
           cursor: 'pointer',
-          color: 'rgba(255,255,255,0.60)',
-          transition: 'background 0.15s, border-color 0.15s',
+          color: 'rgba(255,255,255,0.65)',
+          transition: 'background 0.15s, border-color 0.15s, color 0.15s',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(255,255,255,0.12)';
+          e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
+          e.currentTarget.style.color = '#ffffff';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+          e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
         }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -383,18 +431,18 @@ function MoreMenu({ onDelete, onDownload }) {
               bottom: 'calc(100% + 6px)',
               right: 0,
               minWidth: 144,
-              background: 'rgba(10,6,2,0.96)',
-              backdropFilter: 'blur(22px)',
-              WebkitBackdropFilter: 'blur(22px)',
-              border: '1px solid rgba(249,115,22,0.20)',
+              background: 'rgba(12,7,3,0.96)',
+              backdropFilter: 'blur(28px)',
+              WebkitBackdropFilter: 'blur(28px)',
+              border: '1px solid rgba(249,115,22,0.25)',
               borderRadius: 10,
               padding: 4,
               zIndex: 300,
-              boxShadow: '0 14px 44px rgba(0,0,0,0.65)',
+              boxShadow: '0 14px 44px rgba(0,0,0,0.70)',
             }}
           >
             <MenuBtn icon="download" label="Download" onClick={() => { setOpen(false); onDownload?.(); }} />
-            <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '3px 0' }} />
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 0' }} />
             <MenuBtn icon="trash" label="Delete" danger onClick={() => { setOpen(false); onDelete?.(); }} />
           </motion.div>
         )}
@@ -418,10 +466,10 @@ function MenuBtn({ icon, label, danger, onClick }) {
         width: '100%',
         padding: '7px 10px',
         borderRadius: 7,
-        background: h ? (danger ? 'rgba(200,40,40,0.14)' : 'rgba(255,255,255,0.06)') : 'transparent',
+        background: h ? (danger ? 'rgba(220,38,38,0.18)' : 'rgba(255,255,255,0.08)') : 'transparent',
         border: 'none',
         cursor: 'pointer',
-        color: danger ? (h ? '#f87171' : 'rgba(248,113,113,0.85)') : (h ? 'rgba(255,248,238,0.95)' : 'rgba(255,248,238,0.68)'),
+        color: danger ? (h ? '#f87171' : 'rgba(248,113,113,0.90)') : (h ? 'rgba(255,248,238,0.98)' : 'rgba(255,248,238,0.72)'),
         fontSize: 12.5,
         fontFamily: "'Inter', system-ui, sans-serif",
         fontWeight: 500,
@@ -458,51 +506,69 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
 
   return (
     <motion.article
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      whileHover={{ y: -2.5 }}
+      transition={{ duration: 0.20, ease: 'easeOut' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex',
         flexDirection: 'column',
-        borderRadius: 14,
+        borderRadius: 16,
         overflow: 'hidden',
-        background: hovered ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
-        border: hovered ? '1px solid rgba(249,115,22,0.30)' : '1px solid rgba(255,255,255,0.09)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
+        background: hovered
+          ? 'linear-gradient(145deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.035) 100%)'
+          : 'linear-gradient(145deg, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.022) 100%)',
+        border: hovered ? '1px solid rgba(255,255,255,0.20)' : '1px solid rgba(255,255,255,0.11)',
+        backdropFilter: 'blur(28px) saturate(1.8)',
+        WebkitBackdropFilter: 'blur(28px) saturate(1.8)',
         boxShadow: hovered
-          ? '0 8px 32px rgba(249,115,22,0.12), 0 4px 16px rgba(0,0,0,0.24)'
-          : '0 4px 16px rgba(0,0,0,0.18)',
-        transition: 'background 0.22s, border-color 0.22s, box-shadow 0.22s',
+          ? '0 12px 32px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.22)'
+          : '0 8px 26px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.16)',
+        transition: 'background 0.18s, border-color 0.18s, box-shadow 0.18s',
+        position: 'relative',
       }}
     >
+      {/* Top sheen highlight */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: '10%',
+          width: '80%',
+          height: 1,
+          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)',
+          pointerEvents: 'none',
+        }}
+      />
+
       {/* Top Badges */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 10px' }}>
         <TypeBadge type={docType} />
         <StatusBadge status={doc.status} needsReview={doc.needs_review} />
       </div>
 
       {/* Thumbnail */}
-      <div style={{ padding: '0 12px' }}>
+      <div style={{ padding: '0 14px' }}>
         <DocThumbnail filename={doc.filename} vendorName={doc.vendor_name} docType={docType} />
       </div>
 
       {/* Details */}
-      <div style={{ padding: '10px 12px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ padding: '12px 14px 14px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
         {/* Filename */}
         <p
           style={{
             margin: 0,
-            fontSize: 13,
-            fontWeight: 600,
+            fontSize: 13.5,
+            fontWeight: 700,
             color: '#ffffff',
             fontFamily: "'Inter', system-ui, sans-serif",
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
+            letterSpacing: '-0.01em',
           }}
           title={doc.filename}
         >
@@ -514,7 +580,7 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
           style={{
             margin: 0,
             fontSize: 12,
-            color: 'rgba(255,255,255,0.48)',
+            color: 'rgba(255,255,255,0.52)',
             fontFamily: "'Inter', system-ui, sans-serif",
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -525,19 +591,19 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
         </p>
 
         {/* Date + Amount */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
           {date ? (
             <span
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 4,
+                gap: 5,
                 fontSize: 11.5,
-                color: 'rgba(255,255,255,0.42)',
+                color: 'rgba(255,255,255,0.48)',
                 fontFamily: "'Inter', system-ui, sans-serif",
               }}
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" />
                 <line x1="16" y1="2" x2="16" y2="6" />
                 <line x1="8" y1="2" x2="8" y2="6" />
@@ -546,14 +612,14 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
               {date}
             </span>
           ) : <div />}
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif" }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif", textShadow: '0 2px 8px rgba(0,0,0,0.30)' }}>
             {amount || '—'}
           </span>
         </div>
 
         {/* Confidence + Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-          <ConfidenceBadge docId={doc.document_id} level={doc.confidence_level || (doc.needs_review ? 'MEDIUM' : 'HIGH')} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+          <ConfidenceBadge level={doc.confidence_level || (doc.needs_review ? 'MEDIUM' : 'HIGH')} score={doc.confidence_score} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {/* View Eye Button */}
             <button
@@ -561,25 +627,25 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
               aria-label="View document"
               onClick={() => onView?.(doc)}
               style={{
-                width: 30,
-                height: 30,
+                width: 32,
+                height: 32,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 7,
+                borderRadius: 8,
                 background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.10)',
+                border: '1px solid rgba(255,255,255,0.11)',
                 cursor: 'pointer',
-                color: 'rgba(255,255,255,0.60)',
-                transition: 'background 0.15s, color 0.15s',
+                color: 'rgba(255,255,255,0.65)',
+                transition: 'background 0.15s, color 0.15s, border-color 0.15s',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(249,115,22,0.18)';
-                e.currentTarget.style.color = '#f97316';
+                e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
+                e.currentTarget.style.color = '#ffffff';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                e.currentTarget.style.color = 'rgba(255,255,255,0.60)';
+                e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
               }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -604,81 +670,92 @@ function ListCard({ doc, onView, onDelete, onDownload }) {
 
   return (
     <motion.article
-      initial={{ opacity: 0, x: -6 }}
+      initial={{ opacity: 0, x: -4 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, scale: 0.97 }}
-      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      whileHover={{ y: -1 }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 14,
-        padding: '13px 16px',
-        borderRadius: 12,
-        background: hovered ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
-        border: hovered ? '1px solid rgba(249,115,22,0.25)' : '1px solid rgba(255,255,255,0.08)',
-        transition: 'background 0.18s, border-color 0.18s',
+        gap: 16,
+        padding: '14px 18px',
+        borderRadius: 14,
+        background: hovered
+          ? 'linear-gradient(135deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.035) 100%)'
+          : 'linear-gradient(135deg, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.025) 100%)',
+        border: hovered ? '1px solid rgba(255,255,255,0.20)' : '1px solid rgba(255,255,255,0.11)',
+        backdropFilter: 'blur(28px) saturate(1.8)',
+        WebkitBackdropFilter: 'blur(28px) saturate(1.8)',
+        boxShadow: hovered
+          ? '0 8px 24px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.20)'
+          : '0 6px 20px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.14)',
+        transition: 'background 0.18s, border-color 0.18s, box-shadow 0.18s',
+        position: 'relative',
       }}
     >
-      <div style={{ width: 42, height: 50, borderRadius: 7, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-        </svg>
-      </div>
+      {/* Mini Receipt Graphic Thumbnail */}
+      <MiniDocThumbnail filename={doc.filename} vendorName={doc.vendor_name} docType={docType} />
 
+      {/* Badges */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
         <TypeBadge type={docType} />
         <StatusBadge status={doc.status} needsReview={doc.needs_review} />
       </div>
 
+      {/* Filename & Vendor */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.filename}>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.filename}>
           {doc.filename}
         </p>
-        <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.44)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.50)', fontFamily: "'Inter', system-ui, sans-serif" }}>
           {doc.vendor_name || 'Vendor Unspecified'}
         </p>
       </div>
 
+      {/* Date */}
       {date && (
-        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.40)', fontFamily: "'Inter', system-ui, sans-serif", flexShrink: 0 }}>
+        <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.48)', fontFamily: "'Inter', system-ui, sans-serif", flexShrink: 0 }}>
           {date}
         </span>
       )}
 
-      <span style={{ fontSize: 13.5, fontWeight: 700, color: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif", flexShrink: 0 }}>
+      {/* Amount */}
+      <span style={{ fontSize: 14, fontWeight: 800, color: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif", flexShrink: 0, textShadow: '0 2px 6px rgba(0,0,0,0.30)' }}>
         {amount || '—'}
       </span>
 
-      <ConfidenceBadge docId={doc.document_id} level={doc.confidence_level || (doc.needs_review ? 'MEDIUM' : 'HIGH')} />
+      {/* Confidence */}
+      <ConfidenceBadge level={doc.confidence_level || (doc.needs_review ? 'MEDIUM' : 'HIGH')} score={doc.confidence_score} />
 
+      {/* Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         <button
           type="button"
           aria-label="View document"
           onClick={() => onView?.(doc)}
           style={{
-            width: 30,
-            height: 30,
+            width: 32,
+            height: 32,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: 7,
+            borderRadius: 8,
             background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.10)',
+            border: '1px solid rgba(255,255,255,0.11)',
             cursor: 'pointer',
-            color: 'rgba(255,255,255,0.60)',
-            transition: 'background 0.15s, color 0.15s',
+            color: 'rgba(255,255,255,0.65)',
+            transition: 'background 0.15s, color 0.15s, border-color 0.15s',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(249,115,22,0.18)';
-            e.currentTarget.style.color = '#f97316';
+            e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
+            e.currentTarget.style.color = '#ffffff';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-            e.currentTarget.style.color = 'rgba(255,255,255,0.60)';
+            e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
           }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -700,3 +777,4 @@ export default function DocumentCard({ doc, viewMode = 'grid', onView, onDelete,
     <GridCard doc={doc} onView={onView} onDelete={onDelete} onDownload={onDownload} />
   );
 }
+

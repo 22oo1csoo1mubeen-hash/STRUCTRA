@@ -102,6 +102,26 @@ def test_list_documents_authenticated_returns_paginated_summary(
     assert item0["confidence_level"] == "HIGH"
 
 
+def test_list_documents_search_and_doctype_passed_to_metadata(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Search query, doc_type, and sort_by filters are forwarded to list_document_metadata."""
+    doc1 = _make_doc(USER_A_ID)
+    captured_kwargs = {}
+
+    async def mock_list(user_id: str, page: int = 1, page_size: int = 20, settings=None, **kwargs):
+        captured_kwargs.update(kwargs)
+        return [doc1], 1
+
+    monkeypatch.setattr(document_routes, "list_document_metadata", mock_list)
+
+    response = client_user_a.get("/documents?q=MART&doc_type=RECEIPT&sort_by=amount_desc")
+    assert response.status_code == 200
+    assert captured_kwargs.get("search") == "MART"
+    assert captured_kwargs.get("doc_type") == "RECEIPT"
+    assert captured_kwargs.get("sort_by") == "amount_desc"
+
+
 def test_list_documents_pagination_has_next(
     client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

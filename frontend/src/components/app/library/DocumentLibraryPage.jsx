@@ -11,16 +11,57 @@ import LibraryPagination   from './LibraryPagination';
 import LibraryEmptyState   from './LibraryEmptyState';
 
 /* ─── Loading skeleton card ───────────────────────────────── */
-function SkeletonCard() {
+function SkeletonCard({ viewMode = 'grid' }) {
+  if (viewMode === 'list') {
+    return (
+      <div
+        style={{
+          borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+          border: '1px solid rgba(255,255,255,0.09)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          height: 72,
+          padding: '12px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          overflow: 'hidden',
+          position: 'relative',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+        }}
+      >
+        <div className="lib-shimmer" style={{ position: 'absolute', inset: 0 }} />
+        {/* Placeholder thumbnail */}
+        <div style={{ width: 48, height: 50, borderRadius: 9, background: 'rgba(255,255,255,0.07)', flexShrink: 0 }} />
+        {/* Placeholder badges */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
+          <div style={{ width: 52, height: 16, borderRadius: 5, background: 'rgba(255,255,255,0.08)' }} />
+          <div style={{ width: 68, height: 16, borderRadius: 5, background: 'rgba(255,255,255,0.08)' }} />
+        </div>
+        {/* Placeholder text */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ width: '40%', height: 16, borderRadius: 4, background: 'rgba(255,255,255,0.10)' }} />
+          <div style={{ width: '22%', height: 12, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
+        </div>
+        {/* Placeholder amount */}
+        <div style={{ width: 75, height: 18, borderRadius: 4, background: 'rgba(255,255,255,0.09)', flexShrink: 0 }} />
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
-        borderRadius: 14,
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.07)',
-        height: 280,
+        borderRadius: 16,
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+        border: '1px solid rgba(255,255,255,0.10)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        height: 290,
         overflow: 'hidden',
         position: 'relative',
+        boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
       }}
     >
       <div className="lib-shimmer" style={{ position: 'absolute', inset: 0 }} />
@@ -43,9 +84,9 @@ function DeleteModal({ doc, loading, onConfirm, onCancel }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'rgba(0,0,0,0.68)',
-        backdropFilter: 'blur(6px)',
-        WebkitBackdropFilter: 'blur(6px)',
+        background: 'rgba(0,0,0,0.72)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
       }}
     >
       <motion.div
@@ -57,11 +98,11 @@ function DeleteModal({ doc, loading, onConfirm, onCancel }) {
         style={{
           width: 420,
           borderRadius: 18,
-          background: 'rgba(10,5,1,0.96)',
-          backdropFilter: 'blur(28px)',
-          WebkitBackdropFilter: 'blur(28px)',
-          border: '1px solid rgba(249,115,22,0.22)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.75)',
+          background: 'rgba(12,6,2,0.96)',
+          backdropFilter: 'blur(32px) saturate(2.0)',
+          WebkitBackdropFilter: 'blur(32px) saturate(2.0)',
+          border: '1.5px solid rgba(249,115,22,0.30)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.80), 0 0 30px rgba(249,115,22,0.18)',
           padding: 28,
           display: 'flex',
           flexDirection: 'column',
@@ -216,7 +257,17 @@ function DetailPanel({ doc, detail, loading, error, onClose, onDownload }) {
             <>
               <DetailSection title="Status">
                 <DetailRow label="Status" value={doc?.needs_review ? <span style={{ color: '#fbbf24', fontWeight: 600 }}>⚠ Needs Review</span> : <span style={{ color: '#4ade80', fontWeight: 600 }}>✓ Processed</span>} />
-                {qual.confidence_level && <DetailRow label="Confidence" value={<span style={{ fontWeight: 700, color: { HIGH: '#4ade80', MEDIUM: '#fbbf24', LOW: '#f87171' }[String(qual.confidence_level).toUpperCase()] || 'rgba(255,255,255,0.6)' }}>{String(qual.confidence_level).toUpperCase()}</span>} />}
+                {qual.confidence_level && (
+                  <DetailRow
+                    label="Confidence"
+                    value={
+                      <span style={{ fontWeight: 700, color: { HIGH: '#4ade80', MEDIUM: '#fbbf24', LOW: '#f87171' }[String(qual.confidence_level).toUpperCase()] || 'rgba(255,255,255,0.6)' }}>
+                        {String(qual.confidence_level).toUpperCase()}
+                        {typeof qual.overall_confidence === 'number' ? ` (${Math.round(qual.overall_confidence * 100)}%)` : ''}
+                      </span>
+                    }
+                  />
+                )}
               </DetailSection>
               <DetailSection title="Extracted Data">
                 {ext.vendor_company && <DetailRow label="Vendor" value={ext.vendor_company} />}
@@ -341,7 +392,7 @@ export default function DocumentLibraryPage() {
 
   // Pagination
   const [page, setPage]         = useState(1);
-  const [pageSize, setPageSize] = useState(8);
+  const [pageSize, setPageSize] = useState(6);
 
   // Filters
   const [search, setSearch]             = useState('');
@@ -623,7 +674,7 @@ export default function DocumentLibraryPage() {
           {/* Loading skeletons */}
           {loading && (
             <div className={viewMode === 'grid' ? 'lib-grid-container' : undefined} style={{ display: viewMode === 'list' ? 'flex' : undefined, flexDirection: viewMode === 'list' ? 'column' : undefined, gap: 14 }}>
-              {Array.from({ length: pageSize }).map((_, i) => <SkeletonCard key={i} />)}
+              {Array.from({ length: pageSize }).map((_, i) => <SkeletonCard key={i} viewMode={viewMode} />)}
             </div>
           )}
 
@@ -651,13 +702,13 @@ export default function DocumentLibraryPage() {
 
           {/* Document Grid (4-column desktop) / List */}
           {!loading && pageItems.length > 0 && (
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence mode="wait">
               <motion.div
                 key={`${viewMode}-${page}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.20 }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
                 className={viewMode === 'grid' ? 'lib-grid-container' : undefined}
                 style={{
                   display: viewMode === 'list' ? 'flex' : undefined,
