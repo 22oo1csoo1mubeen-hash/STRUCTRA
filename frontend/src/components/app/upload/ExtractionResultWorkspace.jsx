@@ -36,12 +36,28 @@ const MOCK_RESULT = {
   ]
 };
 
-export default function ExtractionResultWorkspace({ file, uploadedDocument, stage, setStage, resetUpload, onSaveToLibrary, extractionResult, validationResult }) {
+export default function ExtractionResultWorkspace({ 
+  file, 
+  uploadedDocument, 
+  stage = 7, 
+  setStage, 
+  resetUpload, 
+  onSaveToLibrary, 
+  extractionResult, 
+  validationResult,
+  isLibraryMode = false,
+  onBack,
+  onDelete
+}) {
 
   const formatCurrency = (val) => {
     if (val === null || val === undefined) return '—';
     return `₹\u00A0${parseFloat(val).toFixed(2)}`;
   };
+
+  const [internalStage, setInternalStage] = useState(stage);
+  const currentStage = setStage ? stage : internalStage;
+  const updateStage = setStage || setInternalStage;
 
   const [editedData, setEditedData] = useState(null);
   const [successBannerDismissed, setSuccessBannerDismissed] = useState(false);
@@ -65,6 +81,15 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
     setWarningBannerDismissed(false);
   }, [extractionResult]);
 
+  // Ensure scroll is pushed to top on mount
+  useEffect(() => {
+    const scrollArea = document.getElementById('app-scroll-area');
+    if (scrollArea) {
+      scrollArea.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
+
   const baseData = useMemo(() => {
     return extractionResult?.extraction ? {
       vendor: extractionResult.extraction.vendor_company || '—',
@@ -72,6 +97,7 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
       address: extractionResult.extraction.address || '—',
       invoiceNumber: extractionResult.extraction.invoice_number || '—',
       totalAmount: formatCurrency(extractionResult.extraction.total),
+      confidenceOverride: extractionResult.quality?.confidence_override || null,
       lineItems: (extractionResult.extraction.line_items || []).map(li => ({
         item: li.description || '—',
         qty: li.quantity !== null && li.quantity !== undefined ? li.quantity : '—',
@@ -83,37 +109,241 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
 
   const displayData = editedData || baseData;
 
+  const effectiveQuality = useMemo(() => {
+    const rawQuality = extractionResult?.quality;
+    if (!rawQuality) return null;
+    const activeOverride = editedData?.confidenceOverride !== undefined
+      ? editedData.confidenceOverride
+      : (rawQuality.confidence_override ?? null);
+    const effectiveConfLevel = activeOverride || rawQuality.system_confidence_level || rawQuality.confidence_level || 'HIGH';
+    const effectiveNeedsReview = effectiveConfLevel === 'HIGH' ? false : true;
+    return {
+      ...rawQuality,
+      confidence_override: activeOverride,
+      confidence_level: effectiveConfLevel,
+      needs_review: effectiveNeedsReview,
+    };
+  }, [extractionResult?.quality, editedData?.confidenceOverride]);
+
+  const displayIssues = useMemo(() => {
+    const issues = Array.isArray(validationResult?.issues) ? [...validationResult.issues] : [];
+
+    const _addIssue = (issue) => {
+      if (!issues.some(existing => existing.type === issue.type && (existing.field === issue.field || (!existing.field && !issue.field && existing.title === issue.title)))) {
+        issues.push(issue);
+      }
+    };
+
+    const parseNum = (val) => {
+      if (typeof val === 'number') return isNaN(val) ? 0 : val;
+      if (!val) return 0;
+      const cleaned = String(val).replace(/[^0-9.-]/g, '');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? 0 : num;
+    };
+
+    // 1. Derive issues from mathematical validation object if present
+    const math = validationResult?.mathematical_validation || validationResult;
+    if (math) {
+      if (math.subtotal_matches === false && math.calculated_subtotal !== undefined && math.calculated_subtotal !== null) {
+        _addIssue({
+          type: 'subtotal_mismatch',
+          title: 'Line Items Do Not Match Subtotal',
+          message: 'The sum of the extracted line items does not match the subtotal shown on the document.',
+          expected: math.calculated_subtotal,
+          actual: math.document_subtotal,
+          difference: math.subtotal_difference,
+          field: 'subtotal',
+          severity: 'warning',
+        });
+      }
+      if (math.total_matches === false && math.calculated_total !== undefined && math.calculated_total !== null) {
+        _addIssue({
+          type: 'total_mismatch',
+          title: 'Total Amount Mismatch',
+          message: 'The calculated document total does not match the total displayed on the document.',
+          expected: math.calculated_total,
+          actual: math.document_total,
+          difference: math.difference,
+          field: 'total',
+          severity: 'warning',
+        });
+      }
+    }
+
+    // 2. Inspect individual line item calculations (qty * rate != amount)
+    const rawItems = extractionResult?.extraction?.line_items || [];
+    rawItems.forEach((li, idx) => {
+      const q = typeof li.quantity === 'number' ? li.quantity : parseNum(li.quantity);
+      const r = typeof li.unit_price === 'number' ? li.unit_price : parseNum(li.unit_price);
+      const a = typeof li.line_total === 'number' ? li.line_total : parseNum(li.line_total);
+      if (q > 0 && r > 0 && a > 0) {
+        const expected = Math.round(q * r * 100) / 100;
+        const diff = Math.round((expected - a) * 100) / 100;
+        if (Math.abs(diff) >= 0.01) {
+          _addIssue({
+            type: 'line_item_math_mismatch',
+            title: 'Line Item Arithmetic Mismatch',
+            message: `Item "${li.description || `Line ${idx + 1}`}" has quantity ${q} × unit price ${r} = ${expected}, but line total is ${a}.`,
+            expected: expected,
+            actual: a,
+            difference: diff,
+            field: `line_items[${idx}]`,
+            severity: 'warning',
+          });
+        }
+      }
+    });
+
+    // 3. Live reconciliation from extraction/display data
+    const ext = extractionResult?.extraction || {};
+    const sumFromRawItems = rawItems.reduce((acc, it) => acc + parseNum(it.line_total), 0);
+    const docSubtotal = ext.subtotal !== null && ext.subtotal !== undefined ? parseNum(ext.subtotal) : null;
+    const docTotal = ext.total !== null && ext.total !== undefined ? parseNum(ext.total) : parseNum(displayData?.totalAmount);
+    const docTax = parseNum(ext.tax);
+    const docRoundOff = parseNum(ext.round_off);
+    const docServiceCharge = parseNum(ext.service_charge);
+
+    if (rawItems.length > 0 && docSubtotal !== null && Math.abs(sumFromRawItems - docSubtotal) >= 0.01) {
+      const diff = Math.round((sumFromRawItems - docSubtotal) * 100) / 100;
+      _addIssue({
+        type: 'subtotal_mismatch',
+        title: 'Line Items Do Not Match Subtotal',
+        message: 'The sum of the extracted line items does not match the subtotal shown on the document.',
+        expected: sumFromRawItems,
+        actual: docSubtotal,
+        difference: diff,
+        field: 'subtotal',
+        severity: 'warning',
+      });
+    }
+
+    if (docTotal > 0) {
+      const base = (docSubtotal !== null && docSubtotal > 0) ? docSubtotal : sumFromRawItems;
+      const expectedTotal = Math.round((base + docTax + docServiceCharge + docRoundOff) * 100) / 100;
+      const diff = Math.round((expectedTotal - docTotal) * 100) / 100;
+      if (Math.abs(diff) >= 0.01) {
+        _addIssue({
+          type: 'total_mismatch',
+          title: 'Total Amount Mismatch',
+          message: 'The calculated document total does not match the total displayed on the document.',
+          expected: expectedTotal,
+          actual: docTotal,
+          difference: diff,
+          field: 'total',
+          severity: 'warning',
+        });
+      }
+    }
+
+    // 4. Check quality signals from evaluation
+    if (effectiveQuality?.signals) {
+      effectiveQuality.signals.forEach((sig) => {
+        if (sig.severity === 'warning' || sig.severity === 'critical') {
+          _addIssue({
+            type: sig.code?.toLowerCase() || 'review_signal',
+            title: (sig.code || 'Review Issue').replace(/_/g, ' '),
+            message: sig.message,
+            severity: sig.severity,
+          });
+        }
+      });
+    }
+
+    return issues;
+  }, [validationResult, extractionResult, displayData, effectiveQuality]);
+
+  const handleConfidenceChange = (newOverride) => {
+    setEditedData((prev) => ({
+      ...(prev || baseData),
+      confidenceOverride: newOverride,
+    }));
+  };
+
   const handleSaveData = (newData) => {
     setEditedData(newData);
   };
+
   const displayFilename = useMemo(() => {
     if (file?.name) return file.name;
     if (uploadedDocument?.original_filename) return uploadedDocument.original_filename;
     if (uploadedDocument?.filename && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(uploadedDocument.filename)) {
       return uploadedDocument.filename;
     }
+    if (extractionResult?.document?.filename) return extractionResult.document.filename;
     return MOCK_RESULT.filename;
-  }, [file, uploadedDocument]);
+  }, [file, uploadedDocument, extractionResult]);
 
-  const displayType = file?.name?.split('.').pop()?.toUpperCase() || uploadedDocument?.file_type?.toUpperCase() || MOCK_RESULT.fileType;
-  const displaySize = file ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : MOCK_RESULT.fileSize;
-  
-  const now = new Date();
-  const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
-  const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
-  const formattedDate = now.toLocaleDateString('en-GB', dateOptions);
-  const formattedTime = now.toLocaleTimeString('en-US', timeOptions);
-  const realtimeProcessedAt = `${formattedDate}, ${formattedTime}`;
+  const displayType = useMemo(() => {
+    if (file?.name) return file.name.split('.').pop()?.toUpperCase() || 'DOCUMENT';
+    if (uploadedDocument?.file_type) return uploadedDocument.file_type.toUpperCase();
+    if (extractionResult?.document?.filename) return extractionResult.document.filename.split('.').pop()?.toUpperCase() || 'DOCUMENT';
+    if (extractionResult?.document?.content_type) return extractionResult.document.content_type.split('/').pop()?.toUpperCase() || 'DOCUMENT';
+    return MOCK_RESULT.fileType;
+  }, [file, uploadedDocument, extractionResult]);
 
-  // Dynamic Routing Logic is now handled by UploadPage.jsx
+  const displaySize = useMemo(() => {
+    if (file?.size) return (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+    if (uploadedDocument?.size) return (uploadedDocument.size / (1024 * 1024)).toFixed(2) + ' MB';
+    if (extractionResult?.document?.size) return (extractionResult.document.size / (1024 * 1024)).toFixed(2) + ' MB';
+    return MOCK_RESULT.fileSize;
+  }, [file, uploadedDocument, extractionResult]);
+
+  const realtimeProcessedAt = useMemo(() => {
+    const rawDate = uploadedDocument?.created_at || extractionResult?.document?.created_at;
+    if (rawDate) {
+      const d = new Date(rawDate);
+      const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+      const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
+      return `${d.toLocaleDateString('en-GB', dateOptions)}, ${d.toLocaleTimeString('en-US', timeOptions)}`;
+    }
+    const now = new Date();
+    const dateOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+    const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
+    return `${now.toLocaleDateString('en-GB', dateOptions)}, ${now.toLocaleTimeString('en-US', timeOptions)}`;
+  }, [uploadedDocument, extractionResult]);
+
+  const docId = uploadedDocument?.document_id || uploadedDocument?.id || extractionResult?.document?.document_id || extractionResult?.document_id;
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: 'easeOut' }}
-      style={{ width: '100%', display: 'flex', flexDirection: 'column' }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      style={{ width: '100%', display: 'flex', flexDirection: 'column', isolation: 'isolate' }}
     >
+      {/* Optional Top-Left Back Button for Library Mode */}
+      {isLibraryMode && onBack && (
+        <motion.button
+          onClick={onBack}
+          whileHover={{ x: -3, color: '#fff', backgroundColor: 'rgba(255,255,255,0.1)' }}
+          whileTap={{ scale: 0.97 }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 8,
+            padding: '8px 16px',
+            color: 'rgba(255,248,238,0.85)',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            marginBottom: 20,
+            width: 'fit-content',
+            backdropFilter: 'blur(12px)',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 19 5 12 12 5" />
+          </svg>
+          Back to Document Library
+        </motion.button>
+      )}
+
       {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: 24 }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -160,15 +390,18 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
 
         {/* Top Right Action Button & Confidence Ring */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {stage !== 10 && stage !== 11 && (
-            <ExtractionConfidenceCard quality={extractionResult?.quality} />
+          {currentStage !== 10 && currentStage !== 11 && (
+            <ExtractionConfidenceCard
+              quality={effectiveQuality}
+              onConfidenceChange={handleConfidenceChange}
+            />
           )}
 
-          {stage === 7 ? (
+          {currentStage === 7 ? (
             <motion.button
               whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setStage(9)}
+              onClick={() => updateStage(9)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '10px 20px', borderRadius: 8,
@@ -182,7 +415,25 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
               <Edit2 size={16} />
               Review
             </motion.button>
-          ) : stage !== 10 && stage !== 11 ? (
+          ) : currentStage === 9 ? (
+            <motion.button
+              whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => updateStage(7)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 20px', borderRadius: 8,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: '#fff',
+                fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              <X size={16} />
+              Cancel Edit
+            </motion.button>
+          ) : !isLibraryMode && currentStage !== 10 && currentStage !== 11 ? (
             <motion.button
               whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
               whileTap={{ scale: 0.95 }}
@@ -206,7 +457,7 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
 
       {/* Success Validation Banner */}
       <AnimatePresence>
-        {stage === 7 && validationResult?.overall_status === 'valid' && !successBannerDismissed && (
+        {currentStage === 7 && validationResult?.overall_status === 'valid' && !successBannerDismissed && (
           <motion.div 
             initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
             animate={{ opacity: 1, height: 'auto', marginTop: 0, marginBottom: 24 }}
@@ -235,7 +486,7 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
           </motion.div>
         )}
         {/* Warning Validation Banner */}
-        {stage === 9 && validationResult?.overall_status !== 'valid' && !warningBannerDismissed && (
+        {currentStage === 9 && validationResult?.overall_status !== 'valid' && effectiveQuality?.confidence_override !== 'HIGH' && !warningBannerDismissed && (
           <motion.div 
             initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
             animate={{ opacity: 1, height: 'auto', marginTop: 0, marginBottom: 24 }}
@@ -292,7 +543,7 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
 
       {/* Validation Details Popover */}
       <AnimatePresence>
-        {showDetailsPopup && validationResult?.issues && (
+        {showDetailsPopup && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
@@ -326,35 +577,41 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
             </div>
             
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 20, maxHeight: 400, overflowY: 'auto' }}>
-              {validationResult.issues.map((issue, idx) => (
-                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ fontWeight: 600, color: '#f59e0b', fontSize: 14 }}>{issue.title}</div>
-                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>
-                    {issue.message}
-                  </div>
-                  {(issue.expected !== undefined && issue.expected !== null) && (
-                    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: 12, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                        <span style={{ color: 'rgba(255,255,255,0.5)' }}>
-                          {issue.type === 'subtotal_mismatch' ? 'Calculated from line items' : 'Calculated / Expected'}
-                        </span>
-                        <span style={{ color: '#fff', fontFamily: 'monospace' }}>{formatCurrency(issue.expected)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                        <span style={{ color: 'rgba(255,255,255,0.5)' }}>
-                          {issue.type === 'subtotal_mismatch' ? 'Document subtotal' : 'Extracted / Document'}
-                        </span>
-                        <span style={{ color: '#fff', fontFamily: 'monospace' }}>{formatCurrency(issue.actual)}</span>
-                      </div>
-                      <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.05)' }}></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                        <span style={{ color: 'rgba(255,255,255,0.5)' }}>Difference</span>
-                        <span style={{ color: '#f97316', fontFamily: 'monospace' }}>{formatCurrency(issue.difference)}</span>
-                      </div>
+              {displayIssues.length > 0 ? (
+                displayIssues.map((issue, idx) => (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ fontWeight: 600, color: '#f59e0b', fontSize: 14 }}>{issue.title}</div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>
+                      {issue.message}
                     </div>
-                  )}
+                    {(issue.expected !== undefined && issue.expected !== null) && (
+                      <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: 12, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                          <span style={{ color: 'rgba(255,255,255,0.5)' }}>
+                            {issue.type === 'subtotal_mismatch' ? 'Calculated from line items' : 'Calculated / Expected'}
+                          </span>
+                          <span style={{ color: '#fff', fontFamily: 'monospace' }}>{formatCurrency(issue.expected)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                          <span style={{ color: 'rgba(255,255,255,0.5)' }}>
+                            {issue.type === 'subtotal_mismatch' ? 'Document subtotal' : 'Extracted / Document'}
+                          </span>
+                          <span style={{ color: '#fff', fontFamily: 'monospace' }}>{formatCurrency(issue.actual)}</span>
+                        </div>
+                        <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.05)' }}></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                          <span style={{ color: 'rgba(255,255,255,0.5)' }}>Difference</span>
+                          <span style={{ color: '#f97316', fontFamily: 'monospace' }}>{formatCurrency(issue.difference)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                  No detected discrepancies remaining.
                 </div>
-              ))}
+              )}
             </div>
           </motion.div>
           </>
@@ -362,7 +619,7 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
       </AnimatePresence>
 
       {/* Main Layout Conditional */}
-      {stage < 11 ? (
+      {currentStage < 11 ? (
         <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: 760, paddingBottom: 16 }}>
           {/* Main columns row */}
           <div style={{ display: 'flex', gap: 24, width: '100%', alignItems: 'stretch', flex: 1, minHeight: 0 }}>
@@ -370,17 +627,13 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
             {/* Left Column: Document Preview Component */}
             <DocumentPreviewViewer
               file={file}
-              documentId={uploadedDocument?.document_id || extractionResult?.document_id}
+              documentId={docId}
             />
 
         {/* Right Column: Dynamic Content Based on Stage */}
-        <motion.div 
-          layout 
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          style={{ flex: 1, display: 'grid' }}
-        >
+        <div style={{ flex: 1, display: 'grid', minWidth: 0 }}>
           <AnimatePresence>
-            {stage === 10 ? (
+            {currentStage === 10 ? (
               <motion.div
                 key="stage10"
                 initial={{ opacity: 0 }}
@@ -389,9 +642,9 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
                 transition={{ duration: 0.35 }}
                 style={{ gridArea: '1 / 1 / 2 / 2', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}
               >
-                <DuplicateWarningView setStage={setStage} displayData={displayData} />
+                <DuplicateWarningView setStage={updateStage} displayData={displayData} />
               </motion.div>
-            ) : stage === 9 ? (
+            ) : currentStage === 9 ? (
               <motion.div
                 key="stage9"
                 initial={{ opacity: 0 }}
@@ -400,28 +653,32 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
                 transition={{ duration: 0.35 }}
                 style={{ gridArea: '1 / 1 / 2 / 2', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}
               >
-                <ReviewEditView setStage={setStage} displayData={displayData} onSave={handleSaveData} extractionResult={extractionResult} />
+                <ReviewEditView setStage={updateStage} displayData={displayData} onSave={handleSaveData} extractionResult={extractionResult} />
               </motion.div>
-            ) : stage >= 7 ? (
-              <motion.div
+            ) : currentStage >= 7 ? (
+              <div
                 key="right-panel"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20, position: 'absolute', right: 0 }}
-                transition={{ duration: 0.35 }}
                 style={{ gridArea: '1 / 1 / 2 / 2', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}
               >
-                <ExtractionResultsRightPanel stage={stage} setStage={setStage} validationResult={validationResult} resetUpload={resetUpload} displayData={displayData} extractionResult={extractionResult} />
-              </motion.div>
+                <ExtractionResultsRightPanel
+                  stage={currentStage}
+                  setStage={updateStage}
+                  validationResult={validationResult}
+                  resetUpload={resetUpload}
+                  displayData={displayData}
+                  extractionResult={extractionResult}
+                  onConfidenceChange={handleConfidenceChange}
+                />
+              </div>
             ) : null}
           </AnimatePresence>
-        </motion.div>
+        </div>
 
         </div> {/* End of main columns row */}
 
         {/* Bottom Spanning Action Bar (Stage 7 only) */}
         <AnimatePresence>
-          {stage === 7 && (
+          {currentStage === 7 && (
             <motion.div
               initial={{ opacity: 0, height: 0, y: 15, marginTop: 0 }}
               animate={{ opacity: 1, height: 'auto', y: 0, marginTop: 24 }}
@@ -431,36 +688,55 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
             >
               <div
                 style={{ 
-                  background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', 
+                  background: 'rgba(255,255,255,0.055)', 
+                  backdropFilter: 'blur(24px)',
+                  WebkitBackdropFilter: 'blur(24px)',
+                  border: '1px solid rgba(255,255,255,0.09)', 
                   borderRadius: 12, padding: 16, display: 'flex', gap: 16, alignItems: 'center',
-                  width: '100%', boxSizing: 'border-box'
+                  width: '100%', boxSizing: 'border-box',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.22)'
                 }}
               >
                 <motion.button 
                   whileHover={{ color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)' }}
-                  style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
+                  style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
                 >
                   <FileDown size={16} /> Export
                 </motion.button>
                 <motion.button 
+                  onClick={onDelete}
                   whileHover={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' }}
-                  style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
+                  style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
                 >
                   <Trash2 size={16} /> Delete
                 </motion.button>
-                <motion.button 
-                  onClick={resetUpload} 
-                  whileHover={{ color: '#fff', backgroundColor: 'rgba(255,255,255,0.1)' }}
-                  style={{ flex: 1, justifyContent: 'center', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
-                >
-                  <RefreshCcw size={16} /> Process Another
-                </motion.button>
+                {isLibraryMode ? (
+                  <motion.button 
+                    onClick={onBack} 
+                    whileHover={{ color: '#fff', backgroundColor: 'rgba(255,255,255,0.1)' }}
+                    style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
+                  >
+                    Back to Library
+                  </motion.button>
+                ) : (
+                  <motion.button 
+                    onClick={resetUpload} 
+                    whileHover={{ color: '#fff', backgroundColor: 'rgba(255,255,255,0.1)' }}
+                    style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
+                  >
+                    <RefreshCcw size={16} /> Process Another
+                  </motion.button>
+                )}
                 <motion.button
-                  onClick={() => {
+                  onClick={async () => {
+                    const payload = {
+                      ...displayData,
+                      confidenceOverride: effectiveQuality?.confidence_override !== undefined ? effectiveQuality.confidence_override : displayData?.confidenceOverride,
+                    };
                     if (onSaveToLibrary) {
-                      onSaveToLibrary();
+                      await onSaveToLibrary(payload);
                     } else {
-                      setStage(11);
+                      updateStage(11);
                     }
                   }}
                   whileHover={{ scale: 1.02, boxShadow: '0 8px 20px rgba(249,115,22,0.4)' }}
@@ -468,7 +744,7 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
                   style={{ 
                     flex: 1, justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg, #f97316 0%, #e85d04 100%)', 
                     border: 'none', borderRadius: 8, padding: '12px 24px', color: '#fff', fontSize: 14, fontWeight: 600, 
-                    cursor: 'pointer', boxShadow: '0 4px 12px rgba(249,115,22,0.3)'
+                    cursor: 'pointer', boxShadow: '0 4px 14px rgba(249,115,22,0.35)'
                   }}
                 >
                   <Save size={16} /> Save to Library
@@ -481,7 +757,7 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
         </div>
       ) : (
         <AnimatePresence mode="wait">
-          {stage === 11 && (
+          {currentStage === 11 && (
             <motion.div
               key="stage11"
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -491,10 +767,12 @@ export default function ExtractionResultWorkspace({ file, uploadedDocument, stag
             >
               <Stage11SuccessView 
                 file={file} 
-                resetUpload={resetUpload} 
+                resetUpload={isLibraryMode ? onBack : resetUpload} 
                 displayData={displayData} 
-                docId={uploadedDocument?.document_id || uploadedDocument?.id || extractionResult?.document_id}
+                docId={docId}
                 displayFilename={displayFilename}
+                isLibraryMode={isLibraryMode}
+                onBack={onBack}
               />
             </motion.div>
           )}
@@ -539,8 +817,12 @@ function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetU
             animate={{ opacity: 1 }}
             style={{ 
               flex: '0 1 auto', minHeight: 0, maxHeight: 320,
-              background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', 
-              borderRadius: 12, overflow: 'hidden', marginBottom: stage === 7 ? 16 : 0, display: 'flex', flexDirection: 'column'
+              background: 'rgba(255,255,255,0.045)', 
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              border: '1px solid rgba(255,255,255,0.09)', 
+              borderRadius: 12, overflow: 'hidden', marginBottom: stage === 7 ? 16 : 0, display: 'flex', flexDirection: 'column',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.22)'
             }}
           >
             <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -604,14 +886,19 @@ function InfoCard({ icon: Icon, label, value, fullWidth = false, highlight = fal
   }, [value]);
 
   const cardStyle = {
-    background: highlight ? 'linear-gradient(135deg, rgba(249,115,22,0.1) 0%, rgba(232,93,4,0.02) 100%)' : 'rgba(255,255,255,0.03)', 
-    border: highlight ? '1px solid rgba(249,115,22,0.3)' : '1px solid rgba(255,255,255,0.06)', 
-    borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12
+    background: highlight 
+      ? 'linear-gradient(135deg, rgba(249,115,22,0.15) 0%, rgba(232,93,4,0.06) 100%)' 
+      : 'rgba(255,255,255,0.055)', 
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: highlight ? '1px solid rgba(249,115,22,0.35)' : '1px solid rgba(255,255,255,0.09)', 
+    borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12,
+    boxShadow: '0 4px 20px rgba(0,0,0,0.22)'
   };
 
   const expandedBg = highlight 
-    ? 'linear-gradient(135deg, rgba(249,115,22,0.15) 0%, rgba(232,93,4,0.05) 100%), #18181b' 
-    : 'linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05)), #18181b';
+    ? 'linear-gradient(135deg, rgba(249,115,22,0.2) 0%, rgba(232,93,4,0.08) 100%), #181512' 
+    : 'linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08)), #181512';
 
   return (
     <div 
@@ -813,12 +1100,21 @@ function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
     setLocalData(displayData);
   }, [displayData]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      if (onSave) onSave(localData);
+    try {
+      if (onSave) {
+        await onSave({
+          ...localData,
+          confidenceOverride: displayData?.confidenceOverride !== undefined ? displayData.confidenceOverride : localData?.confidenceOverride,
+        });
+      }
       setStage(7);
-    }, 1000);
+    } catch (err) {
+      console.error('Failed to save edited data:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const updateField = (field, value) => setLocalData(prev => ({ ...prev, [field]: value }));
@@ -849,8 +1145,12 @@ function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
       {/* Editable Line Items Scrollable */}
       <div style={{ 
         flex: '0 1 auto', minHeight: 0, maxHeight: 320,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', 
-        borderRadius: 12, overflow: 'hidden', marginBottom: 16, display: 'flex', flexDirection: 'column'
+        background: 'rgba(255,255,255,0.045)', 
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        border: '1px solid rgba(255,255,255,0.09)', 
+        borderRadius: 12, overflow: 'hidden', marginBottom: 16, display: 'flex', flexDirection: 'column',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.22)'
       }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h4 style={{ fontSize: 14, fontWeight: 600, color: '#fff', margin: 0 }}>Line Items ({localData.lineItems.length})</h4>
@@ -877,8 +1177,12 @@ function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
 
       {/* Sticky Action Bar (For Review Mode: Complete Review) */}
       <div style={{ 
-        marginTop: 'auto', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', 
-        borderRadius: 12, padding: 16, display: 'flex', justifyContent: 'flex-end', alignItems: 'center'
+        marginTop: 'auto', background: 'rgba(255,255,255,0.055)', 
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        border: '1px solid rgba(255,255,255,0.09)', 
+        borderRadius: 12, padding: 16, display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.22)'
       }}>
         <motion.button
           onClick={handleSave}
@@ -993,16 +1297,23 @@ function EditableField({ icon: Icon, label, initialValue, isTextarea = false, fu
   const expanded = (isHovered && isTruncated) || isEditing;
 
   const cardStyle = {
-    background: isEditing ? 'rgba(249,115,22,0.05)' : (highlight ? 'linear-gradient(135deg, rgba(249,115,22,0.1) 0%, rgba(232,93,4,0.02) 100%)' : 'rgba(255,255,255,0.03)'), 
-    border: isEditing ? '1px solid rgba(249,115,22,0.4)' : (highlight ? '1px solid rgba(249,115,22,0.3)' : '1px solid rgba(255,255,255,0.06)'), 
-    borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12, boxSizing: 'border-box'
+    background: isEditing 
+      ? 'rgba(249,115,22,0.08)' 
+      : (highlight 
+        ? 'linear-gradient(135deg, rgba(249,115,22,0.15) 0%, rgba(232,93,4,0.06) 100%)' 
+        : 'rgba(255,255,255,0.055)'), 
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: isEditing ? '1px solid rgba(249,115,22,0.4)' : (highlight ? '1px solid rgba(249,115,22,0.35)' : '1px solid rgba(255,255,255,0.09)'), 
+    borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12, boxSizing: 'border-box',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.22)'
   };
 
   const expandedBg = isEditing 
     ? 'rgba(30, 20, 15, 0.98)'
     : (highlight 
-      ? 'linear-gradient(135deg, rgba(249,115,22,0.15) 0%, rgba(232,93,4,0.05) 100%), #18181b' 
-      : 'linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05)), #18181b');
+      ? 'linear-gradient(135deg, rgba(249,115,22,0.2) 0%, rgba(232,93,4,0.08) 100%), #181512' 
+      : 'linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08)), #181512');
 
   return (
     <div 

@@ -64,9 +64,22 @@ class ReceiptInvoiceLineItem(BaseModel):
         if isinstance(v, (int, float)):
             return float(v)
         if isinstance(v, str):
-            cleaned = re.sub(r"[^\d.-]", "", v)
+            s = v.strip()
+            if not s:
+                return None
+            is_negative = False
+            if s.startswith("(") and s.endswith(")"):
+                is_negative = True
+                s = s[1:-1].strip()
+            s = s.replace("−", "-").replace("–", "-").replace("—", "-")
+            if "-" in s:
+                is_negative = True
+            cleaned = re.sub(r"[^\d.]", "", s)
             try:
-                return float(cleaned) if cleaned else None
+                if not cleaned:
+                    return None
+                val = float(cleaned)
+                return -val if is_negative else val
             except ValueError:
                 return None
         return None
@@ -88,9 +101,22 @@ class TaxComponent(BaseModel):
         if isinstance(v, (int, float)):
             return float(v)
         if isinstance(v, str):
-            cleaned = re.sub(r"[^\d.-]", "", v)
+            s = v.strip()
+            if not s:
+                return None
+            is_negative = False
+            if s.startswith("(") and s.endswith(")"):
+                is_negative = True
+                s = s[1:-1].strip()
+            s = s.replace("−", "-").replace("–", "-").replace("—", "-")
+            if "-" in s:
+                is_negative = True
+            cleaned = re.sub(r"[^\d.]", "", s)
             try:
-                return float(cleaned) if cleaned else None
+                if not cleaned:
+                    return None
+                val = float(cleaned)
+                return -val if is_negative else val
             except ValueError:
                 return None
         return None
@@ -110,10 +136,12 @@ class ReceiptInvoiceExtraction(BaseModel):
     taxable_amount: float | None = None
     tax: float | None = None
     tax_components: list[TaxComponent] = Field(default_factory=list)
+    service_charge: float | None = None
+    round_off: float | None = None
     total: float | None = None
     line_items: list[ReceiptInvoiceLineItem] = Field(default_factory=list)
 
-    @field_validator("subtotal", "discount", "taxable_amount", "tax", "total", mode="before")
+    @field_validator("subtotal", "discount", "taxable_amount", "tax", "service_charge", "round_off", "total", mode="before")
     @classmethod
     def parse_numeric(cls, v: Any) -> float | None:
         if v is None:
@@ -121,9 +149,22 @@ class ReceiptInvoiceExtraction(BaseModel):
         if isinstance(v, (int, float)):
             return float(v)
         if isinstance(v, str):
-            cleaned = re.sub(r"[^\d.-]", "", v)
+            s = v.strip()
+            if not s:
+                return None
+            is_negative = False
+            if s.startswith("(") and s.endswith(")"):
+                is_negative = True
+                s = s[1:-1].strip()
+            s = s.replace("−", "-").replace("–", "-").replace("—", "-")
+            if "-" in s:
+                is_negative = True
+            cleaned = re.sub(r"[^\d.]", "", s)
             try:
-                return float(cleaned) if cleaned else None
+                if not cleaned:
+                    return None
+                val = float(cleaned)
+                return -val if is_negative else val
             except ValueError:
                 return None
         return None
@@ -231,6 +272,8 @@ class DocumentListItem(BaseModel):
     document_date: str | None = None
     confidence_level: str | None = None
     confidence_score: float | None = None
+    system_confidence_level: str | None = None
+    confidence_override: str | None = None
     needs_review: bool | None = None
 
 
@@ -276,6 +319,6 @@ class DocumentDetailResponse(BaseModel):
     document: DocumentMetadataResponse
     extraction: ReceiptInvoiceExtraction | None = None
     quality: ExtractionQualityResult | None = None
-    validation: MathematicalValidationResult | None = None
+    validation: DocumentValidationResult | MathematicalValidationResult | None = None
     original: OriginalDocumentInfo
 

@@ -270,3 +270,141 @@ def test_legacy_tax_ignored_when_components_present() -> None:
     assert result.total_matches is True
     assert result.calculated_total == Decimal("1065.00")
 
+
+def test_hotel_jpg_om_sweets_receipt_validation() -> None:
+    """Test the exact hotel.jpg (OM SWEETS) receipt arithmetic:
+    DAL MAKHANI (180) + PLAIN ROTI (45) = 225 subtotal.
+    VAT (28.13) + Surcharge (1.41) + Service Tax (12.60) + SB Cess (0.45) + KKC (0.45) = 43.04.
+    Round Off (-0.04).
+    Net Total = 268.00.
+    """
+    extraction = ReceiptInvoiceExtraction(
+        vendor_company="OM SWEETS PVT. LTD.",
+        date="26/May/2017",
+        subtotal=225.00,
+        tax=43.04,
+        tax_components=[
+            {"name": "VAT", "rate": 12.5, "amount": 28.13},
+            {"name": "SURCHARGE", "rate": 5.0, "amount": 1.41},
+            {"name": "SERVICE TAX", "rate": 5.6, "amount": 12.60},
+            {"name": "SB CESS", "rate": 0.2, "amount": 0.45},
+            {"name": "KKC", "rate": 0.2, "amount": 0.45},
+        ],
+        round_off=-0.04,
+        total=268.00,
+        line_items=[
+            {"description": "DAL MAKHANI", "quantity": 1.0, "unit_price": 180.0, "line_total": 180.0},
+            {"description": "PLAIN ROTI", "quantity": 3.0, "unit_price": 15.0, "line_total": 45.0},
+        ],
+    )
+    result = validate_extraction_totals(extraction)
+
+    assert result.validation_performed is True
+    assert result.subtotal_matches is True
+    assert result.calculated_subtotal == Decimal("225.00")
+    assert result.document_subtotal == Decimal("225.00")
+    assert result.total_matches is True
+    assert result.calculated_total == Decimal("268.00")
+    assert result.document_total == Decimal("268.00")
+    assert result.difference == Decimal("0.00")
+
+
+def test_signed_negative_round_off_formats() -> None:
+    """Verify various negative string formats for round off (-0.04, −0.04, (0.04), -₹0.04)."""
+    for neg_val in ["-0.04", "−0.04", "(0.04)", "-₹0.04", "− ₹0.04", "(₹0.04)"]:
+        ext = ReceiptInvoiceExtraction(
+            subtotal="225.00",
+            tax="43.04",
+            round_off=neg_val,
+            total="268.00",
+            line_items=[
+                {"description": "Item 1", "line_total": "225.00"}
+            ]
+        )
+        assert ext.round_off == -0.04
+        res = validate_extraction_totals(ext)
+        assert res.total_matches is True
+        assert res.calculated_total == Decimal("268.00")
+        assert res.difference == Decimal("0.00")
+
+
+def test_positive_round_off_adjustment() -> None:
+    """Verify positive round off adjustment (e.g. +0.20 on subtotal 100 + tax 18 -> total 118.20)."""
+    ext = ReceiptInvoiceExtraction(
+        subtotal=100.00,
+        tax=18.00,
+        round_off=0.20,
+        total=118.20,
+        line_items=[
+            {"description": "Item A", "line_total": 100.00}
+        ]
+    )
+    res = validate_extraction_totals(ext)
+    assert res.total_matches is True
+    assert res.calculated_total == Decimal("118.20")
+    assert res.difference == Decimal("0.00")
+
+
+def test_line_item_subtotal_independent_of_net_amount() -> None:
+    """Verify line items (180 + 45 = 225) match subtotal 225 and do NOT fail against final total 268."""
+    ext = ReceiptInvoiceExtraction(
+        subtotal=225.00,
+        tax=43.04,
+        round_off=-0.04,
+        total=268.00,
+        line_items=[
+            {"description": "DAL MAKHANI", "quantity": 1.0, "unit_price": 180.0, "line_total": 180.0},
+            {"description": "PLAIN ROTI", "quantity": 3.0, "unit_price": 15.0, "line_total": 45.0},
+        ],
+    )
+    res = validate_extraction_totals(ext)
+    assert res.subtotal_matches is True
+    assert res.calculated_subtotal == Decimal("225.00")
+    assert res.document_subtotal == Decimal("225.00")
+    assert res.total_matches is True
+
+
+def test_round_off_inside_tax_components_without_double_counting() -> None:
+    """Verify that when round off is extracted in tax_components, it is applied and not double counted."""
+    ext = ReceiptInvoiceExtraction(
+        subtotal=225.00,
+        tax_components=[
+            {"name": "VAT", "amount": 28.13},
+            {"name": "SERVICE TAX", "amount": 12.60},
+            {"name": "SURCHARGE", "amount": 1.41},
+            {"name": "SB CESS", "amount": 0.45},
+            {"name": "KKC", "amount": 0.45},
+            {"name": "ROUND OFF", "amount": -0.04},
+        ],
+        total=268.00,
+        line_items=[
+            {"description": "Item 1", "line_total": 225.00}
+        ],
+    )
+    res = validate_extraction_totals(ext)
+    assert res.total_matches is True
+    assert res.calculated_total == Decimal("268.00")
+    assert res.difference == Decimal("0.00")
+
+
+def test_one_cent_mismatch_fails_strict_validation() -> None:
+    """Verify that even a 0.01 difference produces total_matches = False."""
+    ext = ReceiptInvoiceExtraction(
+        subtotal=225.00,
+        tax=43.04,
+        round_off=-0.04,
+        total=268.01,
+        line_items=[
+            {"description": "Item 1", "line_total": 225.00}
+        ],
+    )
+    res = validate_extraction_totals(ext)
+    assert res.validation_performed is True
+    assert res.total_matches is False
+    assert res.calculated_total == Decimal("268.00")
+    assert res.document_total == Decimal("268.01")
+    assert res.difference == Decimal("-0.01")
+
+
+
+

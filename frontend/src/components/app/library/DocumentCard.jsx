@@ -146,7 +146,7 @@ function StatusBadge({ status, needsReview }) {
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12" />
         </svg>
-        Processed
+        Valid
       </span>
     );
   }
@@ -169,42 +169,39 @@ function StatusBadge({ status, needsReview }) {
   );
 }
 
-function ConfidenceBadge({ level, score }) {
-  if (!level && score == null) return null;
-  const L = String(level || 'HIGH').toUpperCase();
-  
-  let percentage = null;
-  if (typeof score === 'number') {
-    percentage = score <= 1.0 ? Math.round(score * 100) : Math.round(score);
-  }
+function ConfidenceBadge({ level, isOverride = false }) {
+  if (!level) return null;
+  const L = String(level).toUpperCase();
 
   const isHigh = L === 'HIGH';
   const isMed = L === 'MEDIUM';
 
   const cfg = isHigh
-    ? { color: '#4ade80', bg: 'rgba(34, 197, 94, 0.16)', border: 'rgba(34, 197, 94, 0.35)' }
+    ? { icon: '✓', color: '#4ade80', bg: 'rgba(34, 197, 94, 0.14)', border: 'rgba(34, 197, 94, 0.32)' }
     : isMed
-    ? { color: '#fbbf24', bg: 'rgba(245, 158, 11, 0.16)', border: 'rgba(245, 158, 11, 0.35)' }
-    : { color: '#f87171', bg: 'rgba(239, 68, 68, 0.16)',  border: 'rgba(239, 68, 68, 0.35)' };
+    ? { icon: '⚠', color: '#fbbf24', bg: 'rgba(245, 158, 11, 0.14)', border: 'rgba(245, 158, 11, 0.32)' }
+    : { icon: '!', color: '#f87171', bg: 'rgba(239, 68, 68, 0.14)',  border: 'rgba(239, 68, 68, 0.32)' };
 
   return (
     <span
+      title={isOverride ? `Confidence manually set to ${L}` : `Confidence: ${L}`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
-        padding: '3px 7px',
+        padding: '3px 8px',
         borderRadius: 5,
         background: cfg.bg,
         border: `1px solid ${cfg.border}`,
         color: cfg.color,
-        fontSize: 11,
+        fontSize: 10.5,
         fontWeight: 700,
         fontFamily: "'Inter', system-ui, sans-serif",
-        letterSpacing: '0.03em',
+        letterSpacing: '0.04em',
       }}
     >
-      {L} {percentage !== null && <span style={{ fontWeight: 600, opacity: 0.9 }}>{percentage}%</span>}
+      <span>{cfg.icon}</span>
+      <span>{L}</span>
     </span>
   );
 }
@@ -371,6 +368,7 @@ function MiniDocThumbnail({ filename = '', vendorName = '', docType = 'RECEIPT' 
 function MoreMenu({ onDelete, onDownload }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const btnRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -384,8 +382,9 @@ function MoreMenu({ onDelete, onDownload }) {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
+        ref={btnRef}
         type="button"
-        aria-label="More actions"
+        aria-label="More options"
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);
@@ -426,6 +425,7 @@ function MoreMenu({ onDelete, onDownload }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.88, y: -4 }}
             transition={{ duration: 0.13, ease: 'easeOut' }}
+            onClick={(e) => e.stopPropagation()}
             style={{
               position: 'absolute',
               bottom: 'calc(100% + 6px)',
@@ -456,7 +456,10 @@ function MenuBtn({ icon, label, danger, onClick }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.(e);
+      }}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
@@ -504,6 +507,9 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
   const date    = fmtDate(doc.document_date, doc.created_at);
   const amount  = fmtAmount(doc.total_amount);
 
+  const effectiveLevel = doc.confidence_level || (doc.needs_review ? 'MEDIUM' : 'HIGH');
+  const isNeedsReview = doc.needs_review !== undefined ? doc.needs_review : (effectiveLevel !== 'HIGH');
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 8 }}
@@ -511,6 +517,7 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
       exit={{ opacity: 0, scale: 0.98 }}
       whileHover={{ y: -2.5 }}
       transition={{ duration: 0.20, ease: 'easeOut' }}
+      onClick={() => onView?.(doc)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -518,6 +525,7 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
         flexDirection: 'column',
         borderRadius: 16,
         overflow: 'hidden',
+        cursor: 'pointer',
         background: hovered
           ? 'linear-gradient(145deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.035) 100%)'
           : 'linear-gradient(145deg, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.022) 100%)',
@@ -547,7 +555,7 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
       {/* Top Badges */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 10px' }}>
         <TypeBadge type={docType} />
-        <StatusBadge status={doc.status} needsReview={doc.needs_review} />
+        <StatusBadge status={doc.status} needsReview={isNeedsReview} />
       </div>
 
       {/* Thumbnail */}
@@ -619,13 +627,17 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
 
         {/* Confidence + Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-          <ConfidenceBadge level={doc.confidence_level || (doc.needs_review ? 'MEDIUM' : 'HIGH')} score={doc.confidence_score} />
+          <ConfidenceBadge level={effectiveLevel} isOverride={Boolean(doc.confidence_override)} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* View Eye Button */}
+            {/* Export / Download Button */}
             <button
               type="button"
-              aria-label="View document"
-              onClick={() => onView?.(doc)}
+              aria-label="Export document"
+              title="Export / Download document"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownload?.(doc);
+              }}
               style={{
                 width: 32,
                 height: 32,
@@ -637,23 +649,66 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
                 border: '1px solid rgba(255,255,255,0.11)',
                 cursor: 'pointer',
                 color: 'rgba(255,255,255,0.65)',
-                transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+                transition: 'all 0.15s ease',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
-                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.background = 'rgba(16,185,129,0.18)';
+                e.currentTarget.style.borderColor = 'rgba(16,185,129,0.45)';
+                e.currentTarget.style.color = '#10b981';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.11)';
                 e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
               }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             </button>
-            <MoreMenu onDelete={() => onDelete?.(doc)} onDownload={() => onDownload?.(doc)} />
+
+            {/* Delete Button */}
+            <button
+              type="button"
+              aria-label="Delete document"
+              title="Delete document"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete?.(doc);
+              }}
+              style={{
+                width: 32,
+                height: 32,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 8,
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.11)',
+                cursor: 'pointer',
+                color: 'rgba(255,255,255,0.65)',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239,68,68,0.18)';
+                e.currentTarget.style.borderColor = 'rgba(239,68,68,0.40)';
+                e.currentTarget.style.color = '#ef4444';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.11)';
+                e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -668,6 +723,9 @@ function ListCard({ doc, onView, onDelete, onDownload }) {
   const date    = fmtDate(doc.document_date, doc.created_at);
   const amount  = fmtAmount(doc.total_amount);
 
+  const effectiveLevel = doc.confidence_level || (doc.needs_review ? 'MEDIUM' : 'HIGH');
+  const isNeedsReview = doc.needs_review !== undefined ? doc.needs_review : (effectiveLevel !== 'HIGH');
+
   return (
     <motion.article
       initial={{ opacity: 0, x: -4 }}
@@ -675,6 +733,7 @@ function ListCard({ doc, onView, onDelete, onDownload }) {
       exit={{ opacity: 0, scale: 0.98 }}
       whileHover={{ y: -1 }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
+      onClick={() => onView?.(doc)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -683,6 +742,7 @@ function ListCard({ doc, onView, onDelete, onDownload }) {
         gap: 16,
         padding: '14px 18px',
         borderRadius: 14,
+        cursor: 'pointer',
         background: hovered
           ? 'linear-gradient(135deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.035) 100%)'
           : 'linear-gradient(135deg, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.025) 100%)',
@@ -702,7 +762,7 @@ function ListCard({ doc, onView, onDelete, onDownload }) {
       {/* Badges */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
         <TypeBadge type={docType} />
-        <StatusBadge status={doc.status} needsReview={doc.needs_review} />
+        <StatusBadge status={doc.status} needsReview={isNeedsReview} />
       </div>
 
       {/* Filename & Vendor */}
@@ -728,14 +788,19 @@ function ListCard({ doc, onView, onDelete, onDownload }) {
       </span>
 
       {/* Confidence */}
-      <ConfidenceBadge level={doc.confidence_level || (doc.needs_review ? 'MEDIUM' : 'HIGH')} score={doc.confidence_score} />
+      <ConfidenceBadge level={effectiveLevel} isOverride={Boolean(doc.confidence_override)} />
 
       {/* Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        {/* Export / Download Button */}
         <button
           type="button"
-          aria-label="View document"
-          onClick={() => onView?.(doc)}
+          aria-label="Export document"
+          title="Export / Download document"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDownload?.(doc);
+          }}
           style={{
             width: 32,
             height: 32,
@@ -747,23 +812,66 @@ function ListCard({ doc, onView, onDelete, onDownload }) {
             border: '1px solid rgba(255,255,255,0.11)',
             cursor: 'pointer',
             color: 'rgba(255,255,255,0.65)',
-            transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+            transition: 'all 0.15s ease',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
-            e.currentTarget.style.color = '#ffffff';
+            e.currentTarget.style.background = 'rgba(16,185,129,0.18)';
+            e.currentTarget.style.borderColor = 'rgba(16,185,129,0.45)';
+            e.currentTarget.style.color = '#10b981';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.11)';
             e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
           }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-            <circle cx="12" cy="12" r="3" />
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
         </button>
-        <MoreMenu onDelete={() => onDelete?.(doc)} onDownload={() => onDownload?.(doc)} />
+
+        {/* Delete Button */}
+        <button
+          type="button"
+          aria-label="Delete document"
+          title="Delete document"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete?.(doc);
+          }}
+          style={{
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 8,
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.11)',
+            cursor: 'pointer',
+            color: 'rgba(255,255,255,0.65)',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(239,68,68,0.18)';
+            e.currentTarget.style.borderColor = 'rgba(239,68,68,0.40)';
+            e.currentTarget.style.color = '#ef4444';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.11)';
+            e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <line x1="10" y1="11" x2="10" y2="17" />
+            <line x1="14" y1="11" x2="14" y2="17" />
+          </svg>
+        </button>
       </div>
     </motion.article>
   );

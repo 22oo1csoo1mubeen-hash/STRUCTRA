@@ -34,11 +34,18 @@ class ExtractionCache:
 
         # 1. Memory cache check (< 1ms)
         if content_hash in self._memory_cache:
-            t1 = time.perf_counter()
-            elapsed_ms = (t1 - t0) * 1000.0
-            print(f"[STRUCTRA CACHE] HIT | Hash: {short_hash}")
-            print(f"[STRUCTRA PERF] Extraction cache lookup: {elapsed_ms:.2f} ms")
-            return self._memory_cache[content_hash]
+            cached = self._memory_cache[content_hash]
+            from app.services.mathematical_validation import validate_extraction_totals
+            math_check = validate_extraction_totals(cached)
+            if math_check.total_matches is not False:
+                t1 = time.perf_counter()
+                elapsed_ms = (t1 - t0) * 1000.0
+                print(f"[STRUCTRA CACHE] HIT | Hash: {short_hash}")
+                print(f"[STRUCTRA PERF] Extraction cache lookup: {elapsed_ms:.2f} ms")
+                return cached
+            else:
+                print(f"[STRUCTRA CACHE] Stale/invalid cached result in memory for hash {short_hash}, ignoring.")
+                del self._memory_cache[content_hash]
 
         # 2. Supabase PostgreSQL cache check
         cfg = settings or get_settings()
@@ -73,12 +80,17 @@ class ExtractionCache:
                         if isinstance(raw_data, dict):
                             try:
                                 validated = ReceiptInvoiceExtraction.model_validate(raw_data)
-                                self._memory_cache[content_hash] = validated
-                                t1 = time.perf_counter()
-                                elapsed_ms = (t1 - t0) * 1000.0
-                                print(f"[STRUCTRA CACHE] HIT | Hash: {short_hash}")
-                                print(f"[STRUCTRA PERF] Extraction cache lookup: {elapsed_ms:.2f} ms")
-                                return validated
+                                from app.services.mathematical_validation import validate_extraction_totals
+                                math_check = validate_extraction_totals(validated)
+                                if math_check.total_matches is not False:
+                                    self._memory_cache[content_hash] = validated
+                                    t1 = time.perf_counter()
+                                    elapsed_ms = (t1 - t0) * 1000.0
+                                    print(f"[STRUCTRA CACHE] HIT | Hash: {short_hash}")
+                                    print(f"[STRUCTRA PERF] Extraction cache lookup: {elapsed_ms:.2f} ms")
+                                    return validated
+                                else:
+                                    print(f"[STRUCTRA CACHE] Stale/invalid cached result in database for hash {short_hash}, re-extracting.")
                             except ValidationError as val_err:
                                 print(
                                     f"[STRUCTRA CACHE WARNING] Corrupted/invalid cached JSON for hash {short_hash}: {val_err}"

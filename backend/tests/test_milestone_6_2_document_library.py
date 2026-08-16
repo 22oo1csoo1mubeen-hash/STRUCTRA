@@ -238,3 +238,33 @@ async def test_extraction_persists_extraction_result_and_quality(
     assert kwargs["user_id"] == USER_A_ID
     assert kwargs["extraction"]["vendor_company"] == "Persisted Vendor"
     assert "quality" in kwargs
+
+
+@pytest.mark.parametrize(
+    "sort_param,expected_sort",
+    [
+        ("newest", None),
+        ("oldest", "oldest"),
+        ("amount_desc", "amount_desc"),
+        ("amount_asc", "amount_asc"),
+    ],
+)
+def test_list_documents_all_sort_options(
+    client_user_a: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    sort_param: str,
+    expected_sort: str | None,
+) -> None:
+    """All 4 sorting parameters (newest, oldest, amount_desc, amount_asc) are routed correctly."""
+    captured_kwargs = {}
+
+    async def mock_list(user_id: str, page: int = 1, page_size: int = 20, settings=None, **kwargs):
+        captured_kwargs.update(kwargs)
+        return [], 0
+
+    monkeypatch.setattr(document_routes, "list_document_metadata", mock_list)
+
+    response = client_user_a.get(f"/documents?sort_by={sort_param}")
+    assert response.status_code == 200
+    assert captured_kwargs.get("sort_by") == expected_sort
+

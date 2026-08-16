@@ -1,6 +1,6 @@
 """Document upload API endpoints."""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 import asyncio
 from datetime import datetime, timezone
 from pathlib import PurePath
@@ -26,11 +26,14 @@ from app.schemas.documents import (
     DocumentPreviewResponse,
     DocumentUploadResponse,
     DocumentValidationResult,
+    DuplicateDetectionResult,
     DuplicateDocumentCandidate,
     MathematicalValidationResult,
     OriginalDocumentInfo,
     ReceiptInvoiceExtraction,
 )
+from app.services.quality_signals import derive_extraction_quality_signals
+from app.services.validation_aggregation import aggregate_validation_results
 from app.services.document_metadata import (
     CreatedDocumentMetadata,
     create_document_metadata,
@@ -171,10 +174,15 @@ async def list_documents(
         global_total = total
         for doc in records:
             if doc.status == "completed":
-                if (doc.quality_result or {}).get("needs_review") is True:
-                    stats_needs_review += 1
-                else:
+                q_d = doc.quality_result or {}
+                eff_l = q_d.get("confidence_override") or q_d.get("system_confidence_level") or q_d.get("confidence_level")
+                if not eff_l and q_d.get("overall_confidence") is not None:
+                    sc = q_d.get("overall_confidence", 0.0)
+                    eff_l = "HIGH" if sc >= 0.80 else "MEDIUM" if sc >= 0.55 else "LOW"
+                if eff_l == "HIGH":
                     stats_processed += 1
+                else:
+                    stats_needs_review += 1
 
     items: list[DocumentListItem] = []
 
@@ -182,6 +190,16 @@ async def list_documents(
         ext_data = doc.extraction_result or {}
         qual_data = doc.quality_result or {}
         has_ext = doc.extraction_result is not None or doc.status == "completed"
+
+        override_level = qual_data.get("confidence_override")
+        system_level = qual_data.get("system_confidence_level")
+        # Effective confidence level: confidence_override ?? system_confidence_level ?? confidence_level (for legacy documents)
+        effective_conf_level = override_level or system_level or qual_data.get("confidence_level")
+        if not effective_conf_level and qual_data.get("overall_confidence") is not None:
+            score = qual_data.get("overall_confidence", 0.0)
+            effective_conf_level = "HIGH" if score >= 0.80 else "MEDIUM" if score >= 0.55 else "LOW"
+
+        effective_needs_review = False if effective_conf_level == "HIGH" else True
 
         items.append(
             DocumentListItem(
@@ -198,9 +216,11 @@ async def list_documents(
                 vendor_name=ext_data.get("vendor_company"),
                 total_amount=ext_data.get("total"),
                 document_date=ext_data.get("date"),
-                confidence_level=qual_data.get("confidence_level"),
+                confidence_level=effective_conf_level,
                 confidence_score=qual_data.get("overall_confidence"),
-                needs_review=qual_data.get("needs_review"),
+                system_confidence_level=system_level or qual_data.get("confidence_level"),
+                confidence_override=override_level,
+                needs_review=effective_needs_review,
             )
         )
 
@@ -237,7 +257,16 @@ async def _build_detail_response(
     quality_model = None
     if record.quality_result:
         try:
-            quality_model = ExtractionQualityResult.model_validate(record.quality_result)
+            qual_dict = dict(record.quality_result)
+            if "system_confidence" not in qual_dict or qual_dict.get("system_confidence") is None:
+                qual_dict["system_confidence"] = qual_dict.get("overall_confidence", 0.85)
+            if "system_confidence_level" not in qual_dict or not qual_dict.get("system_confidence_level"):
+                score = qual_dict.get("system_confidence", 0.85)
+                qual_dict["system_confidence_level"] = "HIGH" if score >= 0.80 else "MEDIUM" if score >= 0.55 else "LOW"
+            if "confidence_level" not in qual_dict or not qual_dict.get("confidence_level"):
+                qual_dict["confidence_level"] = qual_dict.get("confidence_override") or qual_dict["system_confidence_level"]
+
+            quality_model = ExtractionQualityResult.model_validate(qual_dict)
         except Exception:
             pass
 
@@ -765,9 +794,76 @@ async def validate_document(
     result = aggregate_validation_results(
         quality_signals=quality_signals,
         duplicate_detection=duplicate_result,
+        extraction=extraction,
     )
     print(f"[STRUCTRA PERF] Validation Total: {(time.perf_counter() - t_val_total0)*1000:.1f} ms")
     return result
+
+
+class SaveDocumentRequest(BaseModel):
+    extraction: ReceiptInvoiceExtraction | None = None
+    confidence_override: Literal["HIGH", "MEDIUM", "LOW"] | None = None
+
+
+@router.put(
+    "/{document_id}",
+    response_model=DocumentDetailResponse,
+    summary="Update extraction data for one owned document",
+    responses={
+        401: {"description": "Missing, malformed, expired, or invalid bearer token."},
+        404: {"description": "Document not found."},
+        503: {"description": "Metadata service is unavailable."},
+    },
+)
+async def update_document(
+    document_id: UUID,
+    payload: SaveDocumentRequest | ReceiptInvoiceExtraction,
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> DocumentDetailResponse:
+    """Update extraction and recalculate validation & quality for an existing owned document."""
+    doc = await get_document_metadata(
+        document_id=document_id, user_id=current_user.user_id, settings=settings
+    )
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    if isinstance(payload, ReceiptInvoiceExtraction):
+        extraction = payload
+        effective_override = (doc.quality_result or {}).get("confidence_override")
+    else:
+        extraction = payload.extraction or (
+            ReceiptInvoiceExtraction.model_validate(doc.extraction_result) if doc.extraction_result else None
+        )
+        if "confidence_override" in payload.model_fields_set:
+            effective_override = payload.confidence_override
+        else:
+            effective_override = (doc.quality_result or {}).get("confidence_override")
+
+    if extraction is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Extraction data is required.")
+
+    active_provider_info = getattr(default_ai_manager, "last_used_provider_info", None)
+    quality_model = evaluate_extraction_quality(
+        extraction, ocr_result=None, provider_info=active_provider_info, confidence_override=effective_override
+    )
+
+    await update_document_extraction_and_quality(
+        document_id=document_id,
+        user_id=current_user.user_id,
+        extraction=extraction.model_dump(mode="json"),
+        quality=quality_model.model_dump(mode="json"),
+        status="completed",
+        settings=settings,
+    )
+    doc.extraction_result = extraction.model_dump(mode="json")
+    doc.quality_result = quality_model.model_dump(mode="json")
+    doc.processed_at = datetime.now(timezone.utc)
+
+    if doc.content_hash:
+        await default_extraction_cache.set(doc.content_hash, extraction, settings=settings)
+
+    return await _build_detail_response(doc, settings)
 
 
 @router.post(
@@ -784,6 +880,7 @@ async def save_document(
     document_id: UUID,
     settings: Annotated[Settings, Depends(get_settings)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    payload: SaveDocumentRequest | None = None,
     force_save_duplicate: Annotated[bool, Query(description="If true, allow saving a duplicate copy to library.")] = False,
 ) -> DocumentDetailResponse:
     """Explicitly save a processed document to the authenticated user's persistent Document Library."""
@@ -793,8 +890,44 @@ async def save_document(
     )
 
     if doc is not None:
+        # Determine effective confidence override:
+        # If payload has confidence_override explicitly set in fields_set, use it (can be "HIGH", "MEDIUM", "LOW", or None to clear).
+        # Else preserve any existing confidence_override on the document.
+        effective_override = None
+        is_override_specified = payload is not None and "confidence_override" in payload.model_fields_set
+        if is_override_specified:
+            effective_override = payload.confidence_override
+        elif doc.quality_result and doc.quality_result.get("confidence_override"):
+            effective_override = doc.quality_result.get("confidence_override")
+
         if doc.status == "completed":
-            # Idempotent response for already-completed document
+            # If user provided updated extraction or confidence override, perform in-place update
+            has_ext_update = payload is not None and payload.extraction is not None
+            if has_ext_update or is_override_specified:
+                updated_ext = payload.extraction if has_ext_update else (
+                    ReceiptInvoiceExtraction.model_validate(doc.extraction_result) if doc.extraction_result else None
+                )
+                active_provider_info = getattr(default_ai_manager, "last_used_provider_info", None)
+                
+                if updated_ext is not None:
+                    quality_model = evaluate_extraction_quality(
+                        updated_ext, ocr_result=None, provider_info=active_provider_info, confidence_override=effective_override
+                    )
+                    await update_document_extraction_and_quality(
+                        document_id=document_id,
+                        user_id=current_user.user_id,
+                        extraction=updated_ext.model_dump(mode="json"),
+                        quality=quality_model.model_dump(mode="json"),
+                        status="completed",
+                        settings=settings,
+                    )
+                    doc.extraction_result = updated_ext.model_dump(mode="json")
+                    doc.quality_result = quality_model.model_dump(mode="json")
+                    doc.processed_at = datetime.now(timezone.utc)
+                    if doc.content_hash:
+                        await default_extraction_cache.set(doc.content_hash, updated_ext, settings=settings)
+
+            # Idempotent response for already-completed document (zero new rows created)
             return await _build_detail_response(doc, settings)
 
         # If document exists in DB but is not completed, commit it to completed
@@ -810,12 +943,46 @@ async def save_document(
             except Exception:
                 pass
 
-        await update_document_status(
-            document_id=document_id,
-            user_id=current_user.user_id,
-            document_status="completed",
-            settings=settings,
-        )
+        if payload and payload.extraction is not None:
+            updated_ext = payload.extraction
+            active_provider_info = getattr(default_ai_manager, "last_used_provider_info", None)
+            quality_model = evaluate_extraction_quality(
+                updated_ext, ocr_result=None, provider_info=active_provider_info, confidence_override=effective_override
+            )
+            await update_document_extraction_and_quality(
+                document_id=document_id,
+                user_id=current_user.user_id,
+                extraction=updated_ext.model_dump(mode="json"),
+                quality=quality_model.model_dump(mode="json"),
+                status="completed",
+                settings=settings,
+            )
+            doc.extraction_result = updated_ext.model_dump(mode="json")
+            doc.quality_result = quality_model.model_dump(mode="json")
+        elif is_override_specified and doc.extraction_result:
+            updated_ext = ReceiptInvoiceExtraction.model_validate(doc.extraction_result)
+            active_provider_info = getattr(default_ai_manager, "last_used_provider_info", None)
+            quality_model = evaluate_extraction_quality(
+                updated_ext, ocr_result=None, provider_info=active_provider_info, confidence_override=effective_override
+            )
+            await update_document_extraction_and_quality(
+                document_id=document_id,
+                user_id=current_user.user_id,
+                extraction=updated_ext.model_dump(mode="json"),
+                quality=quality_model.model_dump(mode="json"),
+                status="completed",
+                settings=settings,
+            )
+            doc.extraction_result = updated_ext.model_dump(mode="json")
+            doc.quality_result = quality_model.model_dump(mode="json")
+        else:
+            await update_document_status(
+                document_id=document_id,
+                user_id=current_user.user_id,
+                document_status="completed",
+                settings=settings,
+            )
+
         doc.status = "completed"
         doc.processed_at = datetime.now(timezone.utc)
         if not force_save_duplicate and content_hash_to_commit:
@@ -874,9 +1041,10 @@ async def save_document(
         )
         await default_extraction_cache.set(content_hash, extraction_model, settings=settings)
 
+    effective_override = payload.confidence_override if payload else None
     active_provider_info = getattr(default_ai_manager, "last_used_provider_info", None)
     quality_model = evaluate_extraction_quality(
-        extraction_model, ocr_result=None, provider_info=active_provider_info
+        extraction_model, ocr_result=None, provider_info=active_provider_info, confidence_override=effective_override
     )
 
     # SINGLE PERSISTENCE BOUNDARY: Create the persistent record in public.documents

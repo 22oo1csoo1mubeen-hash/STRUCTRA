@@ -32,6 +32,9 @@ class ExtractionQualityResult(BaseModel):
 
     overall_confidence: float = Field(ge=0.0, le=1.0)
     confidence_level: Literal["HIGH", "MEDIUM", "LOW"]
+    system_confidence: float | None = None
+    system_confidence_level: Literal["HIGH", "MEDIUM", "LOW"] | None = None
+    confidence_override: Literal["HIGH", "MEDIUM", "LOW"] | None = None
     needs_review: bool
     signals: list[QualitySignal] = Field(default_factory=list)
     field_confidence: dict[str, FieldConfidenceDetail] = Field(default_factory=dict)

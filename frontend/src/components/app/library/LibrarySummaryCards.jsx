@@ -35,7 +35,7 @@ export default function LibrarySummaryCards({
     },
     {
       id: 'stat-processed',
-      label: 'Processed',
+      label: 'Valid',
       value: dash ?? processed,
       sub: 'Ready to view',
       icon: (

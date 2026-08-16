@@ -300,13 +300,87 @@ export async function deleteDocument(documentId) {
 }
 
 /**
- * Saves a processed document to the user's Document Library.
- *
- * @param {string} documentId - The document ID to save.
- * @param {boolean} forceSaveDuplicate - If true, allow saving a duplicate copy.
+ * Retrieves a signed preview URL for a private owned document.
+ * 
+ * @param {string} documentId - The document ID to preview.
+ * @returns {Promise<Object>} DocumentPreviewResponse { preview_url, expires_in, content_type, filename }
+ */
+export async function getDocumentPreview(documentId) {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  if (sessionError || !session) {
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  const response = await fetch(`${API_URL}/documents/${documentId}/preview`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`
+    }
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { detail: response.statusText };
+    }
+    const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Failed to fetch document preview.');
+    throw new Error(errorMessage);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Updates extraction data on an existing owned document in Document Library.
+ * 
+ * @param {string} documentId - The document ID to update.
+ * @param {Object} extraction - The updated extraction JSON.
  * @returns {Promise<Object>} DocumentDetailResponse
  */
-export async function saveDocument(documentId, forceSaveDuplicate = false) {
+export async function updateDocument(documentId, extraction) {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError || !session) {
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  const response = await fetch(`${API_URL}/documents/${documentId}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(extraction),
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { detail: response.statusText };
+    }
+    const errorMessage = typeof errorData.detail === 'string'
+      ? errorData.detail
+      : (errorData.detail?.[0]?.msg || 'Failed to update document.');
+    throw new Error(errorMessage);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Saves a processed document to the user's Document Library, or updates an existing document in-place.
+ *
+ * @param {string} documentId - The document ID to save.
+ * @param {boolean} [forceSaveDuplicate=false] - If true, allow saving a duplicate copy.
+ * @param {Object} [extraction=null] - Optional updated extraction JSON for in-place edit updates.
+ * @returns {Promise<Object>} DocumentDetailResponse
+ */
+export async function saveDocument(documentId, forceSaveDuplicate = false, extraction = null, confidenceOverride = undefined) {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
   if (sessionError || !session) {
@@ -317,11 +391,23 @@ export async function saveDocument(documentId, forceSaveDuplicate = false) {
     ? `${API_URL}/documents/${documentId}/save?force_save_duplicate=true`
     : `${API_URL}/documents/${documentId}/save`;
 
+  const isOverrideSpecified = confidenceOverride !== undefined;
+  const hasBody = Boolean(extraction || isOverrideSpecified);
+  const headers = {
+    'Authorization': `Bearer ${session.access_token}`,
+  };
+  if (hasBody) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const payload = {};
+  if (extraction) payload.extraction = extraction;
+  if (isOverrideSpecified) payload.confidence_override = confidenceOverride;
+
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${session.access_token}`,
-    },
+    headers,
+    body: hasBody ? JSON.stringify(payload) : undefined,
   });
 
   if (!response.ok) {

@@ -65,7 +65,7 @@ def validate_extraction_totals(
         subtotal_diff = (calculated_subtotal - document_subtotal).quantize(
             _CURRENCY_QUANTUM, rounding=ROUND_HALF_UP
         )
-        subtotal_matches = abs(subtotal_diff) <= Decimal("0.01")
+        subtotal_matches = subtotal_diff == Decimal("0.00")
 
     # Check B: base for total calculation
     if document_subtotal is not None:
@@ -83,14 +83,31 @@ def validate_extraction_totals(
     calculated_tax = None
     tax_missing = False
 
+    service_charge = (
+        _to_currency(extraction.service_charge)
+        if getattr(extraction, "service_charge", None) is not None
+        else Decimal("0.00")
+    )
+    round_off = (
+        _to_currency(extraction.round_off)
+        if getattr(extraction, "round_off", None) is not None
+        else Decimal("0.00")
+    )
+
     if getattr(extraction, 'tax_components', None):
         total_component_tax = Decimal("0.00")
         has_tax = False
+        extracted_round_off_in_components = None
         
         for comp in extraction.tax_components:
+            comp_name = (getattr(comp, 'name', '') or '').strip().lower()
             if getattr(comp, 'amount', None) is not None:
-                total_component_tax += _to_currency(comp.amount)
-                has_tax = True
+                comp_amt = _to_currency(comp.amount)
+                if "round" in comp_name:
+                    extracted_round_off_in_components = comp_amt
+                else:
+                    total_component_tax += comp_amt
+                    has_tax = True
             elif getattr(comp, 'rate', None) is not None:
                 if tax_basis_ambiguous:
                     tax_missing = True
@@ -102,6 +119,10 @@ def validate_extraction_totals(
         if has_tax and not tax_missing:
             calculated_tax = total_component_tax
 
+        # If round_off was extracted inside tax_components and extraction.round_off is 0/None, use it
+        if extracted_round_off_in_components is not None and getattr(extraction, 'round_off', None) is None:
+            round_off = extracted_round_off_in_components
+
     if calculated_tax is None:
         if getattr(extraction, 'tax', None) is not None:
             calculated_tax = _to_currency(extraction.tax)
@@ -109,10 +130,12 @@ def validate_extraction_totals(
             tax_missing = True
             calculated_tax = Decimal("0.00")
 
-    calculated_total = expected_taxable_amount + calculated_tax
+    calculated_total = (
+        expected_taxable_amount + calculated_tax + service_charge + round_off
+    ).quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)
     difference = (calculated_total - document_total).quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)
 
-    if abs(difference) > Decimal("0.01") and (tax_missing or tax_basis_ambiguous):
+    if difference != Decimal("0.00") and tax_missing:
         return MathematicalValidationResult(
             validation_performed=False,
             total_matches=None,
@@ -128,7 +151,7 @@ def validate_extraction_totals(
 
     return MathematicalValidationResult(
         validation_performed=True,
-        total_matches=abs(difference) <= Decimal("0.01"),
+        total_matches=difference == Decimal("0.00"),
         calculated_total=calculated_total,
         document_total=document_total,
         difference=difference,
@@ -139,6 +162,8 @@ def validate_extraction_totals(
     )
 
 
-def _to_currency(value: float) -> Decimal:
+def _to_currency(value: float | Decimal) -> Decimal:
     """Convert one validated numeric value to a two-decimal currency amount."""
+    if isinstance(value, Decimal):
+        return value.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)
     return Decimal(str(value)).quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)

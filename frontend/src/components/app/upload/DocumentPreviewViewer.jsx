@@ -253,17 +253,17 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
     <>
       {/* Standard In-Panel Preview Card Container */}
       <motion.div
-        layout
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         style={{
           flex: '0 0 42%',
-          background: 'rgba(10,12,16,0.6)',
-          border: '1px solid rgba(255,255,255,0.06)',
+          background: 'rgba(14, 11, 8, 0.75)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          border: '1px solid rgba(255,255,255,0.09)',
           borderRadius: 16,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 30px rgba(0,0,0,0.3)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.3)',
           minHeight: 0,
           ...style
         }}

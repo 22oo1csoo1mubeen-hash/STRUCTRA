@@ -179,9 +179,9 @@ async def list_document_metadata(
     if sort_by == "oldest":
         params["order"] = "created_at.asc"
     elif sort_by == "amount_desc":
-        params["order"] = "extraction_result->>total.desc.nullslast"
+        params["order"] = "extraction_result->total.desc.nullslast,created_at.desc"
     elif sort_by == "amount_asc":
-        params["order"] = "extraction_result->>total.asc.nullslast"
+        params["order"] = "extraction_result->total.asc.nullslast,created_at.asc"
     else:
         params["order"] = "created_at.desc"
 
@@ -242,7 +242,19 @@ async def get_user_document_library_stats(
             if response.is_success:
                 docs = response.json()
                 total = len(docs)
-                needs_review = sum(1 for d in docs if (d.get("quality_result") or {}).get("needs_review") is True)
+                def _doc_needs_review(d: dict) -> bool:
+                    q = d.get("quality_result") or {}
+                    eff = q.get("confidence_override") or q.get("system_confidence_level") or q.get("confidence_level")
+                    if not eff and q.get("overall_confidence") is not None:
+                        sc = q.get("overall_confidence", 0.0)
+                        eff = "HIGH" if sc >= 0.80 else "MEDIUM" if sc >= 0.55 else "LOW"
+                    if eff == "HIGH":
+                        return False
+                    if eff in ("MEDIUM", "LOW"):
+                        return True
+                    return q.get("needs_review") is True
+
+                needs_review = sum(1 for d in docs if _doc_needs_review(d))
                 processed = total - needs_review
                 return total, processed, needs_review
     except Exception:
@@ -388,8 +400,9 @@ async def update_document_extraction_and_quality(
     user_id: str,
     extraction: dict[str, Any],
     quality: dict[str, Any] | None = None,
+    status: str = "completed",
     settings: Settings,
-) -> None:
+) -> CreatedDocumentMetadata | None:
     """Save final extraction and quality JSON to the user's document row and set status to completed."""
     supabase_url, secret_key = _extract_settings(settings)
     headers = {
@@ -404,7 +417,7 @@ async def update_document_extraction_and_quality(
         "user_id": f"eq.{user_id}",
     }
     patch_payload: dict[str, Any] = {
-        "status": "processing",
+        "status": status,
         "processed_at": datetime.now(timezone.utc).isoformat(),
         "extraction_result": extraction,
     }
@@ -430,6 +443,14 @@ async def update_document_extraction_and_quality(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to save document extraction.",
         )
+
+    try:
+        records = response.json()
+        if records and len(records) > 0:
+            return CreatedDocumentMetadata.model_validate(records[0])
+    except Exception:
+        pass
+    return None
 
 
 async def _get_document_metadata(

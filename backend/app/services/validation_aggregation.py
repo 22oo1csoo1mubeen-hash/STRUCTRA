@@ -1,10 +1,11 @@
-"""M5.4 Validation aggregation service."""
+from decimal import Decimal, ROUND_HALF_UP
 
 from app.schemas.documents import (
     DocumentValidationResult,
     DocumentValidationStatus,
     DuplicateDetectionResult,
     ExtractionQualitySignals,
+    ReceiptInvoiceExtraction,
     ValidationIssue,
 )
 
@@ -13,6 +14,7 @@ def aggregate_validation_results(
     *,
     quality_signals: ExtractionQualitySignals,
     duplicate_detection: DuplicateDetectionResult,
+    extraction: ReceiptInvoiceExtraction | None = None,
 ) -> DocumentValidationResult:
     """Combine M5 components into a single deterministic validation result.
 
@@ -25,7 +27,37 @@ def aggregate_validation_results(
         if not any(existing.type == issue.type and existing.field == issue.field for existing in issues):
             issues.append(issue)
 
-    # 1. Mathematical Validation
+    # 1. Line Item Arithmetic Validation
+    if extraction and extraction.line_items:
+        for idx, item in enumerate(extraction.line_items):
+            if (
+                item.quantity is not None
+                and item.unit_price is not None
+                and item.line_total is not None
+            ):
+                try:
+                    q = Decimal(str(item.quantity))
+                    u = Decimal(str(item.unit_price))
+                    actual = Decimal(str(item.line_total))
+                    expected = (q * u).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    diff = (expected - actual).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    if diff != Decimal("0.00"):
+                        status_ranks.append("warning")
+                        desc = item.description or f"Line {idx + 1}"
+                        _add_issue(ValidationIssue(
+                            type="line_item_math_mismatch",
+                            title="Line Item Arithmetic Mismatch",
+                            message=f'Item "{desc}" has quantity {item.quantity} × unit price {item.unit_price} = {expected}, but line total is {item.line_total}.',
+                            expected=float(expected),
+                            actual=float(actual),
+                            difference=float(diff),
+                            field=f"line_items[{idx}]",
+                            severity="warning",
+                        ))
+                except Exception:
+                    pass
+
+    # 2. Mathematical Validation (Subtotal and Total)
     math = quality_signals.mathematical_validation
     if math.subtotal_matches is False:
         status_ranks.append("warning")
