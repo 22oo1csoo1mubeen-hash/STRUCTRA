@@ -245,6 +245,8 @@ async def test_extraction_persists_extraction_result_and_quality(
     [
         ("newest", None),
         ("oldest", "oldest"),
+        ("date_desc", "date_desc"),
+        ("date_asc", "date_asc"),
         ("amount_desc", "amount_desc"),
         ("amount_asc", "amount_asc"),
     ],
@@ -255,7 +257,7 @@ def test_list_documents_all_sort_options(
     sort_param: str,
     expected_sort: str | None,
 ) -> None:
-    """All 4 sorting parameters (newest, oldest, amount_desc, amount_asc) are routed correctly."""
+    """All sorting parameters (newest, oldest, date_desc, date_asc, amount_desc, amount_asc) are routed correctly."""
     captured_kwargs = {}
 
     async def mock_list(user_id: str, page: int = 1, page_size: int = 20, settings=None, **kwargs):

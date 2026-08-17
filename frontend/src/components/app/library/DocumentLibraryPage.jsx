@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { listDocuments, deleteDocument, downloadDocument, getDocumentDetail, saveDocument } from '../../../api/documents';
+import { useDocumentLibrary } from '../../../context/DocumentLibraryContext';
 
 import LibrarySummaryCards from './LibrarySummaryCards';
 import LibraryToolbar      from './LibraryToolbar';
@@ -150,30 +151,46 @@ function DeleteModal({ doc, count = 0, loading, onConfirm, onCancel }) {
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-            <path d="M10 11v6M14 11v6" />
-            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <line x1="10" y1="11" x2="10" y2="17" />
+            <line x1="14" y1="11" x2="14" y2="17" />
           </svg>
         </div>
 
-        <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800, color: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        {/* Title */}
+        <h3
+          style={{
+            margin: '0 0 8px',
+            fontSize: 18,
+            fontWeight: 800,
+            color: '#ffffff',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            letterSpacing: '-0.01em',
+          }}
+        >
           {isAll ? 'Delete All Documents?' : 'Delete Document?'}
         </h3>
-        <p style={{ margin: '0 0 6px', fontSize: 13.5, color: 'rgba(255,255,255,0.60)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1.5 }}>
-          {isAll
-            ? `Are you sure you want to permanently delete all ${count} documents in your library?`
-            : 'Are you sure you want to permanently delete'}
+
+        {/* Description */}
+        <p
+          style={{
+            margin: '0 0 24px',
+            fontSize: 13.5,
+            color: 'rgba(255,255,255,0.55)',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            lineHeight: 1.5,
+          }}
+        >
+          {isAll ? (
+            <>
+              Are you sure you want to permanently delete all <strong style={{ color: '#ffffff' }}>{count} documents</strong>? This action will wipe all extractions and cannot be undone.
+            </>
+          ) : (
+            <>
+              Are you sure you want to delete <strong style={{ color: '#ffffff' }}>"{doc?.filename || 'this document'}"</strong>? This will permanently remove the document and its extracted data.
+            </>
+          )}
         </p>
-        {!isAll && (
-          <p style={{ margin: '0 0 20px', fontSize: 13.5, fontWeight: 700, color: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif", maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            "{doc?.filename}"?
-          </p>
-        )}
-        {isAll && (
-          <p style={{ margin: '0 0 20px', fontSize: 12.5, color: '#f87171', fontWeight: 600, fontFamily: "'Inter', system-ui, sans-serif" }}>
-            This action cannot be undone.
-          </p>
-        )}
 
         {/* Buttons */}
         <div style={{ display: 'flex', gap: 10, width: '100%' }}>
@@ -186,16 +203,14 @@ function DeleteModal({ doc, count = 0, loading, onConfirm, onCancel }) {
               padding: '11px 0',
               borderRadius: 10,
               background: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.13)',
+              border: '1px solid rgba(255,255,255,0.12)',
               color: 'rgba(255,255,255,0.75)',
               fontSize: 13.5,
               fontWeight: 600,
               fontFamily: "'Inter', system-ui, sans-serif",
-              cursor: loading ? 'not-allowed' : 'pointer',
+              cursor: 'pointer',
               transition: 'background 0.15s',
             }}
-            onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = 'rgba(255,255,255,0.13)'; }}
-            onMouseLeave={(e) => { if (!loading) e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; }}
           >
             Cancel
           </button>
@@ -235,20 +250,32 @@ export default function DocumentLibraryPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [allItems, setAllItems]     = useState([]);
-  const [serverTotal, setServerTotal] = useState(0);
-  const [loading, setLoading]       = useState(true);
+  const {
+    items: cachedItems,
+    total: cachedTotal,
+    stats,
+    hasLoadedOnce,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    sortBy,
+    setSortBy,
+    statusFilter,
+    setStatusFilter,
+    viewMode,
+    setViewMode,
+    updateDocumentLibrary,
+    fetchLibraryDocuments,
+    removeDocumentFromLibrary,
+    clearLibrary,
+  } = useDocumentLibrary();
+
+  const [loading, setLoading]       = useState(!hasLoadedOnce);
   const [fetchError, setFetchError] = useState(null);
 
-  // Pagination
-  const [page, setPage]         = useState(1);
-  const [pageSize, setPageSize] = useState(6);
-
-  // Filters
-  const [search, setSearch]             = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [sortBy, setSortBy]             = useState('newest');
-  const [viewMode, setViewMode]         = useState('grid');
+  // Search filter (local to session search)
+  const [search, setSearch] = useState('');
 
   // Modals & Panels
   const [deleteTarget, setDeleteTarget]             = useState(null);
@@ -276,6 +303,10 @@ export default function DocumentLibraryPage() {
     setSortBy(val);
     setPage(1);
   };
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(newSize);
+    setPage(1);
+  };
 
   // Ensure page is scrolled to top on initial mount
   useEffect(() => {
@@ -287,41 +318,27 @@ export default function DocumentLibraryPage() {
     }
   }, []);
 
-  // State for backend summary stats
-  const [stats, setStats] = useState({ total: 0, processed: 0, needs_review: 0 });
-
   /* ── Fetch backend documents using server-side pagination, filters & search ── */
-  const fetchDocs = useCallback(async () => {
-    setLoading(true);
+  const fetchDocs = useCallback(async (isBackground = false) => {
+    if (!isBackground && !hasLoadedOnce) {
+      setLoading(true);
+    }
     setFetchError(null);
     try {
-      const res = await listDocuments(page, pageSize, {
+      await fetchLibraryDocuments(page, pageSize, {
         search,
         status: statusFilter,
         sortBy,
-      });
-
-      setAllItems(res.items || []);
-      setServerTotal(res.total || 0);
-      if (res.stats) {
-        setStats(res.stats);
-      } else {
-        const completed = (res.items || []).filter((d) => d.status === 'completed');
-        setStats({
-          total: res.total || 0,
-          processed: completed.filter((d) => d.needs_review !== true).length,
-          needs_review: completed.filter((d) => d.needs_review === true).length,
-        });
-      }
+      }, isBackground || hasLoadedOnce);
     } catch (err) {
       setFetchError(err.message || 'Failed to load documents.');
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, statusFilter, sortBy]);
+  }, [page, pageSize, search, statusFilter, sortBy, hasLoadedOnce, fetchLibraryDocuments]);
 
   useEffect(() => {
-    fetchDocs();
+    fetchDocs(hasLoadedOnce);
   }, [fetchDocs]);
 
   // Delete all documents confirmation
@@ -330,14 +347,12 @@ export default function DocumentLibraryPage() {
     try {
       const res = await listDocuments(1, 1000, { search: '', status: 'all', sortBy: 'newest' });
       const docsToDelete = res.items || [];
+      clearLibrary();
+      setShowDeleteAllModal(false);
       await Promise.all(
         docsToDelete.map((d) => deleteDocument(d.document_id || d.id).catch((err) => console.error(err)))
       );
-      setShowDeleteAllModal(false);
-      setAllItems([]);
-      setServerTotal(0);
-      setStats({ total: 0, processed: 0, needs_review: 0 });
-      await fetchDocs();
+      await fetchDocs(true);
     } catch (err) {
       console.error('Failed to delete all documents:', err);
     } finally {
@@ -393,9 +408,9 @@ export default function DocumentLibraryPage() {
     }
   }, [location]);
 
-  const pageItems = allItems;
-  const filteredTotal = serverTotal;
-  const hasNext = (page * pageSize) < serverTotal;
+  const pageItems = cachedItems;
+  const filteredTotal = cachedTotal;
+  const hasNext = (page * pageSize) < cachedTotal;
 
   /* ── Handlers ── */
   const handleDeleteConfirm = async () => {
@@ -403,12 +418,13 @@ export default function DocumentLibraryPage() {
     setDeleteLoading(true);
     try {
       const docIdToDelete = deleteTarget.document_id || deleteTarget.id;
-      await deleteDocument(docIdToDelete);
+      removeDocumentFromLibrary(docIdToDelete);
       setDeleteTarget(null);
+      await deleteDocument(docIdToDelete);
       if (detailDoc && (detailDoc.document_id === docIdToDelete || detailDoc.id === docIdToDelete)) {
         handleBackToLibrary();
       }
-      await fetchDocs();
+      await fetchDocs(true);
     } catch {
       /* silent */
     } finally {
@@ -444,7 +460,7 @@ export default function DocumentLibraryPage() {
     if (location.state?.selectedDocId || location.search) {
       navigate('/app/library', { replace: true, state: {} });
     }
-    fetchDocs();
+    fetchDocs(true);
   };
 
   const handleSaveLibraryDocument = async (updatedDisplayData) => {
@@ -484,33 +500,6 @@ export default function DocumentLibraryPage() {
         discount: detailData?.extraction?.discount ?? 0,
         line_items: lineItems,
       };
-
-      // Optimistically update document in list state immediately
-      if (targetDocId) {
-        const isNeedsReview = confidenceOverride ? (confidenceOverride !== 'HIGH') : (detailDoc?.needs_review ?? false);
-
-        setAllItems((prev) =>
-          prev.map((item) => {
-            if ((item.document_id || item.id) === targetDocId) {
-              const effectiveLevel = confidenceOverride || item.system_confidence_level || item.confidence_level || 'HIGH';
-              return {
-                ...item,
-                vendor_company: updatedDisplayData.vendor || item.vendor_company,
-                vendor: updatedDisplayData.vendor || item.vendor,
-                document_date: updatedDisplayData.date || item.document_date,
-                date: updatedDisplayData.date || item.date,
-                total_amount: total !== undefined && total !== null ? total : item.total_amount,
-                total: total !== undefined && total !== null ? total : item.total,
-                confidence_level: effectiveLevel,
-                confidence_override: confidenceOverride,
-                needs_review: isNeedsReview,
-                status: 'completed',
-              };
-            }
-            return item;
-          })
-        );
-      }
     }
 
     // Immediately return back to document library with 0 delay
@@ -526,30 +515,8 @@ export default function DocumentLibraryPage() {
     if (targetDocId) {
       try {
         const savedDetail = await saveDocument(targetDocId, false, extractionPayload, confidenceOverride);
-        if (savedDetail?.quality) {
-          const savedEffectiveLevel = savedDetail.quality.confidence_level || 'HIGH';
-          const savedNeedsReview = savedDetail.quality.needs_review ?? (savedEffectiveLevel !== 'HIGH');
-          setAllItems((prev) =>
-            prev.map((item) => {
-              if ((item.document_id || item.id) === targetDocId) {
-                return {
-                  ...item,
-                  vendor_company: savedDetail.extraction?.vendor_company || item.vendor_company,
-                  vendor: savedDetail.extraction?.vendor_company || item.vendor,
-                  document_date: savedDetail.extraction?.date || item.document_date,
-                  date: savedDetail.extraction?.date || item.date,
-                  total_amount: savedDetail.extraction?.total !== undefined ? savedDetail.extraction.total : item.total_amount,
-                  total: savedDetail.extraction?.total !== undefined ? savedDetail.extraction.total : item.total,
-                  confidence_level: savedEffectiveLevel,
-                  confidence_override: savedDetail.quality.confidence_override ?? null,
-                  system_confidence_level: savedDetail.quality.system_confidence_level ?? item.system_confidence_level,
-                  needs_review: savedNeedsReview,
-                  status: 'completed',
-                };
-              }
-              return item;
-            })
-          );
+        if (savedDetail) {
+          updateDocumentLibrary(savedDetail);
         }
       } catch (err) {
         console.error('Failed to save document:', err);
@@ -858,7 +825,7 @@ export default function DocumentLibraryPage() {
             )}
 
             {/* No results matching current filters/search */}
-            {!loading && !fetchError && stats.total > 0 && serverTotal === 0 && (
+            {!loading && !fetchError && stats.total > 0 && filteredTotal === 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '60px 24px', textAlign: 'center' }}>
                 <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8" />
@@ -913,7 +880,7 @@ export default function DocumentLibraryPage() {
               total={filteredTotal}
               hasNext={hasNext}
               onPageChange={setPage}
-              onPageSizeChange={setPageSize}
+              onPageSizeChange={handlePageSizeChange}
             />
           )}
         </div>

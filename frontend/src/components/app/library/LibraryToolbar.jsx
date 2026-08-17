@@ -262,6 +262,8 @@ const STATUS_OPTS = [
 const SORT_OPTS = [
   { value: 'newest',      label: 'Newest First'        },
   { value: 'oldest',      label: 'Oldest First'        },
+  { value: 'date_desc',   label: 'Date: Newest First'  },
+  { value: 'date_asc',    label: 'Date: Oldest First'  },
   { value: 'amount_desc', label: 'Amount High to Low'  },
   { value: 'amount_asc',  label: 'Amount Low to High'  },
 ];

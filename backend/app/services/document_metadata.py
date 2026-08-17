@@ -178,6 +178,10 @@ async def list_document_metadata(
 
     if sort_by == "oldest":
         params["order"] = "created_at.asc"
+    elif sort_by in ("date_desc", "doc_date_desc"):
+        params["order"] = "extraction_result->>date.desc.nullslast,created_at.desc"
+    elif sort_by in ("date_asc", "doc_date_asc"):
+        params["order"] = "extraction_result->>date.asc.nullslast,created_at.asc"
     elif sort_by == "amount_desc":
         params["order"] = "extraction_result->total.desc.nullslast,created_at.desc"
     elif sort_by == "amount_asc":
@@ -453,6 +457,20 @@ async def update_document_extraction_and_quality(
     return None
 
 
+_SHARED_ASYNC_CLIENT: httpx.AsyncClient | None = None
+
+
+def _get_shared_client() -> httpx.AsyncClient:
+    """Return reusable HTTP client with connection pooling for Supabase REST calls."""
+    global _SHARED_ASYNC_CLIENT
+    if _SHARED_ASYNC_CLIENT is None or _SHARED_ASYNC_CLIENT.is_closed:
+        _SHARED_ASYNC_CLIENT = httpx.AsyncClient(
+            timeout=20.0,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+        )
+    return _SHARED_ASYNC_CLIENT
+
+
 async def _get_document_metadata(
     *, params: dict[str, str], settings: Settings
 ) -> list[CreatedDocumentMetadata]:
@@ -465,8 +483,8 @@ async def _get_document_metadata(
     documents_url = f"{supabase_url.rstrip('/')}/rest/v1/documents"
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.get(documents_url, headers=headers, params=params)
+        client = _get_shared_client()
+        response = await client.get(documents_url, headers=headers, params=params)
     except httpx.RequestError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

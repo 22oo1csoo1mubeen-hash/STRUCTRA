@@ -1,10 +1,12 @@
-import { createContext, useContext, useState, useRef, useCallback } from 'react';
+import { createContext, useContext, useState, useRef, useCallback, useMemo } from 'react';
 import {
   uploadDocument,
   extractDocument,
   validateDocument,
   saveDocument,
 } from '../api/documents';
+import { useDocumentLibrary } from './DocumentLibraryContext';
+import { broadcastDashboardInvalidation } from './DashboardContext';
 
 /* ─── Initial State ─────────────────────────────────────────── */
 const INITIAL_WORKFLOW_STATE = {
@@ -30,6 +32,7 @@ const UploadWorkflowContext = createContext(null);
 export function UploadWorkflowProvider({ children }) {
   const [workflow, setWorkflow] = useState(INITIAL_WORKFLOW_STATE);
   const activeWorkflowIdRef = useRef(null);
+  const { updateDocumentLibrary } = useDocumentLibrary();
 
   /**
    * Helper to create a new unique workflow ID.
@@ -337,7 +340,7 @@ export function UploadWorkflowProvider({ children }) {
   };
 
   /**
-   * 5. Save to Library persistence with background safety.
+   * 5. Save to Library persistence with background safety & immediate client sync.
    */
   const handleSaveToLibrary = useCallback(async (updatedData = null) => {
     const currentWf = workflow;
@@ -393,7 +396,14 @@ export function UploadWorkflowProvider({ children }) {
     }
 
     try {
-      await saveDocument(targetDocId, currentWf.isForcedDuplicate, extractionPayload, confidenceOverride);
+      const savedDocDetail = await saveDocument(targetDocId, currentWf.isForcedDuplicate, extractionPayload, confidenceOverride);
+      
+      // IMMEDIATELY synchronize authoritative saved document into Document Library state/cache!
+      if (savedDocDetail) {
+        updateDocumentLibrary(savedDocDetail);
+      }
+      broadcastDashboardInvalidation();
+
       if (activeWorkflowIdRef.current === workflowId) {
         setWorkflow((prev) => {
           if (prev.workflowId !== workflowId) return prev;
@@ -413,7 +423,7 @@ export function UploadWorkflowProvider({ children }) {
         });
       }
     }
-  }, [workflow]);
+  }, [workflow, updateDocumentLibrary]);
 
   /**
    * Retry handlers for extraction and validation.
@@ -435,7 +445,7 @@ export function UploadWorkflowProvider({ children }) {
     }
   }, [workflow]);
 
-  const value = {
+  const value = useMemo(() => ({
     ...workflow,
     setStage,
     handleFilesSelected,
@@ -446,7 +456,18 @@ export function UploadWorkflowProvider({ children }) {
     handleSaveToLibrary,
     handleRetryExtraction,
     handleRetryValidation,
-  };
+  }), [
+    workflow,
+    setStage,
+    handleFilesSelected,
+    handleStartProcessing,
+    handleProcessAnyway,
+    handleRemoveFile,
+    resetUpload,
+    handleSaveToLibrary,
+    handleRetryExtraction,
+    handleRetryValidation,
+  ]);
 
   return (
     <UploadWorkflowContext.Provider value={value}>

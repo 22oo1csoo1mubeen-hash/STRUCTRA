@@ -138,7 +138,7 @@ async def list_documents(
     q: Annotated[str | None, Query(description="Search term for filename or vendor.")] = None,
     status_filter: Annotated[str | None, Query(description="Status filter: processed, review, all.")] = None,
     doc_type: Annotated[str | None, Query(description="Doc type filter: RECEIPT, INVOICE, all.")] = None,
-    sort_by: Annotated[str | None, Query(description="Sort order: newest, oldest, amount_desc, amount_asc.")] = "newest",
+    sort_by: Annotated[str | None, Query(description="Sort order: newest, oldest, date_desc, date_asc, amount_desc, amount_asc.")] = "newest",
 ) -> DocumentListResponse:
     """Return paginated metadata and extraction summaries owned by the authenticated user."""
     db_status = None

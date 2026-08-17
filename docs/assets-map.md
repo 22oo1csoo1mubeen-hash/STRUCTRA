@@ -1,6 +1,4 @@
-Assets Map
-
-4. Main Application --- Upload Documents Workspace
+Main Application --- Upload Documents Workspace
 
 Location
 
@@ -552,45 +550,45 @@ The complete Upload Documents workflow is:
 
 STAGE 1
 Empty / Ready
-        ↓
+↓
 STAGE 2
 File Selected
-        ↓
+↓
 STAGE 3
 Uploading
-        ↓
+↓
 STAGE 4
 AI Processing
-        ↓
+↓
 STAGE 5
 Validation
-        ↓
+↓
 STAGE 6
 Processing Complete
-        ↓
+↓
 STAGE 7
 Extraction Result
-        ↓
+↓
 STAGE 8
 Validation Results
-        ↓
+↓
 STAGE 9
 Review / Edit
-        ↓
+↓
 STAGE 10
 Duplicate Warning
-        ↓
+↓
 Save
-        ↓
+↓
 STAGE 11
 Saved
-        ↓
+↓
 STAGE 12
 Process Another
-        ↓
+↓
 STAGE 1
 
-5. Main Application --- Document Library
+Main Application --- Document Library
 
 Location
 
@@ -653,7 +651,7 @@ Document Library Layout
 
 The approved reference establishes the following structure:
 
-1. Application Shell
+Application Shell
 
 Preserve:
 
@@ -672,7 +670,7 @@ shell
 
 Do not introduce a separate navigation system for the library.
 
-2. Page Header
+Page Header
 
 Show:
 
@@ -686,7 +684,7 @@ data are organized here
 A primary Upload Document action may be provided so the user can
 quickly return to the upload workflow.
 
-3. Library Summary
+Library Summary
 
 Use only summary information that is meaningful for the stored library.
 
@@ -712,7 +710,7 @@ as primary library summary cards.
 Processing and failed states belong to the upload/processing workflow or
 error/retry experience rather than the persistent Document Library.
 
-4. Search and Filters
+Search and Filters
 
 Keep the filtering system intentionally simple.
 
@@ -752,7 +750,7 @@ functionality.
 The UI should prioritize fast document discovery rather than exposing
 every possible metadata field as a filter.
 
-5. Document Cards
+Document Cards
 
 Use the card/grid presentation from DocumentLibrary-reference.png.
 
@@ -930,17 +928,17 @@ MainPage Asset Structure
 
 design-assets/
 └── MainPage/
-    ├── Upload Section/
-    │   ├── stage1-reference.png
-    │   ├── stage2-reference.png
-    │   ├── stage345-reference.png
-    │   ├── stage6-reference.png
-    │   ├── stage7-reference.png
-    │   ├── stage8910-reference.png
-    │   └── stage12-reference.png
-    │
-    └── Document Library/
-        └── DocumentLibrary-reference.png
+├── Upload Section/
+│   ├── stage1-reference.png
+│   ├── stage2-reference.png
+│   ├── stage345-reference.png
+│   ├── stage6-reference.png
+│   ├── stage7-reference.png
+│   ├── stage8910-reference.png
+│   └── stage12-reference.png
+│
+└── Document Library/
+└── DocumentLibrary-reference.png
 
 Implementation Priority
 
@@ -963,3 +961,209 @@ library.
 
 Ensure all actions and metadata are backed by real application
 functionality.
+6. Main Application --- Dashboard Workspace
+
+Location
+
+design-assets/Main Page/Dashboard Section/
+
+dashboard-reference.png
+
+Purpose:
+
+Official reference for the Dashboard workspace.
+
+This reference is the approved visual and structural reference for the
+Dashboard route after the backend Dashboard APIs and live synchronization
+have been implemented.
+
+IMPORTANT:
+
+Do NOT redesign the existing application shell.
+
+Preserve the existing STRUCTRA:
+
+Left sidebar
+
+Global top navigation/search bar
+
+User/profile area
+
+Background image
+
+Dark premium visual language
+
+Warm orange/amber accent
+
+Glassmorphism
+
+Subtle borders and glow effects
+
+Typography and spacing system
+
+Floating AI Assistant button
+
+Use dashboard-reference.png as the official reference for the Dashboard
+content layout, composition, card hierarchy, spacing, and visual treatment.
+
+Dashboard Purpose
+
+The Dashboard presents a compact, high-level view of the user's persisted
+Document Library data and spending intelligence.
+
+The Dashboard is an analytics/read-only surface. It must not create,
+process, or persist documents.
+
+Dashboard Layout
+
+The Dashboard should be contained inside one large premium glass container.
+
+Inside the main glass container, use smaller glass cards/sections for the
+individual dashboard insights.
+
+The approved Dashboard reference should be followed for:
+
+Main dashboard composition
+
+KPI card arrangement
+
+Spending overview chart
+
+Vendor spending summary
+
+Most purchased items summary
+
+Most expensive purchase insight
+
+Highest receipt insight
+
+Confidence/quality overview
+
+Review queue
+
+Recent documents
+
+Footer/status information where present
+
+Compact Information Presentation
+
+The Dashboard should remain visually compact and should not require
+excessive scrolling just to understand the user's overview.
+
+For list-based insights such as Most Purchased Items, Spending by Vendor,
+Review Queue and Recent Documents:
+
+Show only a small useful preview (typically 2--3 entries) inside the main
+Dashboard card.
+
+Provide an eye/view action or equivalent details action where supported.
+
+Clicking the details action should open a premium glass modal/panel over
+the Dashboard.
+
+The background Dashboard should become blurred while the details view is
+open.
+
+The details view may show the complete backend-provided list for that
+category.
+
+Closing the modal/panel returns the user to the unchanged Dashboard state.
+
+Data Requirements
+
+All displayed dashboard values must come from the existing Dashboard APIs
+and persisted Document Library data.
+
+Do not invent:
+
+Document counts
+
+Spending totals
+
+Vendor names
+
+Item quantities
+
+Confidence values
+
+Review counts
+
+Recent documents
+
+Confidence must use the application's semantic levels:
+
+HIGH
+
+MEDIUM
+
+LOW
+
+Do not display fabricated confidence percentages.
+
+Dashboard Interactions
+
+Supported interactions should include:
+
+Spending period switching (DAY / WEEK / MONTH / YEAR)
+
+Viewing additional vendor information
+
+Viewing additional purchased-item information
+
+Viewing the complete review queue
+
+Viewing additional recent documents
+
+Opening a saved document through the existing Document Library detail
+experience
+
+Do not create a second document-detail implementation for Dashboard.
+Reuse the existing Document Library result/detail workspace.
+
+Dashboard State
+
+The Dashboard must preserve the application's live synchronization behavior.
+
+Changes to persisted documents should eventually and immediately reflect in
+Dashboard data, including:
+
+Saving a document
+
+Editing a document
+
+Changing confidence
+
+Changing review state
+
+Deleting a document
+
+Unsaved upload/processing sessions must not appear in Dashboard analytics.
+
+Empty Dashboard
+
+When the user has no saved documents, show a polished empty Dashboard state
+using the same STRUCTRA visual language.
+
+Do not show fabricated charts, documents, vendors, items, or analytics.
+
+MainPage Asset Structure
+
+design-assets/
+└── Main Page/
+└── Dashboard Section/
+└── dashboard-reference.png
+
+Implementation Priority
+
+For the Dashboard route:
+
+Follow dashboard-reference.png as the official visual and structural
+reference.
+
+Reuse the established STRUCTRA application shell and design system.
+
+Keep the Dashboard compact, visually clear, and information-dense without
+making the user scroll through large repetitive lists.
+
+Use modal/panel detail views for complete lists instead of displaying every
+entry directly on the main Dashboard.
