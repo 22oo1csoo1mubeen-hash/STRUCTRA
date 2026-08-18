@@ -42,6 +42,56 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
   const isMouseDownRef = useRef(false);
   const startMouseRef = useRef({ x: 0, y: 0 });
   const startPanRef = useRef({ x: 0, y: 0 });
+  const inPanelViewportRef = useRef(null);
+  const modalViewportRef = useRef(null);
+
+  // Wheel scroll to zoom (forward/up = zoom in, backward/down = zoom out)
+  useEffect(() => {
+    const handleWheelZoom = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const step = 10;
+      if (e.deltaY < 0) {
+        setZoom((prev) => Math.min(300, prev + step));
+      } else if (e.deltaY > 0) {
+        setZoom((prev) => Math.max(25, prev - step));
+      }
+    };
+
+    const inPanelEl = inPanelViewportRef.current;
+    if (inPanelEl) {
+      inPanelEl.addEventListener('wheel', handleWheelZoom, { passive: false });
+    }
+
+    return () => {
+      if (inPanelEl) {
+        inPanelEl.removeEventListener('wheel', handleWheelZoom);
+      }
+    };
+  }, []);
+
+  // Fullscreen Modal wheel zoom listener
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const modalEl = modalViewportRef.current;
+    if (!modalEl) return;
+
+    const handleWheelZoom = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const step = 10;
+      if (e.deltaY < 0) {
+        setZoom((prev) => Math.min(300, prev + step));
+      } else if (e.deltaY > 0) {
+        setZoom((prev) => Math.max(25, prev - step));
+      }
+    };
+
+    modalEl.addEventListener('wheel', handleWheelZoom, { passive: false });
+    return () => {
+      modalEl.removeEventListener('wheel', handleWheelZoom);
+    };
+  }, [isFullscreen]);
 
   // File metadata resolution
   const rawFileName = file?.name || (documentId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(documentId) ? documentId : null);
@@ -408,6 +458,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
 
         {/* Viewport Body Container (Centered & 360° Drag Panning) */}
         <div
+          ref={inPanelViewportRef}
           onMouseDown={(e) => handleMouseDown(e, false)}
           onMouseMove={(e) => handleViewportMouseMove(e, false)}
           onMouseLeave={() => handleViewportMouseLeave(false)}
@@ -774,6 +825,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
 
             {/* Modal Body Container (Centered & 360° Drag Panning) */}
             <div
+              ref={modalViewportRef}
               onMouseDown={(e) => handleMouseDown(e, true)}
               onMouseMove={(e) => handleViewportMouseMove(e, true)}
               onMouseLeave={() => handleViewportMouseLeave(true)}

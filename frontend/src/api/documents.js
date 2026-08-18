@@ -233,7 +233,7 @@ export async function listDocuments(page = 1, pageSize = 20, options = {}) {
   if (options.docType && options.docType !== 'all') {
     params.set('doc_type', options.docType);
   }
-  if (options.status && options.status !== 'all') {
+  if (options.status) {
     params.set('status_filter', options.status);
   }
   if (options.sortBy) {

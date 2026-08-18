@@ -52,11 +52,27 @@ export default function DashboardEmptyState() {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '50px 24px 70px',
-        maxWidth: 780,
+        maxWidth: 940,
+        width: '100%',
         margin: '0 auto',
         textAlign: 'center',
       }}
     >
+      <style>{`
+        .dashboard-empty-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
+          width: 100%;
+          text-align: left;
+        }
+        @media (max-width: 680px) {
+          .dashboard-empty-cards-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
       {/* Central Glowing Icon */}
       <div
         style={{
@@ -106,28 +122,12 @@ export default function DashboardEmptyState() {
         Upload a receipt or invoice to start seeing real-time spending insights, purchase trends, vendor analytics, and document quality intelligence.
       </p>
 
-      <motion.button
+      <button
         id="empty-dashboard-upload-btn"
         type="button"
+        className="structra-empty-upload-btn"
         onClick={() => navigate('/app/upload')}
-        whileHover={{ scale: 1.04, boxShadow: '0 0 30px rgba(249,115,22,0.45)' }}
-        whileTap={{ scale: 0.97 }}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '13px 32px',
-          borderRadius: 999,
-          background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-          border: '1px solid rgba(255,255,255,0.25)',
-          color: '#ffffff',
-          fontSize: 14.5,
-          fontWeight: 700,
-          fontFamily: "'Inter', system-ui, sans-serif",
-          cursor: 'pointer',
-          boxShadow: '0 8px 24px rgba(249,115,22,0.35)',
-          marginBottom: 44,
-        }}
+        style={{ marginBottom: 44 }}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -135,26 +135,19 @@ export default function DashboardEmptyState() {
           <line x1="12" y1="3" x2="12" y2="15" />
         </svg>
         <span>Upload Document</span>
-      </motion.button>
+      </button>
 
       {/* Feature Preview Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 14,
-          width: '100%',
-          textAlign: 'left',
-        }}
-      >
+      <div className="dashboard-empty-cards-grid">
         {features.map((f, i) => (
           <div
             key={i}
             style={{
-              padding: '18px 20px',
+              padding: '20px 22px',
               borderRadius: 14,
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 100%)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+              border: '1px solid rgba(255,255,255,0.09)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.20)',
               display: 'flex',
               flexDirection: 'column',
               gap: 8,

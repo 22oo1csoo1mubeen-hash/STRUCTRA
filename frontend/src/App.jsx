@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { DocumentLibraryProvider } from './context/DocumentLibraryContext';
 import { UploadWorkflowProvider } from './context/UploadWorkflowContext';
 import { DashboardProvider } from './context/DashboardContext';
+import { AssistantProvider } from './context/AssistantContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './components/landing/LandingPage';
 import LoginPage from './components/auth/LoginPage';
@@ -14,6 +15,7 @@ import MainLayout from './components/app/shared/MainLayout';
 import UploadPage from './components/app/upload/UploadPage';
 import DocumentLibraryPage from './components/app/library/DocumentLibraryPage';
 import DashboardPage from './components/app/dashboard/DashboardPage';
+import AssistantPage from './components/app/assistant/AssistantPage';
 
 /**
  * App
@@ -27,37 +29,39 @@ function App() {
       <DocumentLibraryProvider>
         <UploadWorkflowProvider>
           <DashboardProvider>
-            <BrowserRouter>
-              <Routes>
-                {/* Public pages */}
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                {/* Email confirmation callback */}
-                <Route path="/auth/callback" element={<AuthCallbackPage />} />
-                
-                {/* Reset password page */}
-                <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+            <AssistantProvider>
+              <BrowserRouter>
+                <Routes>
+                  {/* Public pages */}
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  {/* Email confirmation callback */}
+                  <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                  
+                  {/* Reset password page */}
+                  <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
 
-                {/* Main application — authenticated shell */}
-                <Route
-                  path="/app"
-                  element={
-                    <ProtectedRoute>
-                      <MainLayout />
-                    </ProtectedRoute>
-                  }
-                >
-                  {/* Default redirect to upload */}
-                  <Route index element={<Navigate to="upload" replace />} />
-                  <Route path="upload" element={<UploadPage />} />
-                  <Route path="dashboard" element={<DashboardPage />} />
-                  <Route path="library" element={<DocumentLibraryPage />} />
-                  {/* Future routes: assistant, settings, profile */}
-                </Route>
-              </Routes>
-            </BrowserRouter>
+                  {/* Main application — authenticated shell */}
+                  <Route
+                    path="/app"
+                    element={
+                      <ProtectedRoute>
+                        <MainLayout />
+                      </ProtectedRoute>
+                    }
+                  >
+                    {/* Default redirect to upload */}
+                    <Route index element={<Navigate to="upload" replace />} />
+                    <Route path="upload" element={<UploadPage />} />
+                    <Route path="dashboard" element={<DashboardPage />} />
+                    <Route path="library" element={<DocumentLibraryPage />} />
+                    <Route path="assistant" element={<AssistantPage />} />
+                  </Route>
+                </Routes>
+              </BrowserRouter>
+            </AssistantProvider>
           </DashboardProvider>
         </UploadWorkflowProvider>
       </DocumentLibraryProvider>

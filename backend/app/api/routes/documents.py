@@ -147,6 +147,8 @@ async def list_documents(
         db_needs_review = False
     elif status_filter == "review":
         db_needs_review = True
+    elif status_filter == "all":
+        db_status = "all"
 
     kwargs: dict[str, Any] = {
         "user_id": current_user.user_id,

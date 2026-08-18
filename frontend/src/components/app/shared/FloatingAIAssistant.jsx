@@ -1,21 +1,28 @@
 import { motion } from 'framer-motion';
-import { Sparkles, MessageSquare } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../../assets/structra-logo.png';
 
 /**
  * FloatingAIAssistant
  * Circular FAB at bottom-right. Orange gradient, Structra logo (white).
- * Snappy entrance, subtle hover glow.
+ * Clicking navigates to /app/assistant.
+ * Hidden on the assistant page itself to avoid redundancy.
  */
-export default function FloatingAIAssistant({ onClick }) {
+export default function FloatingAIAssistant() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Don't show on the assistant page itself
+  if (location.pathname.startsWith('/app/assistant')) return null;
+
   return (
     <motion.button
       id="floating-ai-assistant-btn"
       aria-label="Open AI Assistant"
-      onClick={onClick}
+      onClick={() => navigate('/app/assistant')}
       initial={{ opacity: 0, scale: 0.6 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.28, ease: [0.34, 1.56, 0.64, 1] }}   // spring pop — snappy
+      transition={{ duration: 0.28, ease: [0.34, 1.56, 0.64, 1] }}
       whileHover={{
         scale: 1.10,
         boxShadow: '0 0 36px rgba(249,115,22,0.55), 0 8px 24px rgba(249,115,22,0.35)',

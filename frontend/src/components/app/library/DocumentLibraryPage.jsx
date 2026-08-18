@@ -272,6 +272,7 @@ export default function DocumentLibraryPage() {
   } = useDocumentLibrary();
 
   const [loading, setLoading]       = useState(!hasLoadedOnce);
+  const [pageTransitioning, setPageTransitioning] = useState(false);
   const [fetchError, setFetchError] = useState(null);
 
   // Search filter (local to session search)
@@ -303,6 +304,13 @@ export default function DocumentLibraryPage() {
     setSortBy(val);
     setPage(1);
   };
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+    const scrollArea = document.getElementById('app-scroll-area');
+    if (scrollArea) {
+      scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
   const handlePageSizeChange = (newSize) => {
     setPageSize(newSize);
     setPage(1);
@@ -320,8 +328,8 @@ export default function DocumentLibraryPage() {
 
   /* ── Fetch backend documents using server-side pagination, filters & search ── */
   const fetchDocs = useCallback(async (isBackground = false) => {
-    if (!isBackground && !hasLoadedOnce) {
-      setLoading(true);
+    if (!isBackground) {
+      setPageTransitioning(true);
     }
     setFetchError(null);
     try {
@@ -329,34 +337,53 @@ export default function DocumentLibraryPage() {
         search,
         status: statusFilter,
         sortBy,
-      }, isBackground || hasLoadedOnce);
+      }, isBackground);
     } catch (err) {
       setFetchError(err.message || 'Failed to load documents.');
     } finally {
+      setPageTransitioning(false);
       setLoading(false);
     }
-  }, [page, pageSize, search, statusFilter, sortBy, hasLoadedOnce, fetchLibraryDocuments]);
+  }, [page, pageSize, search, statusFilter, sortBy, fetchLibraryDocuments]);
 
   useEffect(() => {
-    fetchDocs(hasLoadedOnce);
-  }, [fetchDocs]);
+    fetchDocs(false);
+  }, [page, pageSize, search, statusFilter, sortBy]);
 
   // Delete all documents confirmation
   const handleDeleteAllConfirm = async () => {
     setDeleteAllLoading(true);
     try {
-      const res = await listDocuments(1, 1000, { search: '', status: 'all', sortBy: 'newest' });
-      const docsToDelete = res.items || [];
+      let allDocs = [];
+      let currentPage = 1;
+      let hasMore = true;
+      while (hasMore && currentPage <= 20) {
+        const res = await listDocuments(currentPage, 100, { search: '', status: 'all', sortBy: 'newest' });
+        const docs = res.items || [];
+        allDocs = [...allDocs, ...docs];
+        if (docs.length < 100 || allDocs.length >= (res.total || 0)) {
+          hasMore = false;
+        } else {
+          currentPage++;
+        }
+      }
+
       clearLibrary();
       setShowDeleteAllModal(false);
-      await Promise.all(
-        docsToDelete.map((d) => deleteDocument(d.document_id || d.id).catch((err) => console.error(err)))
-      );
-      await fetchDocs(true);
+
+      if (allDocs.length > 0) {
+        await Promise.all(
+          allDocs.map((d) => deleteDocument(d.document_id || d.id).catch((err) => console.error('Delete doc error:', err)))
+        );
+      }
+
+      setPage(1);
+      await fetchDocs(false);
     } catch (err) {
       console.error('Failed to delete all documents:', err);
     } finally {
       setDeleteAllLoading(false);
+      setShowDeleteAllModal(false);
     }
   };
 
@@ -813,19 +840,19 @@ export default function DocumentLibraryPage() {
             )}
 
             {/* Loading skeletons */}
-            {loading && (
+            {(loading || pageTransitioning) && (
               <div className={viewMode === 'grid' ? 'lib-grid-container' : undefined} style={{ display: viewMode === 'list' ? 'flex' : undefined, flexDirection: viewMode === 'list' ? 'column' : undefined, gap: 14 }}>
                 {Array.from({ length: pageSize }).map((_, i) => <SkeletonCard key={i} viewMode={viewMode} />)}
               </div>
             )}
 
             {/* True empty library (0 documents overall, no error) */}
-            {!loading && !fetchError && stats.total === 0 && (
+            {!loading && !pageTransitioning && !fetchError && stats.total === 0 && (
               <LibraryEmptyState />
             )}
 
             {/* No results matching current filters/search */}
-            {!loading && !fetchError && stats.total > 0 && filteredTotal === 0 && (
+            {!loading && !pageTransitioning && !fetchError && stats.total > 0 && filteredTotal === 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '60px 24px', textAlign: 'center' }}>
                 <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8" />
@@ -842,14 +869,14 @@ export default function DocumentLibraryPage() {
             )}
 
             {/* Document Grid (4-column desktop) / List */}
-            {!loading && pageItems.length > 0 && (
+            {!loading && !pageTransitioning && pageItems.length > 0 && (
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={`${viewMode}-${page}`}
-                  initial={{ opacity: 0, y: 6 }}
+                  key={`${viewMode}-page-${page}-size-${pageSize}`}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                   className={viewMode === 'grid' ? 'lib-grid-container' : undefined}
                   style={{
                     display: viewMode === 'list' ? 'flex' : undefined,
@@ -857,15 +884,25 @@ export default function DocumentLibraryPage() {
                     gap: 14,
                   }}
                 >
-                  {pageItems.map((doc) => (
-                    <DocumentCard
-                      key={doc.document_id}
-                      doc={doc}
-                      viewMode={viewMode}
-                      onView={handleView}
-                      onDelete={(d) => setDeleteTarget(d)}
-                      onDownload={handleDownload}
-                    />
+                  {pageItems.map((doc, idx) => (
+                    <motion.div
+                      key={doc.document_id || doc.id}
+                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{
+                        duration: 0.22,
+                        delay: Math.min(idx * 0.035, 0.25),
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                    >
+                      <DocumentCard
+                        doc={doc}
+                        viewMode={viewMode}
+                        onView={handleView}
+                        onDelete={(d) => setDeleteTarget(d)}
+                        onDownload={handleDownload}
+                      />
+                    </motion.div>
                   ))}
                 </motion.div>
               </AnimatePresence>
@@ -873,13 +910,13 @@ export default function DocumentLibraryPage() {
           </div>
 
           {/* PAGINATION */}
-          {!loading && !fetchError && filteredTotal > 0 && (
+          {!loading && !pageTransitioning && !fetchError && filteredTotal > 0 && (
             <LibraryPagination
               page={page}
               pageSize={pageSize}
               total={filteredTotal}
               hasNext={hasNext}
-              onPageChange={setPage}
+              onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
             />
           )}
