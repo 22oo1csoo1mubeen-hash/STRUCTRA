@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAssistant } from '../../../context/AssistantContext';
 
@@ -125,8 +126,37 @@ function ThumbDownIcon() {
   );
 }
 
+function ExternalDocIcon({ size = 12 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
+function TrashIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────────
-   Suggestion chips — compact pill style
+   Currency Formatter
+───────────────────────────────────────────────────────────────── */
+function formatCurrency(val) {
+  if (val === null || val === undefined) return 'N/A';
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  if (isNaN(num)) return String(val);
+  return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Suggestion chips
 ───────────────────────────────────────────────────────────────── */
 const SUGGESTIONS = [
   {
@@ -181,19 +211,13 @@ function SuggestionChip({ suggestion, onSelect, index }) {
         gap: 6,
         padding: '6px 12px',
         borderRadius: 30,
-        border: hovered
-          ? `1px solid ${accentColor}`
-          : '1px solid rgba(255,255,255,0.10)',
-        background: hovered
-          ? 'rgba(255,255,255,0.06)'
-          : 'rgba(255,255,255,0.03)',
+        border: hovered ? `1px solid ${accentColor}` : '1px solid rgba(255,255,255,0.10)',
+        background: hovered ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         cursor: 'pointer',
         transition: 'border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease',
-        boxShadow: hovered
-          ? `0 0 12px rgba(249,115,22,0.12)`
-          : 'none',
+        boxShadow: hovered ? '0 0 12px rgba(249,115,22,0.12)' : 'none',
         flexShrink: 0,
       }}
     >
@@ -257,14 +281,20 @@ function RenderMarkdown({ text }) {
         const parts = content.split(/(\*\*[^*]+\*\*)/g);
         const rendered = parts.map((part, pi) =>
           part.startsWith('**') && part.endsWith('**') ? (
-            <strong key={pi} style={{ color: '#ffffff', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
-          ) : part
+            <strong key={pi} style={{ color: '#ffffff', fontWeight: 700 }}>
+              {part.slice(2, -2)}
+            </strong>
+          ) : (
+            part
+          )
         );
         if (!line.trim()) return <div key={idx} style={{ height: 3 }} />;
         return (
           <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: isBullet ? 7 : 0 }}>
             {isBullet && (
-              <span style={{ color: '#f97316', marginTop: 2, flexShrink: 0, fontSize: 10, lineHeight: 1.7 }}>●</span>
+              <span style={{ color: '#f97316', marginTop: 2, flexShrink: 0, fontSize: 10, lineHeight: 1.7 }}>
+                ●
+              </span>
             )}
             <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.88)', lineHeight: 1.65 }}>
               {rendered}
@@ -277,9 +307,565 @@ function RenderMarkdown({ text }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────
+   Structured Result Card
+───────────────────────────────────────────────────────────────── */
+function StructuredResultCard({ message, onSelectPrompt }) {
+  const meta = message.metadata || {};
+  const type = message.result_type || meta.type;
+  const [expanded, setExpanded] = useState(false);
+
+  if (!type || type === 'general_query' || type === 'no_results') {
+    return null;
+  }
+
+  // 1. Ambiguous Vendor Chips
+  if (type === 'ambiguous_vendor' && meta.matching_vendors?.length > 0) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: 'rgba(249,115,22,0.06)',
+          border: '1px solid rgba(249,115,22,0.22)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: '#f97316' }}>
+          Select matching vendor:
+        </span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {meta.matching_vendors.map((v, idx) => (
+            <button
+              key={idx}
+              onClick={() => onSelectPrompt && onSelectPrompt(`How much did I spend at ${v}?`)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 20,
+                border: '1px solid rgba(249,115,22,0.35)',
+                background: 'rgba(249,115,22,0.12)',
+                color: '#ffffff',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(249,115,22,0.25)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(249,115,22,0.12)')}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Vendor Items List
+  if (type === 'vendor_items' && meta.items?.length > 0) {
+    const displayItems = expanded ? meta.items : meta.items.slice(0, 5);
+    const hasMore = meta.items.length > 5;
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.50)', textTransform: 'uppercase' }}>
+            {meta.vendor || 'Extracted Items'} ({meta.items.length} items)
+          </span>
+          {meta.total_amount && (
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#f97316' }}>
+              {formatCurrency(meta.total_amount)}
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          {displayItems.map((it, idx) => (
+            <span
+              key={idx}
+              style={{
+                fontSize: 11.5,
+                color: 'rgba(255,255,255,0.85)',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 6,
+                padding: '2px 7px',
+              }}
+            >
+              {typeof it === 'string' ? it : it.description || it.name}
+            </span>
+          ))}
+        </div>
+        {hasMore && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#f97316',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              alignSelf: 'flex-start',
+              padding: '2px 0',
+            }}
+          >
+            {expanded ? 'Show less' : `+${meta.items.length - 5} more items`}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // 3. Item Search, Quantity & History Card
+  if (
+    (type === 'item_search' || type === 'item_quantity' || type === 'item_history') &&
+    (meta.quantity !== undefined || meta.total_quantity !== undefined || meta.item_name || meta.item)
+  ) {
+    const itemName = meta.item_name || meta.item || 'Item';
+    const itemQty = meta.quantity !== undefined ? meta.quantity : meta.total_quantity;
+    const unitPrice = meta.unit_price;
+    const totalSpent = meta.total_spent;
+    const vendorName = meta.purchases?.[0]?.vendor || (meta.vendors && meta.vendors[0]) || meta.vendor;
+    const purchaseDate = meta.latest_date || meta.purchases?.[0]?.date;
+
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 14px',
+          borderRadius: 10,
+          background: 'rgba(74,222,128,0.06)',
+          border: '1px solid rgba(74,222,128,0.20)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#4ade80', textTransform: 'capitalize' }}>
+            {itemName}
+          </span>
+          {totalSpent !== undefined && totalSpent > 0 && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#4ade80' }}>
+              Total: {formatCurrency(totalSpent)}
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11.5, color: 'rgba(255,255,255,0.75)' }}>
+          {itemQty !== undefined && (
+            <span>
+              Qty: <strong style={{ color: '#ffffff' }}>{itemQty}</strong>
+            </span>
+          )}
+          {unitPrice !== undefined && unitPrice !== null && (
+            <span>
+              Unit Price: <strong style={{ color: '#ffffff' }}>{formatCurrency(unitPrice)}</strong>
+            </span>
+          )}
+          {vendorName && (
+            <span style={{ color: 'rgba(255,255,255,0.70)' }}>
+              From: <strong style={{ color: '#ffffff' }}>{vendorName}</strong>
+            </span>
+          )}
+          {purchaseDate && (
+            <span style={{ color: 'rgba(255,255,255,0.55)' }}>
+              Date: {purchaseDate}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Vendor Spending Card
+  if (type === 'vendor_spending' && meta.total_spent !== undefined) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '8px 12px',
+          borderRadius: 10,
+          background: 'rgba(249,115,22,0.06)',
+          border: '1px solid rgba(249,115,22,0.20)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>
+          {meta.vendor || 'Vendor'} Total Spend
+        </span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: '#f97316' }}>
+          {formatCurrency(meta.total_spent)}
+        </span>
+      </div>
+    );
+  }
+
+  // 5. Vendor Comparison Card
+  if (type === 'vendor_comparison' && meta.vendor_a && meta.vendor_b) {
+    const v_a = meta.vendor_a;
+    const v_b = meta.vendor_b;
+    const s_a = meta.vendor_a_spent || 0;
+    const s_b = meta.vendor_b_spent || 0;
+    const diff = meta.difference || 0;
+    const higher = meta.higher_vendor;
+
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.50)', textTransform: 'uppercase' }}>
+          Vendor Comparison
+        </span>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div style={{ padding: '6px 8px', borderRadius: 6, background: higher === v_a ? 'rgba(249,115,22,0.12)' : 'rgba(255,255,255,0.03)', border: higher === v_a ? '1px solid rgba(249,115,22,0.30)' : '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.60)' }}>{v_a}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: higher === v_a ? '#f97316' : '#ffffff' }}>{formatCurrency(s_a)}</div>
+          </div>
+          <div style={{ padding: '6px 8px', borderRadius: 6, background: higher === v_b ? 'rgba(249,115,22,0.12)' : 'rgba(255,255,255,0.03)', border: higher === v_b ? '1px solid rgba(249,115,22,0.30)' : '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.60)' }}>{v_b}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: higher === v_b ? '#f97316' : '#ffffff' }}>{formatCurrency(s_b)}</div>
+          </div>
+        </div>
+        {higher && diff > 0 && (
+          <div style={{ fontSize: 11.5, color: '#f97316', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>●</span> Spent {formatCurrency(diff)} more at {higher}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 6. Filtered Receipts & Temporal Spending Card
+  if ((type === 'filtered_receipts' || type === 'temporal_spending') && meta.document_count !== undefined) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '8px 12px',
+          borderRadius: 10,
+          background: 'rgba(96,165,250,0.06)',
+          border: '1px solid rgba(96,165,250,0.20)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
+          {meta.document_count} Matching Receipt{meta.document_count !== 1 ? 's' : ''}
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#60a5fa' }}>
+          Total: {formatCurrency(meta.total_spent || 0)}
+        </span>
+      </div>
+    );
+  }
+
+  // 7. Item History Card
+  if (type === 'item_history' && meta.item_name) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '8px 12px',
+          borderRadius: 10,
+          background: 'rgba(74,222,128,0.06)',
+          border: '1px solid rgba(74,222,128,0.20)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#4ade80', textTransform: 'capitalize' }}>
+            {meta.item_name} History
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#4ade80' }}>
+            {formatCurrency(meta.total_spent || 0)}
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.60)' }}>
+          Bought {meta.total_quantity} across {meta.document_count} receipt{meta.document_count !== 1 ? 's' : ''}
+          {meta.latest_date ? ` • Last on ${meta.latest_date}` : ''}
+        </div>
+      </div>
+    );
+  }
+
+  // 7b. Most Expensive & Cheapest Item Cards
+  if ((type === 'most_expensive_item' || type === 'cheapest_item') && (meta.item_name || meta.name)) {
+    const isMost = type === 'most_expensive_item';
+    const itName = meta.item_name || meta.name;
+    const itAmt = meta.amount || meta.unit_price;
+    const itVendor = meta.vendor;
+
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 14px',
+          borderRadius: 10,
+          background: isMost ? 'rgba(249,115,22,0.08)' : 'rgba(74,222,128,0.08)',
+          border: isMost ? '1px solid rgba(249,115,22,0.25)' : '1px solid rgba(74,222,128,0.25)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: isMost ? '#f97316' : '#4ade80', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            {isMost ? 'Most Expensive Item' : 'Cheapest Item'}
+          </span>
+          {itAmt !== undefined && (
+            <span style={{ fontSize: 14, fontWeight: 800, color: isMost ? '#f97316' : '#4ade80' }}>
+              {formatCurrency(itAmt)}
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>
+          {itName}
+        </div>
+        {itVendor && (
+          <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.60)' }}>
+            From: <strong style={{ color: 'rgba(255,255,255,0.85)' }}>{itVendor}</strong>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 7c. Most Expensive & Cheapest Receipt Cards
+  if ((type === 'most_expensive_receipt' || type === 'cheapest_receipt') && (meta.total_amount !== undefined || meta.total !== undefined)) {
+    const isMost = type === 'most_expensive_receipt';
+    const recTot = meta.total_amount !== undefined ? meta.total_amount : meta.total;
+    const recVendor = meta.vendor || 'Unknown Vendor';
+    const recDate = meta.document_date || meta.date;
+
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 14px',
+          borderRadius: 10,
+          background: isMost ? 'rgba(249,115,22,0.08)' : 'rgba(96,165,250,0.08)',
+          border: isMost ? '1px solid rgba(249,115,22,0.25)' : '1px solid rgba(96,165,250,0.25)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: isMost ? '#f97316' : '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            {isMost ? 'Most Expensive Receipt' : 'Cheapest Receipt'}
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 800, color: isMost ? '#f97316' : '#60a5fa' }}>
+            {formatCurrency(recTot)}
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>
+          <span>Vendor: <strong style={{ color: '#ffffff' }}>{recVendor}</strong></span>
+          {recDate && <span>Date: {recDate}</span>}
+        </div>
+      </div>
+    );
+  }
+
+  // 8. Clarification Options
+  if (type === 'clarification' && meta.options?.length > 0) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: 'rgba(249,115,22,0.06)',
+          border: '1px solid rgba(249,115,22,0.22)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: '#f97316' }}>
+          Please select an option:
+        </span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {meta.options.map((opt, idx) => (
+            <button
+              key={idx}
+              onClick={() => onSelectPrompt && onSelectPrompt(opt)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 20,
+                border: '1px solid rgba(249,115,22,0.35)',
+                background: 'rgba(249,115,22,0.12)',
+                color: '#ffffff',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // 9. Top Vendors List
+  if (type === 'top_vendors' && meta.vendors?.length > 0) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.50)', textTransform: 'uppercase' }}>
+          Top Vendors
+        </span>
+        {meta.vendors.slice(0, 4).map((v, idx) => (
+          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+            <span style={{ color: 'rgba(255,255,255,0.85)' }}>{idx + 1}. {v.vendor}</span>
+            <span style={{ fontWeight: 600, color: '#f97316' }}>{formatCurrency(v.total_spent)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // 10. Most Frequent Items List
+  if (type === 'most_frequent_items' && meta.items?.length > 0) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.50)', textTransform: 'uppercase' }}>
+          Most Frequent Items
+        </span>
+        {meta.items.slice(0, 4).map((it, idx) => (
+          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+            <span style={{ color: 'rgba(255,255,255,0.85)' }}>{idx + 1}. {it.name}</span>
+            <span style={{ fontWeight: 600, color: '#4ade80' }}>Qty: {it.quantity}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Sources Pill Row
+───────────────────────────────────────────────────────────────── */
+function SourceDocumentsRow({ sources, onNavigateDoc }) {
+  if (!sources || sources.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 5,
+        marginTop: 6,
+        width: '100%',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <ReceiptIcon size={11} />
+        <span style={{ fontSize: 10.5, fontWeight: 600, color: 'rgba(255,255,255,0.40)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          Sources ({sources.length})
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {sources.map((src, idx) => (
+          <button
+            key={idx}
+            onClick={() => onNavigateDoc(src)}
+            title={`Open ${src.filename} in Document Library`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              borderRadius: 6,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              color: 'rgba(255,255,255,0.75)',
+              fontSize: 11,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(249,115,22,0.12)';
+              e.currentTarget.style.borderColor = 'rgba(249,115,22,0.35)';
+              e.currentTarget.style.color = '#ffffff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.75)';
+            }}
+          >
+            <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {src.filename}
+            </span>
+            {src.total && (
+              <span style={{ color: '#f97316', fontWeight: 600 }}>
+                {formatCurrency(src.total)}
+              </span>
+            )}
+            <ExternalDocIcon size={10} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
    Message bubble
 ───────────────────────────────────────────────────────────────── */
-function MessageBubble({ message }) {
+function MessageBubble({ message, onSelectPrompt, onNavigateDoc }) {
   const isUser = message.role === 'user';
   const [actionsVisible, setActionsVisible] = useState(false);
   const handleCopy = () => navigator.clipboard?.writeText(message.content).catch(() => {});
@@ -329,15 +915,17 @@ function MessageBubble({ message }) {
         onMouseLeave={() => !isUser && setActionsVisible(false)}
       >
         {!isUser && (
-          <span style={{
-            fontSize: 10.5,
-            fontWeight: 700,
-            color: '#f97316',
-            fontFamily: "'Inter', system-ui, sans-serif",
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            marginLeft: 2,
-          }}>
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: '#f97316',
+              fontFamily: "'Inter', system-ui, sans-serif",
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              marginLeft: 2,
+            }}
+          >
             STRUCTRA
           </span>
         )}
@@ -349,28 +937,34 @@ function MessageBubble({ message }) {
             background: isUser
               ? 'rgba(120, 65, 15, 0.45)'
               : message.isError
-                ? 'rgba(180, 40, 40, 0.15)'
-                : 'rgba(255,255,255,0.05)',
+              ? 'rgba(180, 40, 40, 0.15)'
+              : 'rgba(255,255,255,0.05)',
             border: isUser
               ? '1px solid rgba(249,115,22,0.20)'
               : message.isError
-                ? '1px solid rgba(200,70,70,0.25)'
-                : '1px solid rgba(255,255,255,0.08)',
+              ? '1px solid rgba(200,70,70,0.25)'
+              : '1px solid rgba(255,255,255,0.08)',
             backdropFilter: 'blur(10px)',
           }}
         >
           {isUser ? (
-            <p style={{
-              margin: 0,
-              fontSize: 13.5,
-              color: 'rgba(255,255,255,0.90)',
-              fontFamily: "'Inter', system-ui, sans-serif",
-              lineHeight: 1.6,
-            }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13.5,
+                color: 'rgba(255,255,255,0.90)',
+                fontFamily: "'Inter', system-ui, sans-serif",
+                lineHeight: 1.6,
+              }}
+            >
               {message.content}
             </p>
           ) : (
-            <RenderMarkdown text={message.content} />
+            <>
+              <RenderMarkdown text={message.content} />
+              <StructuredResultCard message={message} onSelectPrompt={onSelectPrompt} />
+              <SourceDocumentsRow sources={message.sources} onNavigateDoc={onNavigateDoc} />
+            </>
           )}
         </div>
 
@@ -455,8 +1049,16 @@ const fadeVariant = {
    Main AssistantPage
 ───────────────────────────────────────────────────────────────── */
 export default function AssistantPage() {
-  const { messages, isLoading, sendMessage, hasMessages } = useAssistant();
-  const [inputValue, setInputValue] = useState('');
+  const navigate = useNavigate();
+  const {
+    messages,
+    isLoading,
+    sendMessage,
+    clearConversation,
+    hasMessages,
+    draftInput = '',
+    setDraftInput = () => {},
+  } = useAssistant();
   const [inputFocused, setInputFocused] = useState(false);
   const conversationEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -466,11 +1068,11 @@ export default function AssistantPage() {
   }, [messages, isLoading]);
 
   const handleSend = useCallback(() => {
-    const text = inputValue.trim();
+    const text = draftInput.trim();
     if (!text || isLoading) return;
-    setInputValue('');
+    setDraftInput('');
     sendMessage(text);
-  }, [inputValue, isLoading, sendMessage]);
+  }, [draftInput, isLoading, sendMessage, setDraftInput]);
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -483,11 +1085,26 @@ export default function AssistantPage() {
   );
 
   const handleSuggestion = useCallback(
-    (prompt) => { sendMessage(prompt); },
+    (prompt) => {
+      sendMessage(prompt);
+    },
     [sendMessage]
   );
 
-  const canSend = !!inputValue.trim() && !isLoading;
+  const handleNavigateDoc = useCallback(
+    (src) => {
+      if (!src?.document_id) return;
+      navigate('/app/library', {
+        state: {
+          selectedDocId: src.document_id,
+          filename: src.filename || 'Document',
+        },
+      });
+    },
+    [navigate]
+  );
+
+  const canSend = !!draftInput.trim() && !isLoading;
 
   return (
     <motion.div
@@ -505,7 +1122,7 @@ export default function AssistantPage() {
         boxSizing: 'border-box',
       }}
     >
-      {/* ── Main glass card (fully transparent like other pages) ── */}
+      {/* ── Main glass card ── */}
       <motion.div
         variants={fadeUpVariant}
         style={{
@@ -517,8 +1134,7 @@ export default function AssistantPage() {
           background: 'rgba(255,255,255,0.03)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
-          boxShadow:
-            '0 2px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05)',
+          boxShadow: '0 2px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05)',
           overflow: 'hidden',
         }}
       >
@@ -529,8 +1145,47 @@ export default function AssistantPage() {
             textAlign: 'center',
             borderBottom: '1px solid rgba(255,255,255,0.05)',
             flexShrink: 0,
+            position: 'relative',
           }}
         >
+          {/* Reset button if conversation has messages */}
+          {hasMessages && (
+            <button
+              onClick={clearConversation}
+              title="Start fresh conversation"
+              style={{
+                position: 'absolute',
+                top: 24,
+                right: 32,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                borderRadius: 8,
+                padding: '6px 10px',
+                color: 'rgba(255,255,255,0.60)',
+                fontSize: 11.5,
+                fontWeight: 500,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239,68,68,0.12)';
+                e.currentTarget.style.borderColor = 'rgba(239,68,68,0.30)';
+                e.currentTarget.style.color = '#ef4444';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                e.currentTarget.style.color = 'rgba(255,255,255,0.60)';
+              }}
+            >
+              <TrashIcon size={12} />
+              <span>Clear</span>
+            </button>
+          )}
+
           {/* Greeting */}
           <motion.div
             variants={fadeUpVariant}
@@ -583,7 +1238,7 @@ export default function AssistantPage() {
             Ask me anything or explore suggestions below.
           </motion.p>
 
-          {/* Suggestion chips — tiny pill style, only when no messages */}
+          {/* Suggestion chips — only when no messages */}
           <AnimatePresence>
             {!hasMessages && (
               <motion.div
@@ -694,23 +1349,27 @@ export default function AssistantPage() {
                 </motion.div>
 
                 <div style={{ textAlign: 'center' }}>
-                  <p style={{
-                    margin: 0,
-                    fontSize: 16,
-                    fontWeight: 600,
-                    color: 'rgba(255,255,255,0.88)',
-                    fontFamily: "'Inter', system-ui, sans-serif",
-                    marginBottom: 5,
-                  }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: 'rgba(255,255,255,0.88)',
+                      fontFamily: "'Inter', system-ui, sans-serif",
+                      marginBottom: 5,
+                    }}
+                  >
                     How can I help you today?
                   </p>
-                  <p style={{
-                    margin: 0,
-                    fontSize: 13,
-                    color: 'rgba(255,255,255,0.40)',
-                    fontFamily: "'Inter', system-ui, sans-serif",
-                    lineHeight: 1.55,
-                  }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 13,
+                      color: 'rgba(255,255,255,0.40)',
+                      fontFamily: "'Inter', system-ui, sans-serif",
+                      lineHeight: 1.55,
+                    }}
+                  >
                     Ask anything about your documents, spending,
                     <br />
                     vendors, invoices and more.
@@ -722,7 +1381,12 @@ export default function AssistantPage() {
 
           {/* Messages */}
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onSelectPrompt={sendMessage}
+              onNavigateDoc={handleNavigateDoc}
+            />
           ))}
 
           {/* Loading indicator */}
@@ -752,15 +1416,17 @@ export default function AssistantPage() {
                   <RobotIcon size={20} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{
-                    fontSize: 10.5,
-                    fontWeight: 700,
-                    color: '#f97316',
-                    fontFamily: "'Inter', system-ui, sans-serif",
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    marginLeft: 2,
-                  }}>
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      color: '#f97316',
+                      fontFamily: "'Inter', system-ui, sans-serif",
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      marginLeft: 2,
+                    }}
+                  >
                     STRUCTRA
                   </span>
                   <div
@@ -775,13 +1441,15 @@ export default function AssistantPage() {
                       gap: 6,
                     }}
                   >
-                    <p style={{
-                      margin: 0,
-                      fontSize: 13,
-                      color: 'rgba(255,255,255,0.55)',
-                      fontFamily: "'Inter', system-ui, sans-serif",
-                      fontStyle: 'italic',
-                    }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 13,
+                        color: 'rgba(255,255,255,0.55)',
+                        fontFamily: "'Inter', system-ui, sans-serif",
+                        fontStyle: 'italic',
+                      }}
+                    >
                       Let me explore your Document Library...
                     </p>
                     <TypingIndicator />
@@ -804,12 +1472,8 @@ export default function AssistantPage() {
         >
           <motion.div
             animate={{
-              borderColor: inputFocused
-                ? 'rgba(249,115,22,0.50)'
-                : 'rgba(249,115,22,0.22)',
-              boxShadow: inputFocused
-                ? '0 0 0 3px rgba(249,115,22,0.08)'
-                : '0 0 0 0px rgba(249,115,22,0)',
+              borderColor: inputFocused ? 'rgba(249,115,22,0.50)' : 'rgba(249,115,22,0.22)',
+              boxShadow: inputFocused ? '0 0 0 3px rgba(249,115,22,0.08)' : '0 0 0 0px rgba(249,115,22,0)',
             }}
             transition={{ duration: 0.18 }}
             style={{
@@ -827,8 +1491,8 @@ export default function AssistantPage() {
             <textarea
               ref={inputRef}
               id="assistant-input"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              value={draftInput}
+              onChange={(e) => setDraftInput(e.target.value)}
               onKeyDown={handleKeyDown}
               onFocus={() => setInputFocused(true)}
               onBlur={() => setInputFocused(false)}
@@ -877,9 +1541,7 @@ export default function AssistantPage() {
                 background: canSend
                   ? 'linear-gradient(135deg, #ffb347 0%, #f97316 55%, #ea580c 100%)'
                   : 'rgba(255,255,255,0.07)',
-                boxShadow: canSend
-                  ? '0 0 14px rgba(249,115,22,0.35)'
-                  : 'none',
+                boxShadow: canSend ? '0 0 14px rgba(249,115,22,0.35)' : 'none',
               }}
               transition={{ duration: 0.2 }}
               style={{
@@ -910,11 +1572,13 @@ export default function AssistantPage() {
             }}
           >
             <ShieldIcon />
-            <span style={{
-              fontSize: 11,
-              color: 'rgba(255,255,255,0.24)',
-              fontFamily: "'Inter', system-ui, sans-serif",
-            }}>
+            <span
+              style={{
+                fontSize: 11,
+                color: 'rgba(255,255,255,0.24)',
+                fontFamily: "'Inter', system-ui, sans-serif",
+              }}
+            >
               STRUCTRA uses your document data to provide accurate insights. Responses may vary.
             </span>
           </div>

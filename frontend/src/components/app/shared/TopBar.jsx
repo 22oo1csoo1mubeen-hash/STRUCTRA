@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, Search, ChevronDown, User, Settings, LogOut } from 'lucide-react';
+import { Bell, Mic, ChevronDown, User, Settings, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -8,16 +8,6 @@ import { useNavigate } from 'react-router-dom';
  * TopBar
  * Glassmorphism styling matching the main app cards.
  * userName is derived from the authenticated user's metadata.
- *
- * Changes vs previous version:
- *  - Hover animations: replaced whileHover boxShadow (which conflicts with the
- *    style prop and causes choppy transitions) with CSS transitions on a thin
- *    wrapper <div>. The scale is now a CSS transform so enter AND leave are
- *    perfectly smooth via the same cubic-bezier curve.
- *  - Account menu: clicking the user-profile area opens a small popover that
- *    shows the authenticated user's display name + email and a Logout action.
- *    Closes when clicking outside. Logout calls the existing useAuth().logout()
- *    and redirects to '/'.
  */
 export default function TopBar({
   userPlan = 'Premium Plan',
@@ -34,7 +24,6 @@ export default function TopBar({
 
   const userEmail = user?.email || '';
 
-  const [searchFocused, setSearchFocused] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const menuRef = useRef(null);
@@ -79,15 +68,8 @@ export default function TopBar({
   return (
     <>
       <style>{`
-        /* Search input placeholder */
-        #global-search-input::placeholder {
-          color: rgba(255, 240, 220, 0.45);
-          font-family: 'Inter', system-ui, sans-serif;
-          font-size: 13.5px;
-        }
-
         /*
-         * Smooth hover for the two glass icon buttons.
+         * Smooth hover for glass icon buttons.
          * Using CSS transitions instead of Framer whileHover so that
          * both the enter AND leave transitions use the same curve.
          * transform: scale() on the GPU layer — no layout shift, no jank.
@@ -173,69 +155,27 @@ export default function TopBar({
           borderBottom: isScrolled ? '1px solid rgba(249,115,22,0.15)' : '1px solid transparent',
         }}
       >
-        {/* ── Search Bar ───────────────────────────────────── */}
-        <div
+        {/* ── Mic / Voice Action Button ─────────────────────── */}
+        <button
+          id="topbar-mic-btn"
+          aria-label="Voice command"
+          title="Voice command (Coming soon)"
+          className="topbar-icon-btn"
           style={{
-            flex: 1,
-            maxWidth: 800,
             position: 'relative',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            cursor: 'pointer',
+            flexShrink: 0,
+            ...glassStyle,
           }}
         >
-          {/* Search icon */}
-          <div
-            style={{
-              position: 'absolute',
-              left: 14,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              display: 'flex',
-              alignItems: 'center',
-              pointerEvents: 'none',
-              color: searchFocused ? '#f97316' : 'rgba(255,240,220,0.55)',
-              zIndex: 1,
-              transition: 'color 0.2s ease',
-            }}
-          >
-            <Search size={16} strokeWidth={1.8} />
-          </div>
-
-          <motion.input
-            id="global-search-input"
-            type="text"
-            placeholder="Search documents, vendors, invoices..."
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            aria-label="Global search"
-            animate={{
-              boxShadow: searchFocused
-                ? '0 0 20px rgba(249,115,22,0.25), inset 0 0 12px rgba(249,115,22,0.1)'
-                : '0 4px 20px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1)',
-            }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            style={{
-              width: '100%',
-              height: 44,
-              padding: '0 20px 0 42px',
-              borderRadius: 14,
-              background: 'rgba(255,255,255,0.07)',
-              backdropFilter: 'blur(24px) saturate(1.5)',
-              WebkitBackdropFilter: 'blur(24px) saturate(1.5)',
-              borderTop: '1px solid rgba(249,115,22,0.4)',
-              borderBottom: '1px solid rgba(249,115,22,0.4)',
-              borderLeft: '1px solid rgba(255,255,255,0.08)',
-              borderRight: '1px solid rgba(255,255,255,0.08)',
-              color: 'rgba(255,248,238,0.95)',
-              fontSize: 13.5,
-              fontFamily: "'Inter', system-ui, sans-serif",
-              fontWeight: 400,
-              outline: 'none',
-              caretColor: '#f97316',
-              transition: 'border-color 0.18s ease',
-            }}
-          />
-        </div>
+          <Mic size={18} strokeWidth={1.8} color="rgba(255,240,220,0.85)" />
+        </button>
 
         <div style={{ flex: 1 }} />
 
