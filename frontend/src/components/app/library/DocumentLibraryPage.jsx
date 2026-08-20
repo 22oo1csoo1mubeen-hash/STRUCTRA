@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -7,7 +7,7 @@ import { useDocumentLibrary } from '../../../context/DocumentLibraryContext';
 
 import LibrarySummaryCards from './LibrarySummaryCards';
 import LibraryToolbar      from './LibraryToolbar';
-import DocumentCard        from './DocumentCard';
+import DocumentCard, { parseDateString } from './DocumentCard';
 import LibraryPagination   from './LibraryPagination';
 import LibraryEmptyState   from './LibraryEmptyState';
 import ExtractionResultWorkspace from '../upload/ExtractionResultWorkspace';
@@ -431,11 +431,47 @@ export default function DocumentLibraryPage() {
   useEffect(() => {
     const selectedDocId = location.state?.selectedDocId || new URLSearchParams(location.search).get('document_id');
     if (selectedDocId) {
-      handleView({ document_id: selectedDocId, filename: location.state?.filename || 'Document' });
+      const docObj = {
+        document_id: selectedDocId,
+        id: selectedDocId,
+        filename: location.state?.filename || 'Document',
+      };
+      const initialDetail = location.state?.documentDetail || null;
+      handleView(docObj, initialDetail);
     }
-  }, [location]);
+  }, [location.state?.selectedDocId, location.search]);
 
-  const pageItems = cachedItems;
+  const pageItems = useMemo(() => {
+    if (!cachedItems || cachedItems.length === 0) return [];
+    const copy = [...cachedItems];
+    if (sortBy === 'date_asc' || sortBy === 'doc_date_asc') {
+      copy.sort((a, b) => {
+        const da = parseDateString(a.document_date) || parseDateString(a.created_at) || new Date(0);
+        const db = parseDateString(b.document_date) || parseDateString(b.created_at) || new Date(0);
+        const diff = da.getTime() - db.getTime();
+        if (diff !== 0) return diff;
+        const ca = new Date(a.created_at || 0).getTime();
+        const cb = new Date(b.created_at || 0).getTime();
+        return ca - cb;
+      });
+    } else if (sortBy === 'date_desc' || sortBy === 'doc_date_desc') {
+      copy.sort((a, b) => {
+        const da = parseDateString(a.document_date) || parseDateString(a.created_at) || new Date(0);
+        const db = parseDateString(b.document_date) || parseDateString(b.created_at) || new Date(0);
+        const diff = db.getTime() - da.getTime();
+        if (diff !== 0) return diff;
+        const ca = new Date(a.created_at || 0).getTime();
+        const cb = new Date(b.created_at || 0).getTime();
+        return cb - ca;
+      });
+    } else if (sortBy === 'amount_desc') {
+      copy.sort((a, b) => (Number(b.total_amount) || 0) - (Number(a.total_amount) || 0));
+    } else if (sortBy === 'amount_asc') {
+      copy.sort((a, b) => (Number(a.total_amount) || 0) - (Number(b.total_amount) || 0));
+    }
+    return copy;
+  }, [cachedItems, sortBy]);
+
   const filteredTotal = cachedTotal;
   const hasNext = (page * pageSize) < cachedTotal;
 
@@ -459,21 +495,72 @@ export default function DocumentLibraryPage() {
     }
   };
 
-  const handleView = async (doc) => {
+  const handleView = async (doc, initialData = null) => {
+    const docId = doc?.document_id || doc?.id;
+    if (!docId) return;
+
     setDetailDoc(doc);
-    setDetailData(null);
-    setDetailError(null);
-    setDetailLoading(true);
+    if (initialData) {
+      setDetailData(initialData);
+      setDetailLoading(false);
+      setDetailError(null);
+    } else {
+      setDetailData(null);
+      setDetailError(null);
+      setDetailLoading(true);
+    }
+
     const scrollArea = document.getElementById('app-scroll-area');
     if (scrollArea) {
       scrollArea.scrollTo({ top: 0, behavior: 'instant' });
     }
     window.scrollTo({ top: 0, behavior: 'instant' });
+
     try {
-      const data = await getDocumentDetail(doc.document_id || doc.id);
-      setDetailData(data);
+      const data = await getDocumentDetail(docId);
+      if (data) {
+        setDetailData(data);
+        setDetailError(null);
+      }
     } catch (err) {
-      setDetailError(err.message || 'Failed to load document details.');
+      console.warn('Failed to fetch latest document detail from API:', err);
+      if (!initialData) {
+        const foundInCache = cachedItems.find((it) => (it.document_id || it.id) === docId);
+        if (foundInCache) {
+          setDetailData({
+            document: {
+              id: foundInCache.document_id || foundInCache.id,
+              document_id: foundInCache.document_id || foundInCache.id,
+              filename: foundInCache.filename,
+              storage_path: foundInCache.storage_path,
+              content_type: foundInCache.content_type,
+              size: foundInCache.size,
+              status: foundInCache.status,
+              created_at: foundInCache.created_at,
+              processed_at: foundInCache.processed_at,
+            },
+            extraction: {
+              vendor_company: foundInCache.vendor_name,
+              date: foundInCache.document_date,
+              total: foundInCache.total_amount,
+              line_items: [],
+            },
+            quality: {
+              confidence_level: foundInCache.confidence_level,
+              confidence_override: foundInCache.confidence_override,
+              overall_confidence: foundInCache.confidence_score,
+            },
+            original: {
+              download_url: `/documents/storage/${docId}`,
+              content_type: foundInCache.content_type || 'image/png',
+              filename: foundInCache.filename || 'Document',
+            }
+          });
+          setDetailError(null);
+        } else {
+          setDetailError(err.message || 'Failed to load document details.');
+        }
+      }
     } finally {
       setDetailLoading(false);
     }

@@ -6,6 +6,7 @@ canonical structured sources and typed metadata for frontend card rendering.
 
 from decimal import Decimal
 import json
+import re
 from typing import Any
 
 from app.schemas.assistant import AssistantResultType, AssistantSource
@@ -121,19 +122,38 @@ class AssistantContextBuilder:
                 "summary": summary,
             })
 
-        # 2. Filtered Receipts (Amount / Bounds)
+        # 2. Filtered Receipts & Line Items (Amount / Range / Bounds)
         elif intent == AssistantIntent.FILTERED_RECEIPTS:
             f_docs = retrieved_payload.get("filtered_documents") or []
-            tot_amt = 0.0
+            f_items = retrieved_payload.get("filtered_line_items") or []
+
+            seen_doc_ids = set()
             for d in f_docs:
-                sources.append(_doc_to_source(d))
-                ext = d.extraction_result or {}
-                tot_amt += float(parse_decimal_safe(ext.get("total")) or 0.0)
+                doc_id_str = str(d.id)
+                if doc_id_str not in seen_doc_ids:
+                    seen_doc_ids.add(doc_id_str)
+                    sources.append(_doc_to_source(d))
+
+            for it in f_items:
+                doc_id_str = str(it.get("document_id"))
+                if doc_id_str and doc_id_str not in seen_doc_ids:
+                    seen_doc_ids.add(doc_id_str)
+                    sources.append(
+                        AssistantSource(
+                            document_id=it.get("document_id"),
+                            filename=it.get("filename") or "receipt",
+                            vendor=it.get("vendor"),
+                            document_date=it.get("document_date"),
+                            total=it.get("total"),
+                        )
+                    )
 
             crit_parts = []
-            if parsed_intent.min_amount is not None:
+            if parsed_intent.min_amount is not None and parsed_intent.max_amount is not None:
+                crit_parts.append(f"in the range {_fmt_currency(parsed_intent.min_amount)} – {_fmt_currency(parsed_intent.max_amount)}")
+            elif parsed_intent.min_amount is not None:
                 crit_parts.append(f"above {_fmt_currency(parsed_intent.min_amount)}")
-            if parsed_intent.max_amount is not None:
+            elif parsed_intent.max_amount is not None:
                 crit_parts.append(f"below {_fmt_currency(parsed_intent.max_amount)}")
             if parsed_intent.vendor:
                 crit_parts.append(f"from {parsed_intent.vendor}")
@@ -141,16 +161,47 @@ class AssistantContextBuilder:
                 crit_parts.append(f"in {parsed_intent.temporal_label}")
 
             crit_str = ", ".join(crit_parts) if crit_parts else "matching your filter"
-            title = f"Filtered Receipts ({crit_str})"
-            if f_docs:
-                summary = f"Found {len(f_docs)} receipt{'s' if len(f_docs) != 1 else ''} {crit_str} totaling {_fmt_currency(tot_amt)}."
-            else:
-                summary = f"No saved receipts found {crit_str} in your library."
 
-            context_dict["filtered_receipts"] = {
+            tot_items_spend = sum(float(it.get("total") or it.get("amount") or 0.0) for it in f_items)
+            tot_docs_spend = sum(float(parse_decimal_safe((d.extraction_result or {}).get("total")) or 0.0) for d in f_docs)
+
+            raw_msg = (parsed_intent.raw_message or "").lower()
+            is_item_query = bool(re.search(r"\b(items?|products?|things?|what\s+did\s+i\s+buy|line\s+items?)\b", raw_msg))
+
+            if is_item_query or (f_items and not f_docs):
+                title = f"Filtered Items ({crit_str})"
+                if f_items:
+                    summary = f"Found {len(f_items)} item{'s' if len(f_items) != 1 else ''} {crit_str} totaling {_fmt_currency(tot_items_spend)}."
+                elif f_docs:
+                    summary = f"Found {len(f_docs)} receipt{'s' if len(f_docs) != 1 else ''} {crit_str} totaling {_fmt_currency(tot_docs_spend)}."
+                else:
+                    summary = f"No saved items found {crit_str} in your library."
+            else:
+                title = f"Filtered Receipts ({crit_str})"
+                if f_docs:
+                    summary = f"Found {len(f_docs)} receipt{'s' if len(f_docs) != 1 else ''} {crit_str} totaling {_fmt_currency(tot_docs_spend)}."
+                elif f_items:
+                    summary = f"Found {len(f_items)} item{'s' if len(f_items) != 1 else ''} {crit_str} totaling {_fmt_currency(tot_items_spend)}."
+                else:
+                    summary = f"No saved receipts found {crit_str} in your library."
+
+            context_dict["filtered_results"] = {
                 "criteria": crit_str,
-                "document_count": len(f_docs),
-                "total_amount": _fmt_currency(tot_amt),
+                "user_asked_for_items": is_item_query,
+                "items_count": len(f_items),
+                "documents_count": len(f_docs),
+                "items": [
+                    {
+                        "item_name": it.get("item_name"),
+                        "quantity": it.get("quantity"),
+                        "unit_price": _fmt_currency(it.get("unit_price")),
+                        "amount": _fmt_currency(it.get("total") or it.get("amount")),
+                        "vendor": it.get("vendor"),
+                        "date": it.get("document_date"),
+                        "receipt": it.get("filename"),
+                    }
+                    for it in f_items[:200]
+                ],
                 "documents": [
                     {
                         "filename": d.filename,
@@ -158,16 +209,24 @@ class AssistantContextBuilder:
                         "date": (d.extraction_result or {}).get("date"),
                         "total": _fmt_currency((d.extraction_result or {}).get("total")),
                     }
-                    for d in f_docs[:10]
+                    for d in f_docs[:50]
                 ],
             }
+            context_dict["filtered_receipts"] = context_dict["filtered_results"]
+
+            has_results = bool(f_items or f_docs)
+            effective_total = tot_items_spend if (is_item_query or not f_docs) else tot_docs_spend
+
             metadata.update({
-                "type": AssistantResultType.FILTERED_RECEIPTS.value if f_docs else AssistantResultType.NO_RESULTS.value,
+                "type": AssistantResultType.FILTERED_RECEIPTS.value if has_results else AssistantResultType.NO_RESULTS.value,
                 "document_count": len(f_docs),
-                "total_spent": tot_amt,
+                "item_count": len(f_items),
+                "total_spent": effective_total,
                 "title": title,
                 "summary": summary,
             })
+            if f_items:
+                metadata["items"] = f_items[:200]
 
         # 3. Temporal Spending (e.g. "last month", "in August")
         elif intent == AssistantIntent.TEMPORAL_SPENDING:

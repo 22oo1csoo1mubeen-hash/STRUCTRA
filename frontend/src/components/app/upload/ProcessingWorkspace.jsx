@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CloudUploadIcon, AISparkIcon, ShieldValidationIcon, SuccessReadyIcon } from './ProcessingIcons';
-import { CheckCircle2, Circle, FileText, Image as ImageIcon, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Circle, FileText, Image as ImageIcon, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import ButterflyOverlay from './ButterflyOverlay';
 
 // --- Checklist Items ---
 const STAGE4_STEPS = [
@@ -25,8 +26,20 @@ const STAGE4_MESSAGES = [
   "Structuring extracted information..."
 ];
 
-export default function ProcessingWorkspace({ stage, setStage, file, extractionError, onRetryExtraction, validationError, onRetryValidation }) {
+export default function ProcessingWorkspace({ 
+  stage, 
+  setStage, 
+  file, 
+  extractionError, 
+  onRetryExtraction, 
+  validationError, 
+  onRetryValidation,
+  resetUpload 
+}) {
   const workspaceRef = useRef(null);
+  // Elapsed processing timer for UX enhancement
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
   // Stage 3 progress
   const [uploadProgress, setUploadProgress] = useState(0);
   
@@ -36,6 +49,18 @@ export default function ProcessingWorkspace({ stage, setStage, file, extractionE
 
   // Stage 5 state
   const [validationStep, setValidationStep] = useState(0); // 0 to 4
+
+  // Reset and track elapsed seconds independently for this processing instance
+  useEffect(() => {
+    setElapsedSeconds(0);
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      setElapsedSeconds(elapsed);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // --- Mock Timing Controller ---
   useEffect(() => {
@@ -152,9 +177,38 @@ export default function ProcessingWorkspace({ stage, setStage, file, extractionE
     subtitle = "Your document has been processed successfully.";
   }
 
+  const handleRefreshAndRetry = () => {
+    if (resetUpload) {
+      resetUpload();
+    } else {
+      window.location.reload();
+    }
+  };
+
   return (
-    <div ref={workspaceRef} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div ref={workspaceRef} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
       
+      {/* Decorative Butterfly Overlay — Activated when processing takes >10s */}
+      <AnimatePresence>
+        {elapsedSeconds >= 10 && !extractionError && !validationError && stage < 6 && (
+          <motion.div
+            key="butterfly-layer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.9, ease: 'easeInOut' }}
+            style={{
+              position: 'absolute',
+              inset: -20,
+              pointerEvents: 'none',
+              zIndex: 15,
+            }}
+          >
+            <ButterflyOverlay />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Top Animated Icon Container */}
       <div style={{ height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
         <AnimatePresence mode="wait">
@@ -386,6 +440,98 @@ export default function ProcessingWorkspace({ stage, setStage, file, extractionE
 
         </AnimatePresence>
       </div>
+
+      {/* Time-based Smooth UX Feedback (10s+ and 30s+ states) */}
+      <AnimatePresence mode="wait">
+        {elapsedSeconds >= 10 && elapsedSeconds < 30 && !extractionError && !validationError && stage < 6 && (
+          <motion.div
+            key="slow-message-10s"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            style={{
+              marginTop: 20,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 9,
+              color: 'rgba(255, 232, 205, 0.78)',
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              textShadow: '0 1px 8px rgba(0,0,0,0.4)',
+            }}
+          >
+            <motion.div
+              animate={{ scale: [1, 1.35, 1], opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: '#f97316',
+                boxShadow: '0 0 8px #f97316',
+              }}
+            />
+            <span>Taking a little bit more time...</span>
+          </motion.div>
+        )}
+
+        {elapsedSeconds >= 30 && !extractionError && !validationError && stage < 6 && (
+          <motion.div
+            key="slow-recovery-30s"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            style={{
+              marginTop: 22,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
+              textAlign: 'center',
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: 'rgba(255, 232, 205, 0.85)',
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: "'Inter', system-ui, sans-serif",
+                textShadow: '0 1px 8px rgba(0,0,0,0.4)',
+              }}
+            >
+              Taking longer than expected. You can refresh and try again.
+            </p>
+            <motion.button
+              onClick={handleRefreshAndRetry}
+              whileHover={{ scale: 1.02, backgroundColor: 'rgba(249, 115, 22, 0.16)' }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 20px',
+                borderRadius: 8,
+                background: 'rgba(249, 115, 22, 0.08)',
+                border: '1px solid rgba(249, 115, 22, 0.38)',
+                color: '#ffedd5',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                fontFamily: "'Inter', system-ui, sans-serif",
+              }}
+            >
+              <RefreshCw size={14} color="#f97316" />
+              <span>Refresh & Try Again</span>
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

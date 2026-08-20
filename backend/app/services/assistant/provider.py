@@ -28,6 +28,7 @@ RULES YOU MUST STRICTLY FOLLOW:
 5. Keep your response concise, polite, polished, and structured.
 6. Use ₹ for Indian Rupee amounts where appropriate.
 7. Use clean bullet points when listing items or documents.
+8. When asked to list items matching a range or criteria, list ALL matching items provided in the retrieved context completely without truncating, omitting, or stopping early.
 """
 
 
@@ -139,7 +140,7 @@ class AssistantChatProvider:
                     payload = {
                         "model": model,
                         "messages": messages,
-                        "max_tokens": 1024,
+                        "max_tokens": 4096,
                         "temperature": 0.3,
                     }
                     headers = {

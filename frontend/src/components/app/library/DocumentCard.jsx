@@ -2,19 +2,20 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* ─── Helpers ─────────────────────────────────────── */
-function parseDateString(d) {
+export function parseDateString(d) {
   if (!d) return null;
   if (d instanceof Date && !isNaN(d.getTime())) return d;
   if (typeof d !== 'string') return null;
   const str = d.trim();
   if (!str) return null;
 
-  // 1. Match DD/MM/YYYY or DD-MM-YYYY (e.g., "29/07/2026", "29-07-2026")
-  const ddmmyyyy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  // 1. Match DD/MM/YYYY or DD-MM-YYYY (e.g., "29/07/2026", "29-07-2026", "06/06/2015")
+  const ddmmyyyy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
   if (ddmmyyyy) {
     const day = parseInt(ddmmyyyy[1], 10);
     const month = parseInt(ddmmyyyy[2], 10) - 1;
-    const year = parseInt(ddmmyyyy[3], 10);
+    let year = parseInt(ddmmyyyy[3], 10);
+    if (year < 100) year += 2000;
     if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
       const dt = new Date(year, month, day);
       if (!isNaN(dt.getTime())) return dt;
@@ -22,9 +23,10 @@ function parseDateString(d) {
   }
 
   // 2. Match YYYY/MM/DD or YYYY-MM-DD (e.g., "2026-07-29")
-  const yyyymmdd = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  const yyyymmdd = str.match(/^(\d{2,4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
   if (yyyymmdd) {
-    const year = parseInt(yyyymmdd[1], 10);
+    let year = parseInt(yyyymmdd[1], 10);
+    if (year < 100) year += 2000;
     const month = parseInt(yyyymmdd[2], 10) - 1;
     const day = parseInt(yyyymmdd[3], 10);
     if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
@@ -33,7 +35,7 @@ function parseDateString(d) {
     }
   }
 
-  // 3. Fallback to standard Date constructor parsing (e.g. ISO timestamps)
+  // 3. Fallback to standard Date constructor parsing (e.g. ISO timestamps, "Jun 6, 2015", etc.)
   const parsed = new Date(str);
   if (!isNaN(parsed.getTime())) {
     return parsed;

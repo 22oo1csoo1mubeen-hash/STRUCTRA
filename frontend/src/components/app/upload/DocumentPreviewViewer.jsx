@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Minus, Plus, Maximize, Download, X, AlertCircle, Loader2, FileText, ImageIcon
+  Minus, Plus, Maximize, Download, X, AlertCircle, Loader2, FileText, ImageIcon, RotateCcw
 } from 'lucide-react';
 import { downloadDocument } from '../../../api/documents';
 
@@ -10,6 +11,7 @@ import { downloadDocument } from '../../../api/documents';
  * Production-quality interactive Document Viewer for STRUCTRA.
  * Features:
  * - Perfectly centered image positioning in both in-panel and Full View modal states
+ * - React Portal modal mounting directly onto document.body (completely covers sidebar & top navigation)
  * - Truncated header titles preventing button overlap on long UUID filenames
  * - 360° GPU-accelerated Drag-to-Pan (pan document in any direction without clipping)
  * - Glowing Orange Cursor Dot (#f97316) tracking pointer position
@@ -323,7 +325,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
         <div
           style={{
             display: 'flex',
-            justify: 'space-between',
+            justifyContent: 'space-between',
             alignItems: 'center',
             padding: '14px 20px',
             borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -468,7 +470,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
             position: 'relative',
             overflow: 'hidden',
             display: 'flex',
-            justify: 'center',
+            justifyContent: 'center',
             alignItems: 'center',
             padding: 16,
             cursor: isPanning ? 'grabbing' : 'grab',
@@ -538,7 +540,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
               <div
                 style={{
                   display: 'flex',
-                  justify: 'center',
+                  justifyContent: 'center',
                   alignItems: 'center',
                   width: '100%',
                   height: '100%',
@@ -579,7 +581,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
             background: 'rgba(0,0,0,0.3)',
             borderTop: '1px solid rgba(255,255,255,0.05)',
             display: 'flex',
-            justify: 'center',
+            justifyContent: 'center',
             alignItems: 'center',
             width: '100%',
             boxSizing: 'border-box'
@@ -633,294 +635,348 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
         </AnimatePresence>
       </motion.div>
 
-      {/* Expanded Fullscreen Glassmorphism Viewer Modal */}
-      <AnimatePresence>
-        {isFullscreen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 9999,
-              background: 'rgba(8, 10, 14, 0.96)',
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
-              display: 'flex',
-              flexDirection: 'column',
-              padding: 24,
-              boxSizing: 'border-box'
-            }}
-          >
-            {/* Modal Header — Clean Spacing & Truncated Titles */}
-            <div
+      {/* Expanded Fullscreen Glassmorphism Viewer Modal rendered directly in document.body via Portal */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isFullscreen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
               style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                width: '100vw',
+                height: '100vh',
+                zIndex: 999999,
+                background: 'rgba(5, 7, 10, 0.98)',
+                backdropFilter: 'blur(32px)',
+                WebkitBackdropFilter: 'blur(32px)',
                 display: 'flex',
-                justify: 'space-between',
-                alignItems: 'center',
-                paddingBottom: 16,
-                borderBottom: '1px solid rgba(255,255,255,0.08)',
-                width: '100%',
+                flexDirection: 'column',
+                padding: '16px 28px',
                 boxSizing: 'border-box',
-                gap: 16
               }}
             >
-              {/* Modal Header Left Title Section */}
+              {/* Modal Header — Clean Spacing & High Contrast Controls */}
               <div
                 style={{
                   display: 'flex',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
-                  gap: 12,
-                  minWidth: 0,
-                  flex: '1 1 auto',
-                  marginRight: 16
-                }}
-              >
-                {isPdf ? (
-                  <FileText size={20} color="#f97316" style={{ flexShrink: 0 }} />
-                ) : (
-                  <ImageIcon size={20} color="#f97316" style={{ flexShrink: 0 }} />
-                )}
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <h2
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 700,
-                      color: '#fff',
-                      margin: 0,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      maxWidth: 360
-                    }}
-                    title={fileName}
-                  >
-                    {fileName}
-                  </h2>
-                  <span style={{ fontSize: 12, color: 'rgba(255,240,220,0.5)', whiteSpace: 'nowrap' }}>
-                    Expanded Document Viewer • Esc to exit
-                  </span>
-                </div>
-              </div>
-
-              {/* Modal Top Right Action Controls — Never Overlapped */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
+                  paddingBottom: 14,
+                  borderBottom: '1px solid rgba(255,255,255,0.08)',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  gap: 16,
                   flexShrink: 0,
-                  marginLeft: 'auto'
                 }}
               >
-                {/* Modal Zoom Controls Stepper */}
+                {/* Modal Header Left Title Section */}
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    background: 'rgba(255,255,255,0.06)',
-                    borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    overflow: 'hidden'
+                    gap: 12,
+                    minWidth: 0,
+                    flex: '1 1 auto',
                   }}
                 >
-                  <button
-                    onClick={handleZoomOut}
-                    disabled={zoom <= 25}
-                    aria-label="Zoom out"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      padding: '7px 11px',
-                      color: zoom <= 25 ? 'rgba(255,255,255,0.25)' : '#fff',
-                      cursor: zoom <= 25 ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                  >
-                    <Minus size={15} />
-                  </button>
-
-                  <span
-                    style={{
-                      fontSize: 12.5,
-                      color: '#fff',
-                      padding: '0 10px',
-                      fontWeight: 600,
-                      minWidth: 44,
-                      textAlign: 'center',
-                      userSelect: 'none'
-                    }}
-                  >
-                    {zoom}%
-                  </span>
-
-                  <button
-                    onClick={handleZoomIn}
-                    disabled={zoom >= 300}
-                    aria-label="Zoom in"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      padding: '7px 11px',
-                      color: zoom >= 300 ? 'rgba(255,255,255,0.25)' : '#fff',
-                      cursor: zoom >= 300 ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                  >
-                    <Plus size={15} />
-                  </button>
+                  {isPdf ? (
+                    <FileText size={20} color="#f97316" style={{ flexShrink: 0 }} />
+                  ) : (
+                    <ImageIcon size={20} color="#f97316" style={{ flexShrink: 0 }} />
+                  )}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <h2
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: '#fff',
+                        margin: 0,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: 420,
+                        fontFamily: "'Inter', system-ui, sans-serif",
+                      }}
+                      title={fileName}
+                    >
+                      {fileName}
+                    </h2>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                      Expanded Document Viewer • Esc to exit
+                    </span>
+                  </div>
                 </div>
 
-                {/* Modal Download Original Button */}
-                <button
-                  onClick={handleDownloadOriginal}
-                  disabled={isDownloading}
-                  aria-label="Download original document"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 16px',
-                    borderRadius: 8,
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    color: isDownloading ? 'rgba(255,255,255,0.5)' : '#fff',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: isDownloading ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {isDownloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                  <span>Download Original</span>
-                </button>
-
-                {/* Exit Fullscreen Button */}
-                <button
-                  onClick={toggleFullscreen}
-                  aria-label="Exit fullscreen"
-                  style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    padding: '8px',
-                    borderRadius: 8,
-                    color: '#fff',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <X size={17} />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body Container (Centered & 360° Drag Panning) */}
-            <div
-              ref={modalViewportRef}
-              onMouseDown={(e) => handleMouseDown(e, true)}
-              onMouseMove={(e) => handleViewportMouseMove(e, true)}
-              onMouseLeave={() => handleViewportMouseLeave(true)}
-              style={{
-                flex: 1,
-                position: 'relative',
-                overflow: 'hidden',
-                display: 'flex',
-                justify: 'center',
-                alignItems: 'center',
-                padding: 24,
-                marginTop: 12,
-                width: '100%',
-                height: '100%',
-                cursor: isPanning ? 'grabbing' : 'grab',
-                userSelect: 'none',
-                WebkitUserSelect: 'none'
-              }}
-            >
-              {/* Modal Orange Glowing Pointer Dot */}
-              {modalCursorPos.show && (
+                {/* Modal Top Right Action Controls — Fully Visible & Clear */}
                 <div
                   style={{
-                    position: 'absolute',
-                    left: modalCursorPos.x,
-                    top: modalCursorPos.y,
-                    width: 14,
-                    height: 14,
-                    borderRadius: '50%',
-                    background: '#f97316',
-                    border: '2px solid #ffffff',
-                    boxShadow: '0 0 16px rgba(249,115,22,0.9), 0 0 8px #f97316',
-                    pointerEvents: 'none',
-                    transform: 'translate(-50%, -50%)',
-                    zIndex: 40,
-                    transition: isPanning ? 'none' : 'transform 0.05s ease-out'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    flexShrink: 0,
+                    marginLeft: 'auto',
                   }}
-                />
-              )}
-
-              {previewSrc && (
-                isPdf ? (
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      transform: `translate3d(${modalPan.x}px, ${modalPan.y}px, 0px) scale(${zoom / 100})`,
-                      transformOrigin: 'center center',
-                      transition: isPanning ? 'none' : 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)'
-                    }}
-                  >
-                    <object
-                      data={previewSrc}
-                      type="application/pdf"
-                      width="100%"
-                      height="100%"
-                      style={{ borderRadius: 10, pointerEvents: 'none' }}
-                    >
-                      <iframe src={previewSrc} title="Fullscreen PDF Preview" width="100%" height="100%" style={{ pointerEvents: 'none' }} />
-                    </object>
-                  </div>
-                ) : (
+                >
+                  {/* Modal Zoom Controls Stepper */}
                   <div
                     style={{
                       display: 'flex',
-                      justify: 'center',
                       alignItems: 'center',
-                      width: '100%',
-                      height: '100%',
-                      padding: 12
+                      background: 'rgba(255,255,255,0.08)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      overflow: 'hidden',
                     }}
                   >
-                    <img
-                      src={previewSrc}
-                      alt="Fullscreen Document Preview"
-                      onDragStart={(e) => e.preventDefault()}
+                    <button
+                      onClick={handleZoomOut}
+                      disabled={zoom <= 25}
+                      aria-label="Zoom out"
                       style={{
-                        maxWidth: '100%',
-                        maxHeight: '100%',
-                        transform: `translate3d(${modalPan.x}px, ${modalPan.y}px, 0px) scale(${zoom / 100})`,
-                        transformOrigin: 'center center',
-                        transition: isPanning ? 'none' : 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                        boxShadow: '0 16px 64px rgba(0,0,0,0.8)',
-                        borderRadius: 6,
-                        objectFit: 'contain',
-                        pointerEvents: 'none'
+                        background: 'transparent',
+                        border: 'none',
+                        padding: '8px 12px',
+                        color: zoom <= 25 ? 'rgba(255,255,255,0.25)' : '#fff',
+                        cursor: zoom <= 25 ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
-                    />
+                    >
+                      <Minus size={15} />
+                    </button>
+
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: '#fff',
+                        padding: '0 10px',
+                        fontWeight: 600,
+                        minWidth: 48,
+                        textAlign: 'center',
+                        userSelect: 'none',
+                        fontFamily: "'Inter', system-ui, sans-serif",
+                      }}
+                    >
+                      {zoom}%
+                    </span>
+
+                    <button
+                      onClick={handleZoomIn}
+                      disabled={zoom >= 300}
+                      aria-label="Zoom in"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: '8px 12px',
+                        color: zoom >= 300 ? 'rgba(255,255,255,0.25)' : '#fff',
+                        cursor: zoom >= 300 ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Plus size={15} />
+                    </button>
                   </div>
-                )
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+                  {/* Reset Zoom & Pan Button */}
+                  <button
+                    onClick={() => {
+                      setZoom(100);
+                      setModalPan({ x: 0, y: 0 });
+                    }}
+                    title="Reset Zoom & Pan"
+                    aria-label="Reset zoom"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      color: '#fff',
+                      fontSize: 12.5,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      fontFamily: "'Inter', system-ui, sans-serif",
+                    }}
+                  >
+                    <RotateCcw size={14} />
+                    <span>Reset</span>
+                  </button>
+
+                  {/* Modal Download Original Button */}
+                  <button
+                    onClick={handleDownloadOriginal}
+                    disabled={isDownloading}
+                    aria-label="Download original document"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      background: 'rgba(249, 115, 22, 0.15)',
+                      border: '1px solid rgba(249, 115, 22, 0.35)',
+                      color: isDownloading ? 'rgba(255,255,255,0.5)' : '#f97316',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: isDownloading ? 'not-allowed' : 'pointer',
+                      fontFamily: "'Inter', system-ui, sans-serif",
+                    }}
+                  >
+                    {isDownloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                    <span>Download</span>
+                  </button>
+
+                  {/* Exit Fullscreen Close Button */}
+                  <button
+                    onClick={toggleFullscreen}
+                    aria-label="Exit fullscreen"
+                    style={{
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      padding: '8px',
+                      borderRadius: 8,
+                      color: '#fff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body Container (Centered & 360° Drag Panning) */}
+              <div
+                ref={modalViewportRef}
+                onMouseDown={(e) => handleMouseDown(e, true)}
+                onMouseMove={(e) => handleViewportMouseMove(e, true)}
+                onMouseLeave={() => handleViewportMouseLeave(true)}
+                style={{
+                  flex: 1,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  padding: 20,
+                  width: '100%',
+                  height: 'calc(100vh - 84px)',
+                  boxSizing: 'border-box',
+                  cursor: isPanning ? 'grabbing' : 'grab',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                }}
+              >
+                {/* Modal Orange Glowing Pointer Dot */}
+                {modalCursorPos.show && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: modalCursorPos.x,
+                      top: modalCursorPos.y,
+                      width: 14,
+                      height: 14,
+                      borderRadius: '50%',
+                      background: '#f97316',
+                      border: '2px solid #ffffff',
+                      boxShadow: '0 0 16px rgba(249,115,22,0.9), 0 0 8px #f97316',
+                      pointerEvents: 'none',
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 40,
+                      transition: isPanning ? 'none' : 'transform 0.05s ease-out',
+                    }}
+                  />
+                )}
+
+                {previewSrc && (
+                  isPdf ? (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        width: '100%',
+                        height: '100%',
+                        margin: 'auto',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: '85vw',
+                          height: '82vh',
+                          transform: `translate3d(${modalPan.x}px, ${modalPan.y}px, 0px) scale(${zoom / 100})`,
+                          transformOrigin: 'center center',
+                          transition: isPanning ? 'none' : 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                          boxShadow: '0 32px 90px rgba(0, 0, 0, 0.98), 0 16px 40px rgba(0, 0, 0, 0.92), 0 0 0 1px rgba(255, 255, 255, 0.14)',
+                          borderRadius: 8,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <object
+                          data={previewSrc}
+                          type="application/pdf"
+                          width="100%"
+                          height="100%"
+                          style={{ borderRadius: 8, pointerEvents: 'none' }}
+                        >
+                          <iframe src={previewSrc} title="Fullscreen PDF Preview" width="100%" height="100%" style={{ pointerEvents: 'none' }} />
+                        </object>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        width: '100%',
+                        height: '100%',
+                        margin: 'auto',
+                      }}
+                    >
+                      <img
+                        src={previewSrc}
+                        alt={fileName}
+                        onDragStart={(e) => e.preventDefault()}
+                        style={{
+                          maxWidth: '85vw',
+                          maxHeight: '82vh',
+                          width: 'auto',
+                          height: 'auto',
+                          margin: 'auto',
+                          display: 'block',
+                          objectFit: 'contain',
+                          transform: `translate3d(${modalPan.x}px, ${modalPan.y}px, 0px) scale(${zoom / 100})`,
+                          transformOrigin: 'center center',
+                          transition: isPanning ? 'none' : 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                          boxShadow: '0 32px 90px rgba(0, 0, 0, 0.98), 0 16px 40px rgba(0, 0, 0, 0.92), 0 0 0 1px rgba(255, 255, 255, 0.14)',
+                          borderRadius: 8,
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    </div>
+                  )
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 }

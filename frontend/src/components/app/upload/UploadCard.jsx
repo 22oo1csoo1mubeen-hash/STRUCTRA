@@ -300,7 +300,16 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
               transition={{ duration: 0.3 }}
               style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
             >
-              <ProcessingWorkspace stage={stage} setStage={setStage} file={file} extractionError={extractionError} onRetryExtraction={onRetryExtraction} validationError={validationError} onRetryValidation={onRetryValidation} />
+              <ProcessingWorkspace 
+                stage={stage} 
+                setStage={setStage} 
+                file={file} 
+                extractionError={extractionError} 
+                onRetryExtraction={onRetryExtraction} 
+                validationError={validationError} 
+                onRetryValidation={onRetryValidation}
+                resetUpload={resetUpload} 
+              />
             </motion.div>
           )}
 

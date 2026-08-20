@@ -651,6 +651,111 @@ class AssistantRetrievalService:
 
         return filtered
 
+    async def get_filtered_line_items(
+        self,
+        item_query: str | None = None,
+        vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        min_amount: float | None = None,
+        max_amount: float | None = None,
+        limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        """Retrieve completed line items filtered deterministically by price/amount bounds, item query, vendor, and date."""
+        if vendor:
+            docs = await self.get_documents_by_vendor(vendor)
+        else:
+            docs = await self.get_all_documents()
+
+        matched_items: list[dict[str, Any]] = []
+
+        min_dec = Decimal(str(min_amount)) if min_amount is not None else None
+        max_dec = Decimal(str(max_amount)) if max_amount is not None else None
+
+        for doc in docs:
+            ext = doc.extraction_result or {}
+            doc_date_str = ext.get("date")
+            doc_vendor = ext.get("vendor_company") or "Unknown Vendor"
+
+            # Date filter
+            if start_date is not None or end_date is not None:
+                parsed_d = parse_document_date(doc_date_str) if doc_date_str else None
+                if not parsed_d:
+                    continue
+                d_iso = parsed_d.strftime("%Y-%m-%d")
+                if start_date is not None and d_iso < start_date:
+                    continue
+                if end_date is not None and d_iso > end_date:
+                    continue
+
+            raw_items = ext.get("line_items") or ext.get("items") or ext.get("products") or []
+            if not isinstance(raw_items, list):
+                continue
+
+            for it in raw_items:
+                if not isinstance(it, dict):
+                    continue
+                desc = it.get("description") or it.get("item") or it.get("name") or it.get("product") or it.get("title") or ""
+                if not desc or not isinstance(desc, str) or not desc.strip():
+                    continue
+
+                if item_query and not _item_matches(desc, item_query):
+                    continue
+
+                raw_qty = it.get("quantity") or it.get("qty") or it.get("count")
+                qty_dec = parse_decimal_safe(raw_qty) or Decimal("1.0")
+
+                raw_lt = it.get("line_total") or it.get("total") or it.get("amount")
+                amt_dec = parse_decimal_safe(raw_lt)
+                raw_up = it.get("unit_price") or it.get("price") or it.get("rate") or it.get("unit_rate") or it.get("item_price")
+                up_dec = parse_decimal_safe(raw_up)
+
+                if amt_dec is None and up_dec is not None:
+                    amt_dec = up_dec * qty_dec
+                elif up_dec is None and amt_dec is not None and qty_dec > Decimal("0"):
+                    up_dec = amt_dec / qty_dec
+                elif amt_dec is None and up_dec is None:
+                    continue
+
+                # An item is in the requested price range if EITHER:
+                # 1) Its unit_price is within [min_amount, max_amount]
+                # 2) Its line_total is within [min_amount, max_amount]
+                unit_in_range = True
+                if min_dec is not None and (up_dec is None or up_dec < min_dec):
+                    unit_in_range = False
+                if max_dec is not None and (up_dec is None or up_dec > max_dec):
+                    unit_in_range = False
+
+                total_in_range = True
+                if min_dec is not None and (amt_dec is None or amt_dec < min_dec):
+                    total_in_range = False
+                if max_dec is not None and (amt_dec is None or amt_dec > max_dec):
+                    total_in_range = False
+
+                if not unit_in_range and not total_in_range:
+                    continue
+
+                eval_amount = up_dec if (unit_in_range and up_dec is not None) else (amt_dec or Decimal("0.0"))
+
+                matched_items.append({
+                    "item_name": desc.strip(),
+                    "quantity": float(qty_dec),
+                    "unit_price": float(up_dec.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)) if up_dec is not None else None,
+                    "total": float(amt_dec.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)) if amt_dec is not None else float(eval_amount.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)),
+                    "amount": float(eval_amount.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)),
+                    "vendor": str(doc_vendor).strip(),
+                    "document_date": doc_date_str,
+                    "date": doc_date_str,
+                    "filename": doc.filename,
+                    "document_id": str(doc.id),
+                })
+                if len(matched_items) >= limit:
+                    break
+            if len(matched_items) >= limit:
+                break
+
+        return matched_items
+
     async def get_item_history(
         self,
         item_query: str,

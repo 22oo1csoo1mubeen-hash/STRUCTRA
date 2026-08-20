@@ -5,6 +5,7 @@ function getGreetingIST() {
   const options = { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false };
   const formatter = new Intl.DateTimeFormat([], options);
   const h = parseInt(formatter.format(new Date()), 10);
+  if (h >= 22 || h < 5) return 'Good Night';
   if (h < 12) return 'Good Morning';
   if (h < 17) return 'Good Afternoon';
   return 'Good Evening';

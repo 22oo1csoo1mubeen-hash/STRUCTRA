@@ -176,16 +176,25 @@ async def list_document_metadata(
     if and_conditions:
         params["and"] = f"({','.join(and_conditions)})"
 
+    requires_custom_sort = sort_by in (
+        "date_desc", "doc_date_desc",
+        "date_asc", "doc_date_asc",
+        "amount_desc", "amount_asc",
+    )
+    if requires_custom_sort:
+        params["limit"] = "10000"
+        params["offset"] = "0"
+
     if sort_by == "oldest":
         params["order"] = "created_at.asc"
     elif sort_by in ("date_desc", "doc_date_desc"):
-        params["order"] = "extraction_result->>date.desc.nullslast,created_at.desc"
+        params["order"] = "created_at.desc"
     elif sort_by in ("date_asc", "doc_date_asc"):
-        params["order"] = "extraction_result->>date.asc.nullslast,created_at.asc"
+        params["order"] = "created_at.asc"
     elif sort_by == "amount_desc":
-        params["order"] = "extraction_result->total.desc.nullslast,created_at.desc"
+        params["order"] = "created_at.desc"
     elif sort_by == "amount_asc":
-        params["order"] = "extraction_result->total.asc.nullslast,created_at.asc"
+        params["order"] = "created_at.asc"
     else:
         params["order"] = "created_at.desc"
 
@@ -217,6 +226,58 @@ async def list_document_metadata(
         records = [CreatedDocumentMetadata.model_validate(record) for record in response.json()]
         if total_count == 0 and records:
             total_count = len(records)
+
+        if requires_custom_sort:
+            from decimal import Decimal
+            from app.services.dashboard import parse_decimal_safe, parse_document_date
+
+            if sort_by in ("date_desc", "doc_date_desc"):
+                def sort_key_date_desc(doc: CreatedDocumentMetadata):
+                    ext = doc.extraction_result or {}
+                    d_val = parse_document_date(ext.get("date"), fallback_dt=doc.created_at)
+                    ordinal = d_val.toordinal() if d_val else 0
+                    created_ts = doc.created_at.timestamp() if doc.created_at else 0
+                    return (ordinal, created_ts, str(doc.id))
+
+                records.sort(key=sort_key_date_desc, reverse=True)
+                total_count = len(records)
+                records = records[offset : offset + page_size]
+
+            elif sort_by in ("date_asc", "doc_date_asc"):
+                def sort_key_date_asc(doc: CreatedDocumentMetadata):
+                    ext = doc.extraction_result or {}
+                    d_val = parse_document_date(ext.get("date"), fallback_dt=doc.created_at)
+                    ordinal = d_val.toordinal() if d_val else 9999999
+                    created_ts = doc.created_at.timestamp() if doc.created_at else 0
+                    return (ordinal, created_ts, str(doc.id))
+
+                records.sort(key=sort_key_date_asc, reverse=False)
+                total_count = len(records)
+                records = records[offset : offset + page_size]
+
+            elif sort_by == "amount_desc":
+                def sort_key_amt_desc(doc: CreatedDocumentMetadata):
+                    ext = doc.extraction_result or {}
+                    tot = parse_decimal_safe(ext.get("total")) or Decimal("0")
+                    created_ts = doc.created_at.timestamp() if doc.created_at else 0
+                    return (tot, created_ts, str(doc.id))
+
+                records.sort(key=sort_key_amt_desc, reverse=True)
+                total_count = len(records)
+                records = records[offset : offset + page_size]
+
+            elif sort_by == "amount_asc":
+                def sort_key_amt_asc(doc: CreatedDocumentMetadata):
+                    ext = doc.extraction_result or {}
+                    tot = parse_decimal_safe(ext.get("total"))
+                    tot_val = tot if tot is not None else Decimal("999999999")
+                    created_ts = doc.created_at.timestamp() if doc.created_at else 0
+                    return (tot_val, created_ts, str(doc.id))
+
+                records.sort(key=sort_key_amt_asc, reverse=False)
+                total_count = len(records)
+                records = records[offset : offset + page_size]
+
         return records, total_count
     except (TypeError, ValidationError, ValueError):
         raise HTTPException(

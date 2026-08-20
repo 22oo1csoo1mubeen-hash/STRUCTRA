@@ -773,6 +773,10 @@ export default function ExtractionResultWorkspace({
                 displayFilename={displayFilename}
                 isLibraryMode={isLibraryMode}
                 onBack={onBack}
+                extractionResult={extractionResult}
+                uploadedDocument={uploadedDocument}
+                effectiveQuality={effectiveQuality}
+                validationResult={validationResult}
               />
             </motion.div>
           )}
@@ -1430,10 +1434,17 @@ function EditableField({ icon: Icon, label, initialValue, isTextarea = false, fu
 }
 
 
-// ------------------------------------------------------------------
-// STAGE 11 (Saved Successfully - Full Workspace View)
-// ------------------------------------------------------------------
-function Stage11SuccessView({ file, resetUpload, displayData, docId, displayFilename }) {
+function Stage11SuccessView({ 
+  file, 
+  resetUpload, 
+  displayData, 
+  docId, 
+  displayFilename,
+  extractionResult,
+  uploadedDocument,
+  effectiveQuality,
+  validationResult
+}) {
   const navigate = useNavigate();
   const [previewUrl, setPreviewUrl] = useState(null);
 
@@ -1542,7 +1553,7 @@ function Stage11SuccessView({ file, resetUpload, displayData, docId, displayFile
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, color: '#fff' }}>{file?.name || 'Document'}</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: '#fff' }}>{file?.name || displayFilename || 'Document'}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#10b981', fontSize: 11, fontWeight: 600 }}>
                 <CheckCircle2 size={14} /> Saved
               </div>
@@ -1597,8 +1608,61 @@ function Stage11SuccessView({ file, resetUpload, displayData, docId, displayFile
         <motion.button 
           id="saved-view-document-btn"
           onClick={() => {
-            if (docId) {
-              navigate('/app/library', { state: { selectedDocId: docId, filename: file?.name || displayFilename || 'Document' } });
+            const targetId = docId || uploadedDocument?.document_id || uploadedDocument?.id || extractionResult?.document?.document_id || extractionResult?.document_id;
+            if (targetId) {
+              const parseNum = (str) => {
+                if (typeof str === 'number') return str;
+                if (!str) return 0;
+                const cleaned = String(str).replace(/[^0-9.-]/g, '');
+                const num = parseFloat(cleaned);
+                return isNaN(num) ? 0 : num;
+              };
+
+              const detailPayload = {
+                document: uploadedDocument || extractionResult?.document || {
+                  id: targetId,
+                  document_id: targetId,
+                  filename: file?.name || displayFilename || 'Document',
+                  content_type: file?.type || uploadedDocument?.content_type || 'image/png',
+                  status: 'completed',
+                  created_at: new Date().toISOString(),
+                },
+                extraction: extractionResult?.extraction || {
+                  vendor_company: displayData?.vendor || 'Unknown Vendor',
+                  date: displayData?.date || '—',
+                  address: displayData?.address || '—',
+                  invoice_number: displayData?.invoiceNumber || '—',
+                  total: parseNum(displayData?.totalAmount),
+                  line_items: (displayData?.lineItems || []).map(li => ({
+                    description: li.item || '',
+                    quantity: typeof li.qty === 'number' ? li.qty : (parseInt(String(li.qty).replace(/[^0-9]/g, '')) || 1),
+                    unit_price: parseNum(li.rate),
+                    line_total: parseNum(li.amount),
+                  })),
+                },
+                quality: effectiveQuality || extractionResult?.quality || {
+                  confidence_level: displayData?.confidenceOverride || 'HIGH',
+                  confidence_override: displayData?.confidenceOverride || null,
+                  overall_confidence: 0.95,
+                },
+                validation: validationResult || extractionResult?.validation || {
+                  valid: true,
+                  issues: [],
+                },
+                original: extractionResult?.original || {
+                  download_url: `/documents/storage/${targetId}`,
+                  content_type: file?.type || 'image/png',
+                  filename: file?.name || displayFilename || 'Document',
+                }
+              };
+
+              navigate('/app/library', { 
+                state: { 
+                  selectedDocId: targetId, 
+                  filename: file?.name || displayFilename || 'Document',
+                  documentDetail: detailPayload,
+                } 
+              });
             } else {
               navigate('/app/library');
             }

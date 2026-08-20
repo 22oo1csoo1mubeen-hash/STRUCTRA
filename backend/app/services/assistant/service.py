@@ -50,11 +50,16 @@ def _build_deterministic_fallback_reply(
         return f"Your total spending is equal at both {v_a} and {v_b} ({_fmt_currency(s_a)})."
 
     if intent == AssistantIntent.FILTERED_RECEIPTS:
+        f_items = retrieved_payload.get("filtered_line_items") or []
         f_docs = retrieved_payload.get("filtered_documents") or []
-        tot = sum(float((d.extraction_result or {}).get("total") or 0.0) for d in f_docs)
+        if f_items:
+            tot = sum(float(it.get("total") or it.get("amount") or 0.0) for it in f_items)
+            lines = [f"{it['item_name']} ({_fmt_currency(it.get('total') or it.get('amount'))})" for it in f_items[:10]]
+            return f"Found {len(f_items)} item{'s' if len(f_items) != 1 else ''} matching your filter totaling {_fmt_currency(tot)}: {', '.join(lines)}."
         if f_docs:
+            tot = sum(float((d.extraction_result or {}).get("total") or 0.0) for d in f_docs)
             return f"Found {len(f_docs)} matching receipts totaling {_fmt_currency(tot)}."
-        return "No saved receipts matching your filter criteria were found."
+        return "No saved items or receipts matching your filter criteria were found."
 
     if intent == AssistantIntent.TEMPORAL_SPENDING:
         t_docs = retrieved_payload.get("temporal_documents") or []
@@ -237,7 +242,16 @@ async def run_assistant_chat(
                 min_amount=parsed_intent.min_amount,
                 max_amount=parsed_intent.max_amount,
             )
+            filt_items = await retrieval.get_filtered_line_items(
+                item_query=parsed_intent.item_query,
+                vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+                min_amount=parsed_intent.min_amount,
+                max_amount=parsed_intent.max_amount,
+            )
             retrieved_payload["filtered_documents"] = filt_docs
+            retrieved_payload["filtered_line_items"] = filt_items
 
         elif intent == AssistantIntent.TEMPORAL_SPENDING:
             temp_docs = await retrieval.get_filtered_documents(

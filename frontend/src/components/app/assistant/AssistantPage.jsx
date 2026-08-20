@@ -559,7 +559,12 @@ function StructuredResultCard({ message, onSelectPrompt }) {
   }
 
   // 6. Filtered Receipts & Temporal Spending Card
-  if ((type === 'filtered_receipts' || type === 'temporal_spending') && meta.document_count !== undefined) {
+  if (type === 'filtered_receipts' || type === 'temporal_spending') {
+    const isItemFilter = (meta.item_count !== undefined && meta.item_count > 0) || (meta.items && meta.items.length > 0);
+    const countLabel = isItemFilter
+      ? `${meta.item_count || (meta.items ? meta.items.length : 0)} Matching Item${(meta.item_count || (meta.items ? meta.items.length : 0)) !== 1 ? 's' : ''}`
+      : `${meta.document_count || 0} Matching Receipt${meta.document_count !== 1 ? 's' : ''}`;
+
     return (
       <div
         style={{
@@ -574,7 +579,7 @@ function StructuredResultCard({ message, onSelectPrompt }) {
         }}
       >
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
-          {meta.document_count} Matching Receipt{meta.document_count !== 1 ? 's' : ''}
+          {countLabel}
         </span>
         <span style={{ fontSize: 13, fontWeight: 700, color: '#60a5fa' }}>
           Total: {formatCurrency(meta.total_spent || 0)}

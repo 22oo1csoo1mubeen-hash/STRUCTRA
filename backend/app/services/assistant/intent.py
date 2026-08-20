@@ -75,15 +75,16 @@ _VENDOR_STOPWORDS = {
     "at", "with", "by", "in", "to", "ai", "api", "model", "key", "keys", "system", "assistant",
     "service", "provider", "structra", "connection", "trouble", "generating", "answer",
     "price", "prices", "rate", "rates", "quantity", "quantities", "qty", "amount", "amounts",
-    "detail", "details", "info", "information", "pricing",
+    "detail", "details", "info", "information", "pricing", "range", "ranges", "bracket", "brackets",
     "hello", "hi", "hey", "greetings", "thanks", "thank", "welcome", "please", "yes", "no",
     "ok", "okay", "bye", "goodbye", "good", "morning", "afternoon", "evening", "night", "test", "help",
     "i", "we", "he", "she", "they", "me", "us", "him", "her", "them", "my", "our", "your", "his", "their",
     "has", "had", "having", "do", "does", "done", "am", "is", "are", "was", "were", "be", "been", "being",
-    "got", "take", "took", "taken", "order", "orders", "ordered",
+    "got", "take", "took", "taken", "order", "orders", "ordered", "buy", "buys", "buying",
     "where", "when", "why", "which", "who", "whom", "whose", "how", "time", "times", "place", "places", "vendor", "vendors",
     "week", "weeks", "day", "days", "months", "years", "weekend", "weekends", "quarter", "quarters", "recently", "current", "previous",
     "cheap", "cheapest", "chepeast", "least", "lowest", "minimum", "min", "max", "highest", "maximum", "expensive", "costly", "costliest", "smallest", "biggest", "largest",
+    "of", "for", "on", "off", "with", "without", "about", "into", "onto", "upon",
 }
 
 _MONTH_NAMES = {
@@ -118,7 +119,13 @@ def _extract_vendor(text: str) -> str | None:
     if m_prep:
         candidate = m_prep.group(1).strip()
         tokens = [t.strip(".,;:?!'\"") for t in candidate.split()]
-        valid_tokens = [t for t in tokens if _clean_token(t) not in _VENDOR_STOPWORDS and len(t) > 1]
+        valid_tokens = [
+            t for t in tokens
+            if _clean_token(t) not in _VENDOR_STOPWORDS
+            and len(t) > 1
+            and not re.match(r"^\d", t)
+            and not re.match(r"^[\d\.\-–—]+$", t)
+        ]
         if valid_tokens:
             return " ".join(valid_tokens)
 
@@ -130,7 +137,7 @@ def _extract_vendor(text: str) -> str | None:
     )
     if m_noun:
         cand = m_noun.group(1).strip().strip(".,;:?!'\"")
-        if _clean_token(cand) not in _VENDOR_STOPWORDS and len(cand) > 1:
+        if _clean_token(cand) not in _VENDOR_STOPWORDS and len(cand) > 1 and not re.match(r"^\d", cand):
             return cand
 
     return None
@@ -140,27 +147,41 @@ def _extract_item_name(text: str) -> str | None:
     """Extract item name with strict word boundary protection and comprehensive natural language patterns."""
     lower = text.lower().strip()
 
+    # Guard: pure numeric/amount range queries without item noun
+    clean_amt = text.replace("₹", " ").replace("rs.", " ").replace("rs", " ").replace("inr", " ")
+    clean_amt = re.sub(r"(\d+),(\d+)", r"\1\2", clean_amt).strip()
+    if re.search(r"^\s*(?:in\s+)?(?:the\s+)?(?:range\s+(?:of\s+|:\s*)?)?\d+(?:\.\d+)?\s*(?:-|–|—|to|and)\s*\d+(?:\.\d+)?(?:\s*(?:range|bracket))?\s*$", clean_amt, re.IGNORECASE):
+        return None
+
+    def _sanitize_cand(cand_str: str) -> str | None:
+        if not cand_str:
+            return None
+        cleaned = re.sub(r"\b(?:range|ranges|bracket|brackets|in|the|of|to|and|from|between|above|below|under|over|more|less|than)\b", " ", cand_str, flags=re.IGNORECASE)
+        cleaned = re.sub(r"[\d\s\.\-–—,₹]", "", cleaned)
+        if not cleaned:
+            return None
+        tokens = [t.strip(".,;:?!'\"") for t in cand_str.split() if _clean_token(t) not in _VENDOR_STOPWORDS and not re.match(r"^\d", t)]
+        return " ".join(tokens) if tokens else None
+
     # 1. "quantity and price of X" / "price and quantity of X"
     m_prop_and = re.search(
         r"(?:price|cost|rate|quantity|qty|amount|details|info|information|pricing)\s+(?:and|&)\s+(?:price|cost|rate|quantity|qty|amount|details|info|information|pricing)\s+of\s+(?:the\s+|a\s+|an\s+|my\s+)?([A-Za-z0-9\s&'\-]+?)(?:\s+(?:at|from|in|on|for)\b|[?.]|$)",
         lower,
     )
     if m_prop_and:
-        cand = m_prop_and.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
-        if tokens:
-            return " ".join(tokens)
+        res = _sanitize_cand(m_prop_and.group(1))
+        if res:
+            return res
 
-    # 2. "price of X" / "cost of X" / "quantity of X" / "rate of X" / "amount of X" / "details of X" / "info of X"
+    # 2. "price of X" / "cost of X" / "quantity of X" / "rate of X" / "amount of X"
     m_prop_of = re.search(
         r"\b(?:price|cost|rate|quantity|qty|amount|details|info|information|pricing)\s+of\s+(?:the\s+|a\s+|an\s+|my\s+)?([A-Za-z0-9\s&'\-]+?)(?:\s+(?:at|from|in|on|for)\b|[?.]|$)",
         lower,
     )
     if m_prop_of:
-        cand = m_prop_of.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
-        if tokens:
-            return " ".join(tokens)
+        res = _sanitize_cand(m_prop_of.group(1))
+        if res:
+            return res
 
     # 3. "what is/was/are the price/cost/rate/quantity/total of/for X"
     m_what_prop = re.search(
@@ -168,10 +189,9 @@ def _extract_item_name(text: str) -> str | None:
         lower,
     )
     if m_what_prop:
-        cand = m_what_prop.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
-        if tokens:
-            return " ".join(tokens)
+        res = _sanitize_cand(m_what_prop.group(1))
+        if res:
+            return res
 
     # 4. "where / from where / when / which store did i buy/bought X"
     m_where_when = re.search(
@@ -179,56 +199,50 @@ def _extract_item_name(text: str) -> str | None:
         lower,
     )
     if m_where_when:
-        cand = m_where_when.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
-        if tokens:
-            return " ".join(tokens)
+        res = _sanitize_cand(m_where_when.group(1))
+        if res:
+            return res
 
-    # 5. "how much is/was X" (e.g. "how much is brownie", "how much was the brownie at V&RO")
+    # 5. "how much is/was X"
     m_how_much_item = re.search(
         r"how\s+much\s+(?:is|was|are|were)\s+(?:the\s+|a\s+|an\s+|my\s+)?([A-Za-z0-9\s&'\-]+?)(?:\s+(?:at|from|in|cost|costing)\b|[?.]|$)",
         lower,
     )
     if m_how_much_item:
-        cand = m_how_much_item.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
-        if tokens:
-            return " ".join(tokens)
+        res = _sanitize_cand(m_how_much_item.group(1))
+        if res:
+            return res
 
-    # 6. "how much did X cost" (e.g. "how much did brownie cost", "how much did the brownie cost")
+    # 6. "how much did X cost"
     m_item_cost = re.search(
         r"how\s+much\s+did\s+(?:the\s+|a\s+|an\s+|my\s+)?([A-Za-z0-9\s&'\-]+?)\s+cost(?:\s+me)?(?:\s+(?:at|from|in)\b|[?.]|$)",
         lower,
     )
     if m_item_cost:
-        cand = m_item_cost.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
-        if tokens:
-            return " ".join(tokens)
+        res = _sanitize_cand(m_item_cost.group(1))
+        if res:
+            return res
 
-    # 7. "how many X did I buy" / "how many X i have bought"
+    # 7. "how many X did I buy"
     m_many = re.search(
         r"how\s+many\s+(?:units\s+of\s+|packs\s+of\s+|packets\s+of\s+|boxes\s+of\s+|bottles\s+of\s+)?([A-Za-z0-9\s&'\-]+?)(?:\s+(?:did\s+i|have\s+i|i\s+have|i\s+did|i\s+bought|i\s+purchased|i\s+got|were|was|bought|purchased|spend|cost|at|from|in)\b|[?.]|$)",
         lower,
     )
     if m_many:
-        cand = m_many.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
-        if tokens:
-            return " ".join(tokens)
+        res = _sanitize_cand(m_many.group(1))
+        if res:
+            return res
 
-    # 8. "did I buy X" / "have I bought X" / "did I purchase X" / "i bought X"
-    # Guard: if the query is asking about vendor or temporal scope (e.g. "what did i buy from dmart", "what did i buy last week"), do not capture scope as item
-    if not re.search(r"^\s*what\s+(?:did\s+i|have\s+i|i)\s+(?:buy|bought|get|purchase)\s+(?:from|at|in|last|this|yesterday|recently)\b", lower):
+    # 8. "did I buy X" / "have I bought X" / "i bought X"
+    if not re.search(r"^\s*what\s+(?:did\s+i|have\s+i|i)\s+(?:buy|bought|get|purchase|order)\b", lower):
         m_did_buy = re.search(
-            r"\b(?:did\s+i|have\s+i|i\s+have|i)\s+(?:buy|bought|purchase|purchased|get|got|order|ordered)\s+(?:the\s+|a\s+|an\s+|any\s+|some\s+)?([A-Za-z0-9\s&'\-]+?)(?:\s+(?:last\s+time|recently|from|at|in|before|yesterday)\b|[?.]|$)",
+            r"\b(?:did\s+i|have\s+i|i\s+have|i)\s+(?:buy|bought|purchase|purchased|get|got|order|ordered)\s+(?:the\s+|a\s+|an\s+|any\s+|some\s+)?([A-Za-z0-9\s&'\-]+?)(?:\s+(?:last\s+time|recently|from|at|in|before|yesterday|between|under|above|below|more|less)\b|[?.]|$)",
             lower,
         )
         if m_did_buy:
-            cand = m_did_buy.group(1).strip()
-            tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
-            if tokens:
-                return " ".join(tokens)
+            res = _sanitize_cand(m_did_buy.group(1))
+            if res:
+                return res
 
     # 9. "did I pay for X" / "spend on X"
     m_pay_for = re.search(
@@ -236,10 +250,19 @@ def _extract_item_name(text: str) -> str | None:
         lower,
     )
     if m_pay_for:
-        cand = m_pay_for.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
-        if tokens:
-            return " ".join(tokens)
+        res = _sanitize_cand(m_pay_for.group(1))
+        if res:
+            return res
+
+    # 10. Item name before amount filter: e.g. "trackpant under 500", "coffee between 100 and 200"
+    m_item_filter = re.search(
+        r"^(?:show\s+|find\s+|get\s+|list\s+|give\s+)?(?:me\s+)?([A-Za-z\s&'\-]+?)\s+(?:under|below|above|over|between|from|in\s+the\s+range|priced|costing)\s+\d+",
+        lower,
+    )
+    if m_item_filter:
+        res = _sanitize_cand(m_item_filter.group(1))
+        if res and res not in ("item", "items", "product", "products", "thing", "things", "purchase", "purchases", "receipt", "receipts"):
+            return res
 
     # Guard: general spending inquiries
     if re.search(r"how\s+much\s+(?:did\s+i\s+spend|have\s+i\s+spent|did\s+that\s+cost|was\s+spent|spent|in\s+total|overall)", lower):
@@ -351,7 +374,14 @@ def _resolve_temporal_range(
         prev_y = today.year - 1
         return f"{prev_y}-01-01", f"{prev_y}-12-31", "last year"
 
-    # 9. "in <month>" / "<month> 2026" / "last August"
+    # 9. "N years ago" (e.g. "2 years ago")
+    m_yrs_ago = re.search(r"\b(\d+)\s+years?\s+ago\b", lower)
+    if m_yrs_ago:
+        n = int(m_yrs_ago.group(1))
+        target_year = today.year - n
+        return f"{target_year:04d}-01-01", f"{target_year:04d}-12-31", f"{n} years ago"
+
+    # 10. "in <month>" / "<month> 2026" / "last August"
     for m_name, m_num in _MONTH_NAMES.items():
         if re.search(rf"\b(?:in\s+|last\s+)?{m_name}(?:\s+(\d{{4}}))?\b", lower):
             m_year_match = re.search(rf"\b{m_name}\s+(\d{{4}})\b", lower)
@@ -363,7 +393,30 @@ def _resolve_temporal_range(
             end_iso = f"{target_year:04d}-{m_num:02d}-{last_day:02d}"
             return start_iso, end_iso, m_name.capitalize()
 
-    # 10. "recently" / "recent"
+    # 11. Explicit Year Range: e.g. "from 2015 to 2018", "between 2015 and 2020", "2015 - 2018"
+    m_yr_range = re.search(
+        r"\b(?:between|from|in)?\s*(19\d\d|20\d\d)\s*(?:-|–|—|to|and)\s*(19\d\d|20\d\d)\b",
+        lower,
+    )
+    if m_yr_range and not re.search(r"(?:₹|rs\.?|inr)\s*\d", lower):
+        if not re.search(r"\b(?:priced|costing|price\s+range|amount\s+range)\b", lower):
+            y1, y2 = int(m_yr_range.group(1)), int(m_yr_range.group(2))
+            min_y, max_y = min(y1, y2), max(y1, y2)
+            return f"{min_y:04d}-01-01", f"{max_y:04d}-12-31", f"{min_y} - {max_y}"
+
+    # 12. Explicit 4-digit Year: e.g. "from 2015", "in 2015", "of 2015", "for 2015", "during 2016", "dated 2015", "dated on 2015", "year 2015", "2015 receipts", "2016"
+    if not re.search(r"\b(?:between|from)\s+\d{1,3}\s+(?:and|to|-)\s+\d+", lower) and not re.search(r"\b\d{1,3}\s*(?:-|to)\s*\d+\b", lower):
+        m_year = re.search(
+            r"\b(?:from|in|of|for|during|dated(?:\s+on)?|year\s+)?(19\d\d|20\d\d)(?:\s+(?:receipts?|documents?|bills?|invoices?|purchases?|spending|expenses?))?\b",
+            lower,
+        )
+        if m_year and not re.search(r"(?:₹|rs\.?|inr)\s*\d", lower):
+            target_y = int(m_year.group(1))
+            # Ensure it is not part of a price range boundary or amount keyword
+            if not re.search(rf"\b(?:range|bracket|above|below|under|over|more|less|greater|priced|costing|cost|bill\s+of|total\s+of)\s+(?:of\s+|than\s+)?{target_y}\b", lower):
+                return f"{target_y:04d}-01-01", f"{target_y:04d}-12-31", str(target_y)
+
+    # 13. "recently" / "recent"
     if re.search(r"\b(recently|recent)\b", lower):
         start_rec = today - timedelta(days=30)
         return start_rec.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d"), "recently"
@@ -371,24 +424,81 @@ def _resolve_temporal_range(
     return None, None, None
 
 
-def _extract_amount_filters(text: str) -> tuple[float | None, float | None]:
-    """Extract numeric amount filter boundaries (min_amount, max_amount)."""
-    clean = text.replace("₹", " ").replace("rs.", " ").replace("rs", " ")
+def _clean_amount_text(text: str) -> str:
+    """Normalize text for amount extraction: remove currency symbols and strip commas in digits."""
+    t = text.replace("₹", " ").replace("rs.", " ").replace("rs", " ").replace("inr", " ")
+    return re.sub(r"(\d+),(\d+)", r"\1\2", t)
 
-    # 1. Between X and Y: "between 500 and 2000", "from 500 to 2000"
-    m_between = re.search(r"\b(?:between|from)\s+(\d+(?:\.\d+)?)\s+(?:and|to)\s+(\d+(?:\.\d+)?)\b", clean, re.IGNORECASE)
+
+def _extract_amount_filters(text: str) -> tuple[float | None, float | None]:
+    """Extract numeric amount filter boundaries (min_amount, max_amount) across all natural language patterns."""
+    clean = _clean_amount_text(text)
+
+    # Guard against pure year ranges like "between 2015 and 2018" or "from 2015 to 2018"
+    if re.search(r"\b(?:between|from|in)?\s*(?:19\d\d|20\d\d)\s*(?:-|–|—|to|and)\s*(?:19\d\d|20\d\d)\b", clean, re.IGNORECASE):
+        if not re.search(r"(?:₹|rs\.?|inr|priced|costing|amount|price\s+range)", clean, re.IGNORECASE):
+            return None, None
+
+    # 1. Range with 'range' / 'bracket' keywords:
+    # 'in the range 0 - 500', 'in 500 - 1000 range', 'range of 500 to 1000', 'range: 0-500', '0 - 500 range'
+    m_range = re.search(
+        r"(?:in\s+)?(?:the\s+)?range\s+(?:of\s+|:\s*)?(\d+(?:\.\d+)?)\s*(?:-|–|—|to|and)\s*(\d+(?:\.\d+)?)\b",
+        clean,
+        re.IGNORECASE,
+    )
+    if m_range:
+        a = float(m_range.group(1))
+        b = float(m_range.group(2))
+        return min(a, b), max(a, b)
+
+    m_range2 = re.search(
+        r"\b(\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)\s*(?:range|bracket)\b",
+        clean,
+        re.IGNORECASE,
+    )
+    if m_range2:
+        a = float(m_range2.group(1))
+        b = float(m_range2.group(2))
+        return min(a, b), max(a, b)
+
+    # 2. 'between X and Y' / 'between X to Y' / 'from X to Y' / 'from X - Y'
+    m_between = re.search(
+        r"\b(?:between|from)\s+(\d+(?:\.\d+)?)\s*(?:and|to|-|–|—)\s*(\d+(?:\.\d+)?)\b",
+        clean,
+        re.IGNORECASE,
+    )
     if m_between:
         a = float(m_between.group(1))
         b = float(m_between.group(2))
         return min(a, b), max(a, b)
 
-    # 2. Above / more than / greater than / over: "above 1000", "more than 500"
-    m_above = re.search(r"\b(?:above|more\s+than|greater\s+than|over|exceeding)\s+(\d+(?:\.\d+)?)\b", clean, re.IGNORECASE)
+    # 3. Explicit numeric range 'X - Y' when surrounded by price/amount/bought/cost/in context:
+    m_num_range = re.search(
+        r"(?:in|priced|costing|for|between|at)?\s*(\d+(?:\.\d+)?)\s*(?:-|–|—)\s*(\d+(?:\.\d+)?)\b",
+        clean,
+        re.IGNORECASE,
+    )
+    if m_num_range and any(k in text.lower() for k in ["item", "bought", "purchase", "receipt", "price", "range", "cost", "spend", "bill", "order"]):
+        a = float(m_num_range.group(1))
+        b = float(m_num_range.group(2))
+        if a != b:
+            return min(a, b), max(a, b)
+
+    # 4. Above / more than / greater than / over / exceeding / at least / min
+    m_above = re.search(
+        r"\b(?:above|more\s+than|greater\s+than|over|exceeding|at\s+least|min(?:imum)?\s+(?:of\s+)?|costing\s+more\s+than)\s+(\d+(?:\.\d+)?)\b",
+        clean,
+        re.IGNORECASE,
+    )
     if m_above:
         return float(m_above.group(1)), None
 
-    # 3. Below / less than / under: "below 500", "under 1000", "less than 200"
-    m_below = re.search(r"\b(?:below|less\s+than|under)\s+(\d+(?:\.\d+)?)\b", clean, re.IGNORECASE)
+    # 5. Below / less than / under / within / up to / at most / max
+    m_below = re.search(
+        r"\b(?:below|less\s+than|under|within|up\s+to|at\s+most|max(?:imum)?\s+(?:of\s+)?|costing\s+less\s+than|cheaper\s+than)\s+(\d+(?:\.\d+)?)\b",
+        clean,
+        re.IGNORECASE,
+    )
     if m_below:
         return None, float(m_below.group(1))
 
@@ -533,6 +643,7 @@ class AssistantIntentEngine:
             return ParsedQueryIntent(
                 intent=AssistantIntent.FILTERED_RECEIPTS,
                 vendor=vendor,
+                item_query=item_query,
                 min_amount=min_amount,
                 max_amount=max_amount,
                 start_date=start_date,
