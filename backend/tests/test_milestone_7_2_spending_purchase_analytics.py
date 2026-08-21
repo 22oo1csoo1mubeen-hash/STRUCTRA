@@ -5,6 +5,7 @@ item purchase aggregations, purchase highlights, deterministic ordering, user is
 and Decimal mathematical precision.
 """
 
+import re
 from datetime import UTC, datetime
 from io import BytesIO
 from types import SimpleNamespace
@@ -166,7 +167,7 @@ def test_empty_spending_analytics(
 def test_daily_spending_aggregation(
     client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Period=day groups spending by exact calendar day."""
+    """Period=day groups spending by exact calendar day (combining same-day receipts)."""
     docs = [
         _make_persisted_doc(USER_A_ID, date_str="2026-03-10", total=200.0),
         _make_persisted_doc(USER_A_ID, date_str="2026-03-10", total=300.0),
@@ -184,17 +185,13 @@ def test_daily_spending_aggregation(
     assert data["total_spent"] == 950.0
     assert len(data["data"]) == 2
 
-    point1 = data["data"][0]
-    assert point1["start_date"] == "2026-03-10"
-    assert point1["end_date"] == "2026-03-10"
-    assert point1["amount"] == 500.0
-    assert point1["document_count"] == 2
+    assert data["data"][0]["start_date"] == "2026-03-10"
+    assert data["data"][0]["amount"] == 500.0
+    assert data["data"][0]["document_count"] == 2
 
-    point2 = data["data"][1]
-    assert point2["start_date"] == "2026-03-11"
-    assert point2["end_date"] == "2026-03-11"
-    assert point2["amount"] == 450.0
-    assert point2["document_count"] == 1
+    assert data["data"][1]["start_date"] == "2026-03-11"
+    assert data["data"][1]["amount"] == 450.0
+    assert data["data"][1]["document_count"] == 1
 
 
 # ─── TEST 3: Weekly Spending Aggregation (ISO Weeks) ─────────────────────────
@@ -203,8 +200,6 @@ def test_weekly_spending_aggregation(
     client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Period=week groups documents into ISO calendar weeks (Monday to Sunday)."""
-    # 2026-03-09 is Monday, 2026-03-15 is Sunday (same ISO week)
-    # 2026-03-16 is Monday of the next week
     docs = [
         _make_persisted_doc(USER_A_ID, date_str="2026-03-10", total=500.0),
         _make_persisted_doc(USER_A_ID, date_str="2026-03-14", total=250.0),
@@ -222,17 +217,15 @@ def test_weekly_spending_aggregation(
     assert data["total_spent"] == 1750.0
     assert len(data["data"]) == 2
 
-    week1 = data["data"][0]
-    assert week1["start_date"] == "2026-03-09"
-    assert week1["end_date"] == "2026-03-15"
-    assert week1["amount"] == 750.0
-    assert week1["document_count"] == 2
+    assert data["data"][0]["start_date"] == "2026-03-09"
+    assert data["data"][0]["end_date"] == "2026-03-15"
+    assert data["data"][0]["amount"] == 750.0
+    assert data["data"][0]["document_count"] == 2
 
-    week2 = data["data"][1]
-    assert week2["start_date"] == "2026-03-16"
-    assert week2["end_date"] == "2026-03-22"
-    assert week2["amount"] == 1000.0
-    assert week2["document_count"] == 1
+    assert data["data"][1]["start_date"] == "2026-03-16"
+    assert data["data"][1]["end_date"] == "2026-03-22"
+    assert data["data"][1]["amount"] == 1000.0
+    assert data["data"][1]["document_count"] == 1
 
 
 # ─── TEST 4: Monthly Spending Aggregation ─────────────────────────────────────
@@ -259,26 +252,17 @@ def test_monthly_spending_aggregation(
     assert data["total_spent"] == 30000.50
     assert len(data["data"]) == 3
 
-    jan = data["data"][0]
-    assert jan["label"] == "Jan 2026"
-    assert jan["start_date"] == "2026-01-01"
-    assert jan["end_date"] == "2026-01-31"
-    assert jan["amount"] == 12500.50
-    assert jan["document_count"] == 1
+    assert data["data"][0]["label"] == "Jan 2026"
+    assert data["data"][0]["amount"] == 12500.50
+    assert data["data"][0]["document_count"] == 1
 
-    feb = data["data"][1]
-    assert feb["label"] == "Feb 2026"
-    assert feb["start_date"] == "2026-02-01"
-    assert feb["end_date"] == "2026-02-28"
-    assert feb["amount"] == 8000.0
-    assert feb["document_count"] == 1
+    assert data["data"][1]["label"] == "Feb 2026"
+    assert data["data"][1]["amount"] == 8000.0
+    assert data["data"][1]["document_count"] == 1
 
-    mar = data["data"][2]
-    assert mar["label"] == "Mar 2026"
-    assert mar["start_date"] == "2026-03-01"
-    assert mar["end_date"] == "2026-03-31"
-    assert mar["amount"] == 9500.0
-    assert mar["document_count"] == 2
+    assert data["data"][2]["label"] == "Mar 2026"
+    assert data["data"][2]["amount"] == 9500.0
+    assert data["data"][2]["document_count"] == 2
 
 
 # ─── TEST 5: Yearly Spending Aggregation ──────────────────────────────────────
@@ -333,8 +317,7 @@ def test_spending_time_series_chronological_ordering(
     response = client_user_a.get("/dashboard/spending?period=month")
     assert response.status_code == 200
     data = response.json()
-    labels = [p["label"] for p in data["data"]]
-    assert labels == ["Jan 2026", "Mar 2026", "May 2026"]
+    assert [p["label"] for p in data["data"]] == ["Jan 2026", "Mar 2026", "May 2026"]
 
 
 # ─── TEST 7: Vendor Spending Breakdown & Percentage ───────────────────────────
@@ -594,6 +577,7 @@ def test_missing_document_date_falls_back_to_created_at(
     assert response.status_code == 200
     data = response.json()
     assert len(data["data"]) == 1
+    assert data["total_spent"] == 500.0
     assert data["data"][0]["label"] == "Apr 2026"
     assert data["data"][0]["start_date"] == "2026-04-01"
     assert data["data"][0]["amount"] == 500.0
@@ -833,3 +817,345 @@ def test_milestone_7_1_get_dashboard_remains_intact(
     assert data["summary"]["total_amount_spent"] == 500.0
     assert data["highlights"]["top_vendor"]["name"] == "Apex Corp"
     assert data["confidence"]["overall_level"] == "HIGH"
+
+
+# ─── SECTION 13 COMPREHENSIVE TESTS: Time-Based Semantics & Windowing ─────────
+
+def test_spending_multiple_receipts_same_day(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """1. Multiple receipts on the same day are aggregated into one point."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-16", total=500.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-16", total=700.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-16", total=120.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=day")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_spent"] == 1320.0
+    pt_16 = [p for p in data["data"] if p["start_date"] == "2026-08-16"][0]
+    assert pt_16["amount"] == 1320.0
+    assert pt_16["document_count"] == 3
+
+
+def test_spending_multiple_receipts_same_week(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """2. Multiple receipts in the same week are combined."""
+    # Mon Aug 10 to Sun Aug 16, 2026
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-10", total=2450.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-13", total=550.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-16", total=1200.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=week")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_spent"] == 4200.0
+    pt_week = [p for p in data["data"] if p["start_date"] == "2026-08-10"][0]
+    assert pt_week["end_date"] == "2026-08-16"
+    assert pt_week["amount"] == 4200.0
+    assert pt_week["document_count"] == 3
+
+
+def test_spending_multiple_receipts_same_month(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """3. Multiple receipts in the same calendar month are combined."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-01", total=1000.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-15", total=2500.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-31", total=1600.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=month")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_spent"] == 5100.0
+    pt_aug = [p for p in data["data"] if p["label"] == "Aug 2026"][0]
+    assert pt_aug["amount"] == 5100.0
+    assert pt_aug["document_count"] == 3
+
+
+def test_spending_multiple_receipts_same_year(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """4. Multiple receipts in the same year are aggregated."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-01-10", total=5000.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-06-20", total=8000.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-11-15", total=5432.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=year")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_spent"] == 18432.0
+    pt_2026 = [p for p in data["data"] if p["label"] == "2026"][0]
+    assert pt_2026["amount"] == 18432.0
+    assert pt_2026["document_count"] == 3
+
+
+def test_spending_documents_spanning_multiple_years(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """5. Documents spanning multiple decades are handled with proper time semantics per mode."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="1995-08-10", total=310.37),
+        _make_persisted_doc(USER_A_ID, date_str="2002-01-23", total=828.69),
+        _make_persisted_doc(USER_A_ID, date_str="2002-12-10", total=569.14),
+        _make_persisted_doc(USER_A_ID, date_str="2015-06-06", total=3280.00),
+        _make_persisted_doc(USER_A_ID, date_str="2016-12-03", total=49.52),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-19", total=5226.00),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    # DAY mode: shows the 6 distinct date buckets
+    res_day = client_user_a.get("/dashboard/spending?period=day").json()
+    assert len(res_day["data"]) == 6
+    assert res_day["total_spent"] == 10263.72
+    assert res_day["data"][-1]["start_date"] == "2026-08-19"
+    assert res_day["data"][-1]["amount"] == 5226.0
+
+    # YEAR mode: aggregates by year (2002 combines the 2 receipts)
+    res_year = client_user_a.get("/dashboard/spending?period=year").json()
+    assert len(res_year["data"]) == 5
+    assert res_year["total_spent"] == 10263.72
+    year_map = {p["label"]: p for p in res_year["data"]}
+    assert year_map["1995"]["amount"] == 310.37
+    assert year_map["2002"]["amount"] == 1397.83
+    assert year_map["2002"]["document_count"] == 2
+    assert year_map["2015"]["amount"] == 3280.00
+    assert year_map["2016"]["amount"] == 49.52
+    assert year_map["2026"]["amount"] == 5226.00
+
+
+def test_spending_documents_spanning_multiple_months(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """6. Documents spanning multiple months are bucketed into calendar months."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-05-10", total=4250.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-06-15", total=6840.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-07-20", total=3210.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-10", total=5100.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=month").json()
+    assert res["total_spent"] == 19400.0
+    assert len(res["data"]) == 4
+    m_map = {p["label"]: p["amount"] for p in res["data"]}
+    assert m_map["May 2026"] == 4250.0
+    assert m_map["Jun 2026"] == 6840.0
+    assert m_map["Jul 2026"] == 3210.0
+    assert m_map["Aug 2026"] == 5100.0
+
+
+def test_spending_documents_spanning_multiple_weeks(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """7. Documents spanning multiple weeks are bucketed into ISO calendar weeks."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-03", total=1000.0),  # Week of 03 Aug
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-10", total=2450.0),  # Week of 10 Aug
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-17", total=1850.0),  # Week of 17 Aug
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=week").json()
+    assert res["total_spent"] == 5300.0
+    assert len(res["data"]) == 3
+    w_map = {p["start_date"]: p["amount"] for p in res["data"]}
+    assert w_map["2026-08-03"] == 1000.0
+    assert w_map["2026-08-10"] == 2450.0
+    assert w_map["2026-08-17"] == 1850.0
+
+
+def test_spending_documents_spanning_multiple_days(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """8. Documents across multiple days show actual date buckets."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-10", total=350.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-12", total=1250.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-13", total=500.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-15", total=900.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-16", total=1320.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=day").json()
+    assert res["total_spent"] == 4320.0
+    assert len(res["data"]) == 5
+    d_map = {p["start_date"]: p["amount"] for p in res["data"]}
+    assert d_map["2026-08-10"] == 350.0
+    assert d_map["2026-08-12"] == 1250.0
+    assert d_map["2026-08-13"] == 500.0
+    assert d_map["2026-08-15"] == 900.0
+    assert d_map["2026-08-16"] == 1320.0
+
+
+def test_spending_missing_invalid_dates_safety(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """9. Documents with missing or invalid dates fall back to created_at safely."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-10", total=500.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-12", total=700.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=day").json()
+    assert res["total_spent"] == 1200.0
+    assert len(res["data"]) == 2
+    d_map = {p["start_date"]: p["amount"] for p in res["data"]}
+    assert d_map["2026-08-10"] == 500.0
+    assert d_map["2026-08-12"] == 700.0
+
+
+def test_spending_chronological_sorting_guarantee(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """10. Buckets are always sorted chronologically."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-03-01", total=300.0),
+        _make_persisted_doc(USER_A_ID, date_str="2024-01-01", total=100.0),
+        _make_persisted_doc(USER_A_ID, date_str="2025-06-01", total=200.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=year").json()
+    start_dates = [p["start_date"] for p in res["data"]]
+    assert start_dates == sorted(start_dates)
+
+
+def test_spending_year_boundary_crossing(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """11. Crossing year boundaries (e.g. Dec 2025 -> Jan 2026) is sorted chronologically."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2025-12-20", total=1500.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-01-10", total=2500.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=month").json()
+    labels = [p["label"] for p in res["data"] if p["amount"] > 0]
+    assert labels == ["Dec 2025", "Jan 2026"]
+
+
+def test_spending_week_boundary_crossing(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """12. Week boundaries correctly split Sunday vs next Monday."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-09", total=400.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-10", total=600.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=week").json()
+    assert len(res["data"]) == 2
+    w_map = {p["start_date"]: p for p in res["data"]}
+    assert w_map["2026-08-03"]["amount"] == 400.0  # Week containing Aug 09
+    assert w_map["2026-08-10"]["amount"] == 600.0  # Week containing Aug 10
+
+
+def test_spending_empty_dataset(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """13. Empty library returns empty list and 0.0 total for all periods."""
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=[]))
+
+    for p in ("day", "week", "month", "year"):
+        res = client_user_a.get(f"/dashboard/spending?period={p}").json()
+        assert res["data"] == []
+        assert res["total_spent"] == 0.0
+
+
+def test_spending_single_receipt(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """14. Single receipt placed in exact matching bucket."""
+    docs = [_make_persisted_doc(USER_A_ID, date_str="2026-08-16", total=100.0)]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res_day = client_user_a.get("/dashboard/spending?period=day").json()
+    assert len(res_day["data"]) == 1
+    assert res_day["total_spent"] == 100.0
+    assert res_day["data"][0]["start_date"] == "2026-08-16"
+    assert res_day["data"][0]["amount"] == 100.0
+
+
+def test_spending_distinct_bucket_structures_by_mode(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """15. DAY, WEEK, MONTH, YEAR produce genuinely distinct bucket counts and date boundaries."""
+    # 3 docs: 2 in same month (one in July, two in August across different weeks)
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-07-01", total=100.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-01", total=200.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-15", total=300.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    d_day = client_user_a.get("/dashboard/spending?period=day").json()
+    d_week = client_user_a.get("/dashboard/spending?period=week").json()
+    d_month = client_user_a.get("/dashboard/spending?period=month").json()
+    d_year = client_user_a.get("/dashboard/spending?period=year").json()
+
+    assert len(d_day["data"]) == 3    # 3 distinct days
+    assert len(d_week["data"]) == 3   # 3 distinct weeks
+    assert len(d_month["data"]) == 2  # 2 distinct months (July, August)
+    assert len(d_year["data"]) == 1   # 1 distinct year (2026)
+
+    # August in month mode has 200 + 300 = 500
+    aug_month = [p for p in d_month["data"] if p["label"] == "Aug 2026"][0]
+    assert aug_month["amount"] == 500.0
+    assert aug_month["document_count"] == 2
+
+    # 2026 in year mode has 100 + 200 + 300 = 600
+    assert d_year["data"][0]["amount"] == 600.0
+    assert d_year["data"][0]["document_count"] == 3
+
+
+def test_spending_headline_total_equals_visible_buckets_sum(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """16. Total for selected period strictly equals sum of returned visible buckets."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-01-10", total=500.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-15", total=1200.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-16", total=300.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    for p in ("day", "week", "month", "year"):
+        res = client_user_a.get(f"/dashboard/spending?period={p}").json()
+        bucket_sum = round(sum(pt["amount"] for pt in res["data"]), 2)
+        assert round(res["total_spent"], 2) == bucket_sum
+
+
+def test_spending_receipt_count_equals_visible_buckets_count(
+    client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """17. Total visible receipt count matches sum of document_count across buckets."""
+    docs = [
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-10", total=100.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-10", total=200.0),
+        _make_persisted_doc(USER_A_ID, date_str="2026-08-15", total=300.0),
+    ]
+    monkeypatch.setattr("app.services.dashboard._get_document_metadata", AsyncMock(return_value=docs))
+
+    res = client_user_a.get("/dashboard/spending?period=day").json()
+    visible_count = sum(pt["document_count"] for pt in res["data"])
+    assert visible_count == 3
+

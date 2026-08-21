@@ -303,7 +303,10 @@ async def test_c5_empty_library_graceful_handling():
     """Verify empty document library produces clean, non-hallucinated response."""
     settings = _make_settings()
 
-    with patch("app.services.dashboard._get_document_metadata", return_value=[]):
+    with patch("app.services.dashboard._get_document_metadata", return_value=[]), \
+         patch.object(AssistantChatProvider, "generate_reply", new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = "No records found for Gucci in your library."
+
         resp = await run_assistant_chat(
             user_id=USER_A_ID,
             message="How much did I spend at Gucci?",

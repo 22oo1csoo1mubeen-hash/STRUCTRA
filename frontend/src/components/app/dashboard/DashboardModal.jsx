@@ -162,8 +162,16 @@ export default function DashboardModal({
                 </div>
 
                 {/* Close button */}
-                <button
+                <motion.button
                   type="button"
+                  whileHover={{
+                    scale: 1.1,
+                    rotate: 90,
+                    backgroundColor: 'rgba(255,255,255,0.15)',
+                    color: '#ffffff',
+                  }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={{ duration: 0.18 }}
                   onClick={onClose}
                   aria-label="Close expanded view"
                   style={{
@@ -178,22 +186,14 @@ export default function DashboardModal({
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.12)';
-                    e.currentTarget.style.color = '#ffffff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                    e.currentTarget.style.color = 'rgba(255,255,255,0.70)';
+                    outline: 'none',
                   }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
-                </button>
+                </motion.button>
               </div>
 
               {/* ── Modal body (scrollable) ── */}
@@ -224,9 +224,18 @@ export default function DashboardModal({
  */
 export function EyeButton({ onClick, id, title = 'Expand details' }) {
   return (
-    <button
+    <motion.button
       id={id}
       type="button"
+      whileHover={{
+        scale: 1.15,
+        backgroundColor: 'rgba(249,115,22,0.18)',
+        borderColor: 'rgba(249,115,22,0.50)',
+        color: '#f97316',
+        boxShadow: '0 0 10px rgba(249,115,22,0.35)',
+      }}
+      whileTap={{ scale: 0.92 }}
+      transition={{ duration: 0.15 }}
       onClick={onClick}
       title={title}
       aria-label={title}
@@ -242,25 +251,14 @@ export function EyeButton({ onClick, id, title = 'Expand details' }) {
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        transition: 'all 0.15s ease',
         padding: 0,
         outline: 'none',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'rgba(249,115,22,0.12)';
-        e.currentTarget.style.borderColor = 'rgba(249,115,22,0.35)';
-        e.currentTarget.style.color = '#f97316';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-        e.currentTarget.style.color = 'rgba(255,255,255,0.50)';
       }}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
         <circle cx="12" cy="12" r="3" />
       </svg>
-    </button>
+    </motion.button>
   );
 }

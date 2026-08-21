@@ -202,6 +202,126 @@ class AssistantRetrievalService:
         sorted_docs = sorted(docs, key=sort_key, reverse=True)
         return sorted_docs[0] if sorted_docs else None
 
+    async def get_oldest_document(
+        self,
+        vendor: str | None = None,
+    ) -> CreatedDocumentMetadata | None:
+        """Retrieve the earliest document following STRUCTRA document date policy."""
+        docs = await self.get_all_documents()
+        if not docs:
+            return None
+
+        if vendor:
+            filtered = [
+                d for d in docs
+                if _vendor_matches((d.extraction_result or {}).get("vendor_company"), vendor)
+            ]
+            if not filtered:
+                return None
+            docs = filtered
+
+        def sort_key(d: CreatedDocumentMetadata):
+            ext = d.extraction_result or {}
+            doc_date = parse_document_date(ext.get("date"), fallback_dt=d.created_at)
+            ts = doc_date.toordinal() if doc_date else 9999999
+            created_ts = d.created_at.timestamp() if d.created_at else 9999999999
+            doc_id_str = str(d.id)
+            return (ts, created_ts, doc_id_str)
+
+        sorted_docs = sorted(docs, key=sort_key, reverse=False)
+        return sorted_docs[0] if sorted_docs else None
+
+    async def get_oldest_item(self, vendor: str | None = None) -> dict[str, Any] | None:
+        """Find line item from the earliest dated document across user's completed documents."""
+        if vendor:
+            docs = await self.get_documents_by_vendor(vendor)
+        else:
+            docs = await self.get_all_documents()
+        if not docs:
+            return None
+
+        def sort_key(d: CreatedDocumentMetadata):
+            ext = d.extraction_result or {}
+            doc_date = parse_document_date(ext.get("date"), fallback_dt=d.created_at)
+            ts = doc_date.toordinal() if doc_date else 9999999
+            created_ts = d.created_at.timestamp() if d.created_at else 9999999999
+            return (ts, created_ts)
+
+        sorted_docs = sorted(docs, key=sort_key, reverse=False)
+        for doc in sorted_docs:
+            ext = doc.extraction_result or {}
+            items = ext.get("line_items") or []
+            if isinstance(items, list) and items:
+                for it in items:
+                    if isinstance(it, dict) and (it.get("description") or it.get("item")):
+                        desc = it.get("description") or it.get("item")
+                        raw_qty = it.get("quantity") or 1.0
+                        qty_dec = parse_decimal_safe(raw_qty) or Decimal("1.0")
+                        raw_lt = it.get("line_total") or it.get("total")
+                        amt_dec = parse_decimal_safe(raw_lt)
+                        raw_up = it.get("unit_price")
+                        up_dec = parse_decimal_safe(raw_up)
+                        if amt_dec is None and up_dec is not None:
+                            amt_dec = up_dec * qty_dec
+                        return {
+                            "name": desc.strip(),
+                            "amount": float(amt_dec.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)) if amt_dec is not None else None,
+                            "unit_price": float(up_dec.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)) if up_dec is not None else None,
+                            "quantity": float(qty_dec),
+                            "vendor": ext.get("vendor_company"),
+                            "date": ext.get("date"),
+                            "document_id": str(doc.id),
+                            "filename": doc.filename,
+                        }
+        return None
+
+    async def get_library_stats(self) -> dict[str, Any]:
+        """Compute summary statistics, date bounds, and compact overview of all library documents."""
+        docs = await self.get_all_documents()
+        if not docs:
+            return {
+                "total_documents": 0,
+                "total_spent": 0.0,
+                "earliest_date": None,
+                "latest_date": None,
+                "documents": [],
+            }
+
+        dated_docs = []
+        tot_spend = Decimal("0.00")
+        doc_summaries = []
+
+        for d in docs:
+            ext = d.extraction_result or {}
+            doc_d = parse_document_date(ext.get("date"), fallback_dt=d.created_at)
+            raw_tot = parse_decimal_safe(ext.get("total"))
+            if raw_tot is not None and raw_tot > Decimal("0"):
+                tot_spend += raw_tot
+            if doc_d:
+                dated_docs.append(doc_d)
+
+            items = ext.get("line_items") or []
+            item_names = [it.get("description") for it in items if isinstance(it, dict) and it.get("description")]
+            doc_summaries.append({
+                "filename": d.filename,
+                "vendor": ext.get("vendor_company") or "Unknown Vendor",
+                "date": ext.get("date") or (doc_d.strftime("%Y-%m-%d") if doc_d else "N/A"),
+                "total": float(raw_tot.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)) if raw_tot is not None else 0.0,
+                "items": item_names[:10],
+            })
+
+        dated_docs.sort()
+        earliest_str = dated_docs[0].strftime("%d-%b-%Y") if dated_docs else None
+        latest_str = dated_docs[-1].strftime("%d-%b-%Y") if dated_docs else None
+
+        return {
+            "total_documents": len(docs),
+            "total_spent": float(tot_spend.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)),
+            "earliest_date": earliest_str,
+            "latest_date": latest_str,
+            "documents": doc_summaries,
+        }
+
     async def get_documents_by_vendor(
         self,
         vendor: str,

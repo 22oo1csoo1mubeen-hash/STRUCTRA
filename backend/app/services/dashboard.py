@@ -177,44 +177,6 @@ def parse_document_date(date_val: Any, fallback_dt: datetime | None = None) -> d
     return None
 
 
-def _get_period_bucket(d: date, period: SpendingPeriod) -> tuple[str, str, str, str, date]:
-    """Calculate bucket key, start_date (ISO), end_date (ISO), display label, and sort_date."""
-    if period == "day":
-        start_str = d.isoformat()
-        end_str = d.isoformat()
-        label = d.strftime("%d %b %Y")
-        key = start_str
-        return key, start_str, end_str, label, d
-
-    if period == "week":
-        start_d = d - timedelta(days=d.weekday())
-        end_d = start_d + timedelta(days=6)
-        start_str = start_d.isoformat()
-        end_str = end_d.isoformat()
-        label = f"{start_d.strftime('%d %b')} - {end_d.strftime('%d %b %Y')}"
-        iso_year, iso_week, _ = d.isocalendar()
-        key = f"{iso_year}-W{iso_week:02d}"
-        return key, start_str, end_str, label, start_d
-
-    if period == "month":
-        start_d = date(d.year, d.month, 1)
-        _, last_day = calendar.monthrange(d.year, d.month)
-        end_d = date(d.year, d.month, last_day)
-        start_str = start_d.isoformat()
-        end_str = end_d.isoformat()
-        label = d.strftime("%b %Y")
-        key = f"{d.year:04d}-{d.month:02d}"
-        return key, start_str, end_str, label, start_d
-
-    start_d = date(d.year, 1, 1)
-    end_d = date(d.year, 12, 31)
-    start_str = start_d.isoformat()
-    end_str = end_d.isoformat()
-    label = f"{d.year}"
-    key = f"{d.year:04d}"
-    return key, start_str, end_str, label, start_d
-
-
 _USER_DOCS_INFLIGHT: dict[str, asyncio.Future] = {}
 
 
@@ -595,42 +557,132 @@ async def get_user_dashboard_data(
 
 # ─── Milestone 7.2 Spending Over Time Analytics ──────────────────────────────
 
+# Display limits for each granularity as per specification:
+# DAY: latest ~7–8 relevant date buckets
+# WEEK: latest ~3–5 week buckets
+# MONTH: latest ~5–7 month buckets
+# YEAR: latest ~5–7 year buckets
+_SPENDING_BUCKET_LIMITS: dict[SpendingPeriod, int | None] = {
+    "day": 8,
+    "week": 4,
+    "month": 7,
+    "year": None,  # Cover ALL receipts across all years
+}
+
+
 async def get_user_spending_analytics(
     *,
     user_id: str,
     period: SpendingPeriod,
     settings: Settings,
 ) -> SpendingAnalyticsResponse:
-    """Aggregate spending over time chronologically into day, week, month, or year buckets."""
+    """Aggregate spending over time chronologically into day, week, month, or year buckets.
+    
+    1. Filter valid documents with non-negative totals and parseable dates.
+    2. Aggregate ALL documents by requested time granularity (day, week, month, year) BEFORE limiting.
+    3. Chronologically sort buckets (oldest to newest).
+    4. Select the latest N buckets according to mode display limits (DAY: ~8, WEEK: ~5, MONTH: ~7, YEAR: ~7).
+    5. Calculate visible total_spent and doc_count strictly matching visible points.
+    """
     records = await _fetch_user_documents(user_id, settings)
 
-    total_spent_dec = Decimal("0.00")
-    buckets: dict[str, dict[str, Any]] = {}
-
+    # 1. Filter usable documents with valid amounts and dates
+    valid_docs: list[tuple[date, Decimal]] = []
     for doc in records:
         ext = doc.extraction_result or {}
         raw_total = ext.get("total")
         doc_total_dec = parse_decimal_safe(raw_total)
 
         if doc_total_dec is not None and doc_total_dec >= Decimal("0"):
-            total_spent_dec += doc_total_dec
-
             doc_date = parse_document_date(ext.get("date"), fallback_dt=doc.created_at)
             if doc_date is not None:
-                key, start_str, end_str, label, sort_date = _get_period_bucket(doc_date, period)
-                if key not in buckets:
-                    buckets[key] = {
-                        "start_date": start_str,
-                        "end_date": end_str,
-                        "label": label,
-                        "amount_dec": Decimal("0.00"),
-                        "doc_count": 0,
-                        "sort_date": sort_date,
-                    }
-                buckets[key]["amount_dec"] += doc_total_dec
-                buckets[key]["doc_count"] += 1
+                valid_docs.append((doc_date, doc_total_dec))
 
-    sorted_buckets = sorted(buckets.values(), key=lambda b: b["sort_date"])
+    if not valid_docs:
+        return SpendingAnalyticsResponse(
+            period=period,
+            data=[],
+            total_spent=0.0,
+        )
+
+    # 2. Aggregate ALL documents by requested period granularity BEFORE limiting
+    buckets_map: dict[str, dict[str, Any]] = {}
+
+    for doc_date, amount_dec in valid_docs:
+        if period == "day":
+            key = doc_date.isoformat()
+            if key not in buckets_map:
+                buckets_map[key] = {
+                    "start_date": key,
+                    "end_date": key,
+                    "label": doc_date.strftime("%d %b %Y"),
+                    "amount_dec": Decimal("0.00"),
+                    "doc_count": 0,
+                    "sort_key": doc_date,
+                }
+            buckets_map[key]["amount_dec"] += amount_dec
+            buckets_map[key]["doc_count"] += 1
+
+        elif period == "week":
+            mon = doc_date - timedelta(days=doc_date.weekday())
+            sun = mon + timedelta(days=6)
+            iso_year, iso_week, _ = doc_date.isocalendar()
+            key = f"{iso_year:04d}-W{iso_week:02d}"
+            if key not in buckets_map:
+                buckets_map[key] = {
+                    "start_date": mon.isoformat(),
+                    "end_date": sun.isoformat(),
+                    "label": f"{mon.strftime('%d %b')} - {sun.strftime('%d %b %Y')}",
+                    "amount_dec": Decimal("0.00"),
+                    "doc_count": 0,
+                    "sort_key": mon,
+                }
+            buckets_map[key]["amount_dec"] += amount_dec
+            buckets_map[key]["doc_count"] += 1
+
+        elif period == "month":
+            key = f"{doc_date.year:04d}-{doc_date.month:02d}"
+            if key not in buckets_map:
+                st = date(doc_date.year, doc_date.month, 1)
+                _, last_day = calendar.monthrange(doc_date.year, doc_date.month)
+                en = date(doc_date.year, doc_date.month, last_day)
+                buckets_map[key] = {
+                    "start_date": st.isoformat(),
+                    "end_date": en.isoformat(),
+                    "label": st.strftime("%b %Y"),
+                    "amount_dec": Decimal("0.00"),
+                    "doc_count": 0,
+                    "sort_key": st,
+                }
+            buckets_map[key]["amount_dec"] += amount_dec
+            buckets_map[key]["doc_count"] += 1
+
+        elif period == "year":
+            key = str(doc_date.year)
+            if key not in buckets_map:
+                st = date(doc_date.year, 1, 1)
+                en = date(doc_date.year, 12, 31)
+                buckets_map[key] = {
+                    "start_date": st.isoformat(),
+                    "end_date": en.isoformat(),
+                    "label": key,
+                    "amount_dec": Decimal("0.00"),
+                    "doc_count": 0,
+                    "sort_key": st,
+                }
+            buckets_map[key]["amount_dec"] += amount_dec
+            buckets_map[key]["doc_count"] += 1
+
+    # 3. Sort buckets chronologically (oldest to newest)
+    sorted_buckets = sorted(buckets_map.values(), key=lambda b: b["sort_key"])
+
+    # 4. Slicing: select latest N buckets based on granularity limit (or all if None)
+    limit = _SPENDING_BUCKET_LIMITS.get(period)
+    visible_buckets = sorted_buckets[-limit:] if limit is not None else sorted_buckets
+
+    # 5. Compute total_spent strictly as the sum of visible points in the series
+    visible_total_dec = sum((b["amount_dec"] for b in visible_buckets), Decimal("0.00"))
+    total_spent_float = float(visible_total_dec.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP))
 
     points = [
         SpendingPoint(
@@ -640,10 +692,8 @@ async def get_user_spending_analytics(
             amount=float(b["amount_dec"].quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)),
             document_count=b["doc_count"],
         )
-        for b in sorted_buckets
+        for b in visible_buckets
     ]
-
-    total_spent_float = float(total_spent_dec.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP))
 
     return SpendingAnalyticsResponse(
         period=period,

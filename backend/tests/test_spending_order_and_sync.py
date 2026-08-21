@@ -56,7 +56,6 @@ def test_day_period_multi_year_chronological_ordering(
     client_user_a: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """DAY period returns points strictly sorted by start_date ascending, even across multiple years."""
-    # Provide documents out of order spanning 2015 to 2026
     raw_dates = [
         ("2026-08-16", 100.0),
         ("2015-06-06", 50.0),
@@ -86,8 +85,6 @@ def test_day_period_multi_year_chronological_ordering(
         "2026-08-16",
     ]
     assert start_dates == expected_dates
-
-    # Check total spend
     assert data["total_spent"] == 850.0
 
 
@@ -114,6 +111,7 @@ def test_week_period_multi_year_chronological_ordering(
     start_dates = [p["start_date"] for p in points]
     assert start_dates == sorted(start_dates)
     assert len(points) == 3
+    assert data["total_spent"] == 600.0
 
 
 def test_month_period_multi_year_chronological_ordering(
@@ -145,6 +143,8 @@ def test_month_period_multi_year_chronological_ordering(
         "2026-02-01",
     ]
     assert start_dates == expected_start_dates
+    assert len(points) == 4
+    assert data["total_spent"] == 1200.0
 
 
 def test_year_period_chronological_ordering(
@@ -176,3 +176,7 @@ def test_year_period_chronological_ordering(
         "2026-01-01",
     ]
     assert start_dates == expected_start_dates
+    assert len(points) == 4
+    assert data["total_spent"] == 1000.0
+
+

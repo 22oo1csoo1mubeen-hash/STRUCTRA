@@ -18,6 +18,44 @@ function formatCompactCurrency(val) {
   return `₹${Math.round(val)}`;
 }
 
+function formatXAxisLabel(label, period) {
+  if (!label) return '';
+  if (period === 'week') {
+    // e.g. "16 Mar - 22 Mar 2026" -> "16-22 Mar '26"
+    // e.g. "27 Jul - 02 Aug 2026" -> "27 Jul - 2 Aug '26"
+    // e.g. "29 Jan - 04 Feb 2024" -> "29 Jan - 4 Feb '24"
+    const mRange = label.match(/^(\d{1,2})\s+([A-Za-z]{3})\s*-\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/);
+    if (mRange) {
+      const [, d1, m1, d2, m2, yr] = mRange;
+      const yrShort = yr.slice(-2);
+      const day1 = parseInt(d1, 10);
+      const day2 = parseInt(d2, 10);
+      if (m1.toLowerCase() === m2.toLowerCase()) {
+        return `${day1}-${day2} ${m1} '${yrShort}`;
+      }
+      return `${day1} ${m1} - ${day2} ${m2} '${yrShort}`;
+    }
+    const mWeekOf = label.match(/Week\s+of\s+(\d{1,2}\s+[A-Za-z]{3})\s+(\d{4})/i);
+    if (mWeekOf) {
+      return `${mWeekOf[1]} '${mWeekOf[2].slice(-2)}`;
+    }
+    return label;
+  }
+  if (period === 'day') {
+    // e.g. "10 Aug 1995" -> "10 Aug '95"
+    const mDay = label.match(/^(\d{1,2}\s+[A-Za-z]{3})\s+(\d{4})$/);
+    if (mDay) return `${mDay[1]} '${mDay[2].slice(-2)}`;
+    return label;
+  }
+  if (period === 'month') {
+    // e.g. "August 1995" or "Aug 1995" -> "Aug '95"
+    const mMonth = label.match(/^([A-Za-z]{3,9})\s+(\d{4})$/);
+    if (mMonth) return `${mMonth[1].slice(0, 3)} '${mMonth[2].slice(-2)}`;
+    return label;
+  }
+  return label;
+}
+
 /**
  * SpendingChartSection
  * Transparent glass styling matching the document library.
@@ -352,24 +390,34 @@ export default function SpendingChartSection({
 
             {/* X Axis Labels */}
             {points.map((pt, i) => {
-              const showLabel =
-                points.length <= 8 ||
-                i === 0 ||
-                i === points.length - 1 ||
-                i % Math.ceil(points.length / 5) === 0;
+              const maxLabels = period === 'week' ? 4 : (period === 'year' ? 8 : 6);
+              const step = Math.max(1, Math.ceil(points.length / maxLabels));
+              const isFirst = i === 0;
+              const isLast = i === points.length - 1;
+              const showLabel = period === 'week' || isFirst || isLast || (i % step === 0 && (points.length - 1 - i) >= Math.floor(step / 2));
               if (!showLabel) return null;
-              const x = getX(i);
+
+              let x = getX(i);
+              let textAnchor = 'middle';
+              if (isFirst && points.length > 1) {
+                textAnchor = 'start';
+                x = Math.max(padding.left - 4, x);
+              } else if (isLast && points.length > 1) {
+                textAnchor = 'end';
+                x = Math.min(padding.left + chartW + 4, x);
+              }
+
               return (
                 <text
                   key={i}
                   x={x}
                   y={padding.top + chartH + 14}
-                  textAnchor="middle"
-                  fill="rgba(255, 255, 255, 0.40)"
+                  textAnchor={textAnchor}
+                  fill="rgba(255, 255, 255, 0.50)"
                   fontSize="9"
                   fontFamily="'Inter', system-ui, sans-serif"
                 >
-                  {pt.label}
+                  {formatXAxisLabel(pt.label, period)}
                 </text>
               );
             })}

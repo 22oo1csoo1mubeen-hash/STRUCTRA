@@ -57,13 +57,21 @@ export function broadcastDashboardInvalidation(userId = null) {
   }
 }
 
+function getSmartPeriod(docCount) {
+  const count = Number(docCount) || 0;
+  if (count <= 5) return 'day';
+  if (count <= 15) return 'week';
+  if (count <= 40) return 'month';
+  return 'year';
+}
+
 export function DashboardProvider({ children }) {
   const { user } = useAuth();
   const currentUserId = user?.id || null;
 
   // Active dashboard data states
   const [dashboardData, setDashboardData] = useState(null);
-  const [spendingPeriod, setSpendingPeriodState] = useState('month');
+  const [spendingPeriod, setSpendingPeriodState] = useState('day');
   const [spendingData, setSpendingData] = useState(null);
   const [vendorData, setVendorData] = useState(null);
   const [itemData, setItemData] = useState(null);
@@ -84,6 +92,7 @@ export function DashboardProvider({ children }) {
   const activeFetchVersionRef = useRef(0);
   const userSessionIdRef = useRef(currentUserId);
   const currentPeriodRef = useRef(spendingPeriod);
+  const userManualPeriodRef = useRef(false);
   const debounceTimerRef = useRef(null);
 
   // Keep period ref in sync
@@ -95,6 +104,7 @@ export function DashboardProvider({ children }) {
   useEffect(() => {
     if (userSessionIdRef.current !== currentUserId) {
       userSessionIdRef.current = currentUserId;
+      userManualPeriodRef.current = false;
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
@@ -124,7 +134,7 @@ export function DashboardProvider({ children }) {
     async (isBackground = false, targetPeriod = null) => {
       if (!currentUserId) return;
 
-      const activePeriod = targetPeriod || currentPeriodRef.current || 'month';
+      const activePeriod = targetPeriod || currentPeriodRef.current || 'day';
       const fetchVersion = ++activeFetchVersionRef.current;
 
       if (!isBackground && !hasLoadedOnce) {
@@ -160,7 +170,28 @@ export function DashboardProvider({ children }) {
           return;
         }
 
-        if (dashRes.status === 'fulfilled') setDashboardData(dashRes.value);
+        if (dashRes.status === 'fulfilled') {
+          const dData = dashRes.value;
+          setDashboardData(dData);
+
+          // If user hasn't manually selected a period, auto-adjust period to document count
+          if (!userManualPeriodRef.current && !targetPeriod) {
+            const totalDocs = dData?.summary?.total_documents ?? 0;
+            const smartPeriod = getSmartPeriod(totalDocs);
+            if (smartPeriod !== activePeriod) {
+              setSpendingPeriodState(smartPeriod);
+              currentPeriodRef.current = smartPeriod;
+              // Background fetch for the adjusted smart period
+              getSpendingAnalytics(smartPeriod)
+                .then((sp) => {
+                  if (fetchVersion === activeFetchVersionRef.current) {
+                    setSpendingData(sp);
+                  }
+                })
+                .catch(() => {});
+            }
+          }
+        }
         if (spendingRes.status === 'fulfilled') setSpendingData(spendingRes.value);
         if (vendorRes.status === 'fulfilled') setVendorData(vendorRes.value);
         if (itemRes.status === 'fulfilled') setItemData(itemRes.value);
@@ -200,6 +231,7 @@ export function DashboardProvider({ children }) {
    */
   const setSpendingPeriod = useCallback(
     async (newPeriod) => {
+      userManualPeriodRef.current = true;
       if (newPeriod === spendingPeriod) return;
       setSpendingPeriodState(newPeriod);
       currentPeriodRef.current = newPeriod;

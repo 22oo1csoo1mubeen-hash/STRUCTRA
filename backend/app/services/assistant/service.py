@@ -143,6 +143,24 @@ def _build_deterministic_fallback_reply(
         d_str = ext.get("date") or "recently"
         return f"Your latest receipt is from {v_name} on {d_str} for a total of {tot_str}."
 
+    if intent == AssistantIntent.OLDEST_RECEIPT:
+        doc = retrieved_payload.get("document") or retrieved_payload.get("oldest_document")
+        if not doc:
+            return f"I couldn't find any saved receipts{' from ' + vendor if vendor else ''} in your library."
+        ext = doc.extraction_result or {}
+        v_name = ext.get("vendor_company") or "Unknown Vendor"
+        tot_str = _fmt_currency(ext.get("total"))
+        d_str = ext.get("date") or "in the past"
+        return f"Your oldest receipt is from {v_name} on {d_str} for a total of {tot_str} ({doc.filename})."
+
+    if intent == AssistantIntent.OLDEST_ITEM:
+        it = retrieved_payload.get("oldest_item")
+        if not it:
+            return "No line items found in your library."
+        v_str = f" from {it['vendor']}" if it.get("vendor") else ""
+        d_str = f" on {it['date']}" if it.get("date") else ""
+        return f"Your oldest recorded purchase is '{it['name']}' costing {_fmt_currency(it.get('amount') or it.get('unit_price'))}{v_str}{d_str}."
+
     if intent == AssistantIntent.TOTAL_SPENDING:
         tot = retrieved_payload.get("total_spending") or {}
         tot_str = _fmt_currency(tot.get("total_spent", 0.0))
@@ -259,7 +277,9 @@ async def run_assistant_chat(
                 start_date=parsed_intent.start_date,
                 end_date=parsed_intent.end_date,
             )
+            lib_stats = await retrieval.get_library_stats()
             retrieved_payload["temporal_documents"] = temp_docs
+            retrieved_payload["library_stats"] = lib_stats
 
         elif intent == AssistantIntent.ITEM_HISTORY and parsed_intent.item_query:
             hist_res = await retrieval.get_item_history(
@@ -271,6 +291,15 @@ async def run_assistant_chat(
         elif intent in (AssistantIntent.LATEST_RECEIPT_ITEMS, AssistantIntent.LATEST_RECEIPT):
             latest_doc = await retrieval.get_latest_document(vendor=parsed_intent.vendor)
             retrieved_payload["document"] = latest_doc
+
+        elif intent == AssistantIntent.OLDEST_RECEIPT:
+            oldest_doc = await retrieval.get_oldest_document(vendor=parsed_intent.vendor)
+            retrieved_payload["document"] = oldest_doc
+            retrieved_payload["oldest_document"] = oldest_doc
+
+        elif intent == AssistantIntent.OLDEST_ITEM:
+            oldest_it = await retrieval.get_oldest_item(vendor=parsed_intent.vendor)
+            retrieved_payload["oldest_item"] = oldest_it
 
         elif intent == AssistantIntent.VENDOR_SPENDING:
             v_spend = await retrieval.calculate_vendor_spending(vendor=parsed_intent.vendor or "")
@@ -319,11 +348,14 @@ async def run_assistant_chat(
             pass
 
         else:
-            # General query: retrieve summary and recent documents
+            # General query: retrieve complete library overview and summary
             all_docs = await retrieval.get_all_documents()
             tot_spend = await retrieval.calculate_total_spending()
+            lib_stats = await retrieval.get_library_stats()
+            retrieved_payload["all_documents"] = all_docs
             retrieved_payload["recent_documents"] = all_docs[:10]
             retrieved_payload["total_spending"] = tot_spend
+            retrieved_payload["library_stats"] = lib_stats
 
     t_retrieval = time.perf_counter()
 

@@ -503,7 +503,7 @@ function MenuBtn({ icon, label, danger, onClick }) {
 }
 
 /* ─── Grid Card ───────────────────────────────────── */
-function GridCard({ doc, onView, onDelete, onDownload }) {
+function GridCard({ doc, onView, onDelete, onDownload, isExporting = false }) {
   const [hovered, setHovered] = useState(false);
   const docType = inferDocType(doc.filename);
   const date    = fmtDate(doc.document_date, doc.created_at);
@@ -634,11 +634,12 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
             {/* Export / Download Button */}
             <button
               type="button"
-              aria-label="Export document"
-              title="Export / Download document"
+              aria-label={isExporting ? "Exporting document…" : "Export document"}
+              title={isExporting ? "Exporting document…" : "Export / Download document"}
+              disabled={isExporting}
               onClick={(e) => {
                 e.stopPropagation();
-                onDownload?.(doc);
+                if (!isExporting) onDownload?.(doc);
               }}
               style={{
                 width: 32,
@@ -647,28 +648,36 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: 8,
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.11)',
-                cursor: 'pointer',
-                color: 'rgba(255,255,255,0.65)',
+                background: isExporting ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.06)',
+                border: isExporting ? '1px solid rgba(16,185,129,0.45)' : '1px solid rgba(255,255,255,0.11)',
+                cursor: isExporting ? 'not-allowed' : 'pointer',
+                color: isExporting ? '#10b981' : 'rgba(255,255,255,0.65)',
                 transition: 'all 0.15s ease',
               }}
               onMouseEnter={(e) => {
+                if (isExporting) return;
                 e.currentTarget.style.background = 'rgba(16,185,129,0.18)';
                 e.currentTarget.style.borderColor = 'rgba(16,185,129,0.45)';
                 e.currentTarget.style.color = '#10b981';
               }}
               onMouseLeave={(e) => {
+                if (isExporting) return;
                 e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.11)';
                 e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
+              {isExporting ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'lib-spin 0.8s linear infinite' }}>
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              )}
             </button>
 
             {/* Delete Button */}
@@ -719,7 +728,7 @@ function GridCard({ doc, onView, onDelete, onDownload }) {
 }
 
 /* ─── List Card ───────────────────────────────────── */
-function ListCard({ doc, onView, onDelete, onDownload }) {
+function ListCard({ doc, onView, onDelete, onDownload, isExporting = false }) {
   const [hovered, setHovered] = useState(false);
   const docType = inferDocType(doc.filename);
   const date    = fmtDate(doc.document_date, doc.created_at);
@@ -797,11 +806,12 @@ function ListCard({ doc, onView, onDelete, onDownload }) {
         {/* Export / Download Button */}
         <button
           type="button"
-          aria-label="Export document"
-          title="Export / Download document"
+          aria-label={isExporting ? "Exporting document…" : "Export document"}
+          title={isExporting ? "Exporting document…" : "Export / Download document"}
+          disabled={isExporting}
           onClick={(e) => {
             e.stopPropagation();
-            onDownload?.(doc);
+            if (!isExporting) onDownload?.(doc);
           }}
           style={{
             width: 32,
@@ -810,28 +820,36 @@ function ListCard({ doc, onView, onDelete, onDownload }) {
             alignItems: 'center',
             justifyContent: 'center',
             borderRadius: 8,
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.11)',
-            cursor: 'pointer',
-            color: 'rgba(255,255,255,0.65)',
+            background: isExporting ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.06)',
+            border: isExporting ? '1px solid rgba(16,185,129,0.45)' : '1px solid rgba(255,255,255,0.11)',
+            cursor: isExporting ? 'not-allowed' : 'pointer',
+            color: isExporting ? '#10b981' : 'rgba(255,255,255,0.65)',
             transition: 'all 0.15s ease',
           }}
           onMouseEnter={(e) => {
+            if (isExporting) return;
             e.currentTarget.style.background = 'rgba(16,185,129,0.18)';
             e.currentTarget.style.borderColor = 'rgba(16,185,129,0.45)';
             e.currentTarget.style.color = '#10b981';
           }}
           onMouseLeave={(e) => {
+            if (isExporting) return;
             e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
             e.currentTarget.style.borderColor = 'rgba(255,255,255,0.11)';
             e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
+          {isExporting ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'lib-spin 0.8s linear infinite' }}>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          )}
         </button>
 
         {/* Delete Button */}
@@ -880,11 +898,11 @@ function ListCard({ doc, onView, onDelete, onDownload }) {
 }
 
 /* ─── Public Export ──────────────────────────────── */
-export default function DocumentCard({ doc, viewMode = 'grid', onView, onDelete, onDownload }) {
+export default function DocumentCard({ doc, viewMode = 'grid', onView, onDelete, onDownload, isExporting = false }) {
   return viewMode === 'list' ? (
-    <ListCard doc={doc} onView={onView} onDelete={onDelete} onDownload={onDownload} />
+    <ListCard doc={doc} onView={onView} onDelete={onDelete} onDownload={onDownload} isExporting={isExporting} />
   ) : (
-    <GridCard doc={doc} onView={onView} onDelete={onDelete} onDownload={onDownload} />
+    <GridCard doc={doc} onView={onView} onDelete={onDelete} onDownload={onDownload} isExporting={isExporting} />
   );
 }
 

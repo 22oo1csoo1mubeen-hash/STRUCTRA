@@ -477,20 +477,34 @@ export default function KpiOverview({ summary, highlights, loading, vendorData }
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
                 <span>{expItem.vendor || 'Unknown vendor'} • {expItem.quantity ? `${expItem.quantity} qty` : '1 qty'}</span>
                 {expItem.document_id && (
-                  <button
+                  <motion.button
                     type="button"
+                    whileHover={{
+                      scale: 1.05,
+                      x: 2,
+                      color: '#ffffff',
+                      textShadow: '0 0 10px rgba(249,115,22,0.8)',
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
                     onClick={() => handleOpenDoc(expItem.document_id, expItem.name)}
                     style={{
-                      background: 'none',
-                      border: 'none',
+                      background: 'rgba(249, 115, 22, 0.12)',
+                      border: '1px solid rgba(249, 115, 22, 0.35)',
+                      padding: '4px 10px',
+                      borderRadius: 6,
                       color: '#f97316',
                       fontWeight: 700,
                       cursor: 'pointer',
                       fontSize: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      outline: 'none',
                     }}
                   >
                     View Document →
-                  </button>
+                  </motion.button>
                 )}
               </div>
             </div>

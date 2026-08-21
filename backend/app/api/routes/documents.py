@@ -73,6 +73,11 @@ from app.services.storage import (
     find_document_storage_path,
     upload_document_to_storage,
 )
+from app.services.export import (
+    generate_document_excel_bytes,
+    generate_export_filename,
+    map_document_to_export_data,
+)
 
 
 class TempUploadSession(BaseModel):
@@ -404,6 +409,67 @@ async def download_document(
         content=content,
         media_type=content_type,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{download_name}"},
+    )
+
+
+@router.get(
+    "/{document_id}/export",
+    summary="Export one owned document as a formatted STRUCTRA Excel (.xlsx) workbook",
+    responses={
+        404: {"description": "Document not found."},
+        503: {"description": "Document metadata service is unavailable."},
+    },
+)
+async def export_document(
+    document_id: UUID,
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> Response:
+    """Generate and return a professional STRUCTRA Excel report (.xlsx) for an authenticated user's document."""
+    metadata = await get_document_metadata(
+        document_id=document_id, user_id=current_user.user_id, settings=settings
+    )
+    if metadata is not None:
+        export_data = map_document_to_export_data(metadata)
+    else:
+        # Fallback to active temp upload session (e.g. document on the upload result workspace before Save to Library)
+        session = _get_temp_upload_session(document_id, current_user.user_id)
+        if session is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+        try:
+            content = await download_document_from_storage(session.storage_path, settings)
+            content_hash = hash_document_content(content)
+            cached_extraction = await default_extraction_cache.get(content_hash, settings=settings)
+            ext_dict = cached_extraction.model_dump(mode="json") if cached_extraction else {}
+        except Exception:
+            ext_dict = {}
+
+        temp_doc_dict = {
+            "id": str(document_id),
+            "user_id": current_user.user_id,
+            "filename": session.filename,
+            "storage_path": session.storage_path,
+            "content_type": session.content_type,
+            "size": session.size,
+            "status": "completed",
+            "created_at": session.created_at.isoformat(),
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+            "extraction_result": ext_dict,
+            "quality_result": {},
+        }
+        export_data = map_document_to_export_data(temp_doc_dict)
+
+    excel_bytes = generate_document_excel_bytes(export_data)
+    filename = generate_export_filename(export_data)
+    download_name = quote(filename, safe="")
+
+    return Response(
+        content=excel_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"; filename*=UTF-8\'\'{download_name}'
+        },
     )
 
 

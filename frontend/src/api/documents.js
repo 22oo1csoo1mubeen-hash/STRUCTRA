@@ -170,6 +170,55 @@ export async function downloadDocument(documentId) {
 }
 
 /**
+ * Exports a processed document as a formatted STRUCTRA Excel (.xlsx) workbook.
+ * 
+ * @param {string} documentId - The target document ID to export.
+ * @returns {Promise<{blob: Blob, filename: string}>} The Excel workbook blob and clean filename.
+ */
+export async function exportDocument(documentId) {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  if (sessionError || !session) {
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  const response = await fetch(`${API_URL}/documents/${documentId}/export`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`
+    }
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { detail: response.statusText };
+    }
+    const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Document export failed. Please try again.');
+    throw new Error(errorMessage);
+  }
+
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = 'STRUCTRA_EXPORT_document.xlsx';
+  if (contentDisposition && contentDisposition.includes('filename*=')) {
+    const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = decodeURIComponent(filenameMatch[1]);
+    }
+  } else if (contentDisposition && contentDisposition.includes('filename=')) {
+    const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1];
+    }
+  }
+
+  const blob = await response.blob();
+  return { blob, filename };
+}
+
+/**
  * Retrieves detailed metadata, saved extraction, and quality signals for one document.
  * 
  * @param {string} documentId - The target document ID.

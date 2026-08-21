@@ -279,8 +279,17 @@ export default function HighestReceiptSection({ highlights, loading }) {
             </div>
 
             {receipt.document_id && (
-              <button
+              <motion.button
                 type="button"
+                whileHover={{
+                  scale: 1.02,
+                  y: -1,
+                  backgroundColor: 'rgba(249,115,22,0.20)',
+                  borderColor: 'rgba(249,115,22,0.60)',
+                  boxShadow: '0 6px 20px rgba(249,115,22,0.35)',
+                }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.15 }}
                 onClick={() => {
                   handleOpenDoc(receipt.document_id, receipt.filename);
                   setModalOpen(false);
@@ -301,13 +310,25 @@ export default function HighestReceiptSection({ highlights, loading }) {
                   fontFamily: "'Inter', system-ui, sans-serif",
                   width: '100%',
                   marginTop: 4,
+                  outline: 'none',
                 }}
               >
                 View Document
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <motion.svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  animate={{ x: [0, 3, 0] }}
+                  transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+                >
                   <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </button>
+                </motion.svg>
+              </motion.button>
             )}
           </div>
         ) : (

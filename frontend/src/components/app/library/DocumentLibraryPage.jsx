@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { listDocuments, deleteDocument, downloadDocument, getDocumentDetail, saveDocument } from '../../../api/documents';
+import { listDocuments, deleteDocument, downloadDocument, exportDocument, getDocumentDetail, saveDocument } from '../../../api/documents';
 import { useDocumentLibrary } from '../../../context/DocumentLibraryContext';
 
 import LibrarySummaryCards from './LibrarySummaryCards';
@@ -245,6 +245,154 @@ function DeleteModal({ doc, count = 0, loading, onConfirm, onCancel }) {
   );
 }
 
+/* ─── Export confirmation modal ────────────────────────────────────── */
+function ExportModal({ doc, loading, onConfirm, onCancel }) {
+  if (!doc) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.75)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        padding: 20,
+      }}
+    >
+      <motion.div
+        initial={{ scale: 0.92, opacity: 0, y: 8 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.92, opacity: 0, y: 8 }}
+        transition={{ duration: 0.20, ease: [0.22, 1, 0.36, 1] }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: 420,
+          background: 'rgba(18,10,4,0.97)',
+          backdropFilter: 'blur(32px)',
+          WebkitBackdropFilter: 'blur(32px)',
+          border: '1px solid rgba(249,115,22,0.30)',
+          borderRadius: 18,
+          padding: '28px 28px 24px',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.75), 0 0 32px rgba(249,115,22,0.12)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          gap: 0,
+        }}
+      >
+        {/* Export / Excel Icon */}
+        <div
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: '50%',
+            background: 'rgba(249,115,22,0.14)',
+            border: '1px solid rgba(249,115,22,0.30)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#f97316',
+            marginBottom: 16,
+          }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </div>
+
+        {/* Title */}
+        <h3
+          style={{
+            margin: '0 0 8px',
+            fontSize: 18,
+            fontWeight: 800,
+            color: '#ffffff',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            letterSpacing: '-0.01em',
+          }}
+        >
+          Export Document?
+        </h3>
+
+        {/* Description */}
+        <p
+          style={{
+            margin: '0 0 24px',
+            fontSize: 13.5,
+            color: 'rgba(255,255,255,0.65)',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            lineHeight: 1.5,
+          }}
+        >
+          Generate and download a STRUCTRA Excel report (<span style={{ color: '#f97316', fontWeight: 600 }}>.xlsx</span>) for{' '}
+          <strong style={{ color: '#ffffff' }}>"{doc?.filename || 'this document'}"</strong>?
+        </p>
+
+        {/* Buttons */}
+        <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            style={{
+              flex: 1,
+              padding: '11px 0',
+              borderRadius: 10,
+              background: 'rgba(255,255,255,0.07)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: 'rgba(255,255,255,0.75)',
+              fontSize: 13.5,
+              fontWeight: 600,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              cursor: 'pointer',
+              transition: 'background 0.15s',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            id="confirm-export-btn"
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            style={{
+              flex: 1,
+              padding: '11px 0',
+              borderRadius: 10,
+              background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+              border: '1px solid rgba(249,115,22,0.50)',
+              color: '#ffffff',
+              fontSize: 13.5,
+              fontWeight: 700,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 18px rgba(249,115,22,0.35)',
+              transition: 'opacity 0.15s, transform 0.12s',
+              opacity: loading ? 0.7 : 1,
+            }}
+            onMouseEnter={(e) => { if (!loading) e.currentTarget.style.transform = 'scale(1.02)'; }}
+            onMouseLeave={(e) => { if (!loading) e.currentTarget.style.transform = 'scale(1)'; }}
+          >
+            {loading ? 'Exporting…' : 'Export'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ─── Main DocumentLibraryPage Component ─────────────────── */
 export default function DocumentLibraryPage() {
   const navigate = useNavigate();
@@ -284,12 +432,14 @@ export default function DocumentLibraryPage() {
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [deleteAllLoading, setDeleteAllLoading]     = useState(false);
   const [exportAllLoading, setExportAllLoading]     = useState(false);
+  const [exportTarget, setExportTarget]             = useState(null);
 
   // Detail View State (Full In-Place Result View)
   const [detailDoc, setDetailDoc]         = useState(null);
   const [detailData, setDetailData]       = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError]     = useState(null);
+  const [exportingDocId, setExportingDocId] = useState(null);
 
   // Filter change handlers that immediately reset pagination to page 1
   const handleSearchChange = (val) => {
@@ -640,17 +790,36 @@ export default function DocumentLibraryPage() {
     }
   };
 
-  const handleDownload = async (doc) => {
+  const handleExportConfirm = async () => {
+    if (!exportTarget) return;
+    const docToExport = exportTarget;
+    const docId = docToExport.document_id || docToExport.id;
+    if (!docId) {
+      setExportTarget(null);
+      return;
+    }
+    setExportingDocId(docId);
     try {
-      const { blob, filename } = await downloadDocument(doc.document_id || doc.id);
+      const { blob, filename } = await exportDocument(docId);
       const url = URL.createObjectURL(blob);
-      const a = Object.assign(document.createElement('a'), { href: url, download: filename || doc.filename });
+      const rawDocName = docToExport.filename || 'document';
+      const cleanStem = rawDocName.replace(/\.[^/.]+$/, '').replace(/[\s\t\r\n]+/g, '_');
+      const finalDownloadName = filename && filename !== 'STRUCTRA_EXPORT_document.xlsx'
+        ? filename
+        : `STRUCTRA_EXPORT_${cleanStem}.xlsx`;
+      const a = Object.assign(document.createElement('a'), {
+        href: url,
+        download: finalDownloadName,
+      });
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch {
-      /* silent */
+      setExportTarget(null);
+    } catch (err) {
+      console.error('Failed to export document:', err);
+    } finally {
+      setExportingDocId(null);
     }
   };
 
@@ -810,6 +979,7 @@ export default function DocumentLibraryPage() {
               onBack={handleBackToLibrary}
               onSaveToLibrary={handleSaveLibraryDocument}
               onDelete={() => setDeleteTarget(detailData.document || detailDoc)}
+              onExport={() => setExportTarget(detailData.document || detailDoc)}
             />
           ) : null}
         </div>
@@ -987,7 +1157,8 @@ export default function DocumentLibraryPage() {
                         viewMode={viewMode}
                         onView={handleView}
                         onDelete={(d) => setDeleteTarget(d)}
-                        onDownload={handleDownload}
+                        onDownload={(d) => setExportTarget(d)}
+                        isExporting={exportingDocId === (doc.document_id || doc.id)}
                       />
                     </motion.div>
                   ))}
@@ -1031,6 +1202,18 @@ export default function DocumentLibraryPage() {
             loading={deleteAllLoading}
             onConfirm={handleDeleteAllConfirm}
             onCancel={() => { if (!deleteAllLoading) setShowDeleteAllModal(false); }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* EXPORT CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {exportTarget && (
+          <ExportModal
+            doc={exportTarget}
+            loading={exportingDocId === (exportTarget?.document_id || exportTarget?.id)}
+            onConfirm={handleExportConfirm}
+            onCancel={() => { if (!exportingDocId) setExportTarget(null); }}
           />
         )}
       </AnimatePresence>

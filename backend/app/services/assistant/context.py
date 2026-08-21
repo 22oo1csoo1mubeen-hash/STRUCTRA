@@ -240,6 +240,8 @@ class AssistantContextBuilder:
             label = parsed_intent.temporal_label or "the selected period"
             v_str = f" from {parsed_intent.vendor}" if parsed_intent.vendor else ""
             title = f"Spending for {label.capitalize()}{v_str}"
+            lib_stats = retrieved_payload.get("library_stats") or {}
+
             if t_docs:
                 summary = f"In {label}{v_str}, you spent {_fmt_currency(tot_amt)} across {len(t_docs)} receipt{'s' if len(t_docs) != 1 else ''}."
             else:
@@ -260,6 +262,16 @@ class AssistantContextBuilder:
                     for d in t_docs[:10]
                 ],
             }
+
+            if not t_docs and lib_stats.get("total_documents", 0) > 0:
+                context_dict["available_library_context"] = {
+                    "total_documents": lib_stats.get("total_documents"),
+                    "earliest_receipt_date": lib_stats.get("earliest_date"),
+                    "latest_receipt_date": lib_stats.get("latest_date"),
+                    "sample_records": lib_stats.get("documents", [])[:5],
+                    "instruction": f"No receipts found matching {label}{v_str}. Please state clearly that no records from {label} exist in the library, and inform the user of the available date range (earliest: {lib_stats.get('earliest_date')}, latest: {lib_stats.get('latest_date')}) and nearest available records if applicable.",
+                }
+
             metadata.update({
                 "type": AssistantResultType.TEMPORAL_SPENDING.value if t_docs else AssistantResultType.NO_RESULTS.value,
                 "document_count": len(t_docs),
@@ -499,6 +511,94 @@ class AssistantContextBuilder:
                 metadata.update({
                     "type": AssistantResultType.NO_RESULTS.value,
                     "vendor": parsed_intent.vendor,
+                    "title": title,
+                    "summary": summary,
+                })
+
+        # 8b. Oldest Receipt (Single Overview)
+        elif intent == AssistantIntent.OLDEST_RECEIPT:
+            doc = retrieved_payload.get("document") or retrieved_payload.get("oldest_document")
+            if doc:
+                sources.append(_doc_to_source(doc))
+                ext = doc.extraction_result or {}
+                v_name = ext.get("vendor_company") or "Unknown Vendor"
+                tot_val = float(parse_decimal_safe(ext.get("total")) or 0)
+                tot_str = _fmt_currency(ext.get("total"))
+                d_str = ext.get("date") or "Unknown date"
+                title = f"Oldest Receipt: {v_name}"
+                summary = f"Your oldest receipt is from {v_name} on {d_str} for a total of {tot_str} ({doc.filename})."
+
+                context_dict["oldest_receipt"] = {
+                    "filename": doc.filename,
+                    "vendor": v_name,
+                    "date": d_str,
+                    "total": tot_str,
+                }
+                metadata.update({
+                    "type": AssistantResultType.OLDEST_RECEIPT.value,
+                    "vendor": v_name,
+                    "total_amount": tot_val,
+                    "document_date": d_str,
+                    "filename": doc.filename,
+                    "title": title,
+                    "summary": summary,
+                })
+            else:
+                v_str = f" from {parsed_intent.vendor}" if parsed_intent.vendor else ""
+                title = f"{parsed_intent.vendor or 'Receipt'} Not Found"
+                summary = f"I couldn't find any saved receipts{v_str} in your library."
+                context_dict["error"] = summary
+                metadata.update({
+                    "type": AssistantResultType.NO_RESULTS.value,
+                    "vendor": parsed_intent.vendor,
+                    "title": title,
+                    "summary": summary,
+                })
+
+        # 8c. Oldest Item
+        elif intent == AssistantIntent.OLDEST_ITEM:
+            it = retrieved_payload.get("oldest_item")
+            if it:
+                doc_id = it.get("document_id")
+                if doc_id:
+                    sources.append(
+                        AssistantSource(
+                            document_id=doc_id,
+                            filename=it.get("filename", "Document"),
+                            vendor=it.get("vendor"),
+                            document_date=it.get("date"),
+                            total=it.get("amount") or it.get("unit_price"),
+                        )
+                    )
+                title = "Oldest Purchase"
+                v_str = f" from {it['vendor']}" if it.get("vendor") else ""
+                d_str = f" on {it['date']}" if it.get("date") else ""
+                summary = f"Your earliest recorded purchase is '{it['name']}' costing {_fmt_currency(it.get('amount') or it.get('unit_price'))}{v_str}{d_str}."
+
+                context_dict["oldest_item"] = {
+                    "name": it["name"],
+                    "unit_price": _fmt_currency(it.get("unit_price")),
+                    "amount": _fmt_currency(it.get("amount")),
+                    "quantity": it.get("quantity", 1),
+                    "vendor": it.get("vendor"),
+                    "date": it.get("date"),
+                    "receipt": it.get("filename"),
+                }
+                metadata.update({
+                    "type": AssistantResultType.OLDEST_ITEM.value,
+                    "item_name": it["name"],
+                    "amount": it.get("amount") or it.get("unit_price"),
+                    "vendor": it.get("vendor"),
+                    "document_date": it.get("date"),
+                    "title": title,
+                    "summary": summary,
+                })
+            else:
+                title = "No Items Found"
+                summary = "No line items found in your library."
+                context_dict["error"] = summary
+                metadata.update({
+                    "type": AssistantResultType.NO_RESULTS.value,
                     "title": title,
                     "summary": summary,
                 })
@@ -867,23 +967,24 @@ class AssistantContextBuilder:
 
         # 16. General Fallback
         else:
-            raw_docs = retrieved_payload.get("recent_documents") or []
+            raw_docs = retrieved_payload.get("all_documents") or retrieved_payload.get("recent_documents") or []
             for doc in raw_docs[:5]:
                 sources.append(_doc_to_source(doc))
             tot_spend = retrieved_payload.get("total_spending") or {}
             tot_docs = tot_spend.get("total_documents", len(raw_docs))
             tot_amt = tot_spend.get("total_spent", 0.0)
+            lib_stats = retrieved_payload.get("library_stats") or {}
             title = "Library Overview"
             summary = f"Your library contains {tot_docs} saved document{'s' if tot_docs != 1 else ''} totaling {_fmt_currency(tot_amt)}."
 
-            recent_doc_details = []
-            for d in raw_docs[:8]:
+            all_doc_details = []
+            for d in raw_docs[:100]:
                 ext = d.extraction_result or {}
                 items = ext.get("line_items") or []
-                recent_doc_details.append({
+                all_doc_details.append({
                     "filename": d.filename,
-                    "vendor": ext.get("vendor_company"),
-                    "date": ext.get("date"),
+                    "vendor": ext.get("vendor_company") or "Unknown Vendor",
+                    "date": ext.get("date") or "N/A",
                     "total": _fmt_currency(ext.get("total")),
                     "items": [
                         {
@@ -893,13 +994,15 @@ class AssistantContextBuilder:
                             "line_total": _fmt_currency(it.get("line_total") or it.get("total")),
                         }
                         for it in items if isinstance(it, dict) and it.get("description")
-                    ][:12],
+                    ][:10],
                 })
 
             context_dict["library_overview"] = {
                 "total_documents": tot_docs,
                 "total_spent": _fmt_currency(tot_amt),
-                "recent_documents": recent_doc_details,
+                "earliest_receipt_date": lib_stats.get("earliest_date"),
+                "latest_receipt_date": lib_stats.get("latest_date"),
+                "all_saved_documents": all_doc_details,
             }
             metadata.update({
                 "type": AssistantResultType.GENERAL_QUERY.value,

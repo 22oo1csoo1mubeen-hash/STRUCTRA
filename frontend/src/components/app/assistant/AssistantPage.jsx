@@ -697,6 +697,88 @@ function StructuredResultCard({ message, onSelectPrompt }) {
     );
   }
 
+  // 7d. Oldest Receipt Card
+  if (type === 'oldest_receipt' && (meta.total_amount !== undefined || meta.total !== undefined || meta.vendor)) {
+    const recTot = meta.total_amount !== undefined ? meta.total_amount : meta.total;
+    const recVendor = meta.vendor || 'Unknown Vendor';
+    const recDate = meta.document_date || meta.date;
+
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 14px',
+          borderRadius: 10,
+          background: 'rgba(168, 85, 247, 0.08)',
+          border: '1px solid rgba(168, 85, 247, 0.25)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Oldest Receipt
+          </span>
+          {recTot !== undefined && (
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#c084fc' }}>
+              {formatCurrency(recTot)}
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>
+          <span>Vendor: <strong style={{ color: '#ffffff' }}>{recVendor}</strong></span>
+          {recDate && <span>Date: {recDate}</span>}
+        </div>
+        {meta.filename && (
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+            Document: {meta.filename}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 7e. Oldest Item Card
+  if (type === 'oldest_item' && (meta.item_name || meta.name)) {
+    const itName = meta.item_name || meta.name;
+    const itAmt = meta.amount || meta.unit_price;
+    const itVendor = meta.vendor;
+
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 14px',
+          borderRadius: 10,
+          background: 'rgba(168, 85, 247, 0.08)',
+          border: '1px solid rgba(168, 85, 247, 0.25)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Oldest Purchased Item
+          </span>
+          {itAmt !== undefined && (
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#c084fc' }}>
+              {formatCurrency(itAmt)}
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>
+          {itName}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'rgba(255,255,255,0.60)' }}>
+          {itVendor && <span>From: <strong style={{ color: 'rgba(255,255,255,0.85)' }}>{itVendor}</strong></span>}
+          {meta.document_date && <span>Date: {meta.document_date}</span>}
+        </div>
+      </div>
+    );
+  }
+
   // 8. Clarification Options
   if (type === 'clarification' && meta.options?.length > 0) {
     return (

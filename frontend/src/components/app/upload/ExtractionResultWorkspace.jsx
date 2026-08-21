@@ -10,6 +10,7 @@ import {
 import ExtractionConfidenceCard from './ExtractionConfidenceCard';
 import FieldConfidenceIndicator from './FieldConfidenceIndicator';
 import DocumentPreviewViewer from './DocumentPreviewViewer';
+import { exportDocument } from '../../../api/documents';
 
 // ==========================================
 // SCENARIO CONFIGURATION
@@ -47,7 +48,8 @@ export default function ExtractionResultWorkspace({
   validationResult,
   isLibraryMode = false,
   onBack,
-  onDelete
+  onDelete,
+  onExport,
 }) {
 
   const formatCurrency = (val) => {
@@ -262,6 +264,52 @@ export default function ExtractionResultWorkspace({
 
   const handleSaveData = (newData) => {
     setEditedData(newData);
+  };
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    const targetDocId = 
+      uploadedDocument?.document_id || 
+      uploadedDocument?.id || 
+      extractionResult?.document?.document_id || 
+      extractionResult?.document?.id || 
+      extractionResult?.document_id;
+
+    if (!targetDocId) {
+      console.warn('No document ID available for export');
+      return;
+    }
+    if (isExporting) return;
+    setIsExporting(true);
+
+    try {
+      const { blob, filename } = await exportDocument(targetDocId);
+      const url = URL.createObjectURL(blob);
+      const rawName = 
+        file?.name || 
+        uploadedDocument?.filename || 
+        extractionResult?.document?.filename || 
+        displayFilename || 
+        'document';
+      const cleanStem = rawName.replace(/\.[^/.]+$/, '').replace(/[\s\t\r\n]+/g, '_');
+      const finalDownloadName = filename && filename !== 'STRUCTRA_EXPORT_document.xlsx'
+        ? filename
+        : `STRUCTRA_EXPORT_${cleanStem}.xlsx`;
+
+      const a = Object.assign(document.createElement('a'), {
+        href: url,
+        download: finalDownloadName,
+      });
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to export document:', err);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const displayFilename = useMemo(() => {
@@ -697,37 +745,116 @@ export default function ExtractionResultWorkspace({
                   boxShadow: '0 4px 20px rgba(0,0,0,0.22)'
                 }}
               >
-                <motion.button 
-                  whileHover={{ color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)' }}
-                  style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
-                >
-                  <FileDown size={16} /> Export
-                </motion.button>
-                <motion.button 
-                  onClick={onDelete}
-                  whileHover={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' }}
-                  style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
-                >
-                  <Trash2 size={16} /> Delete
-                </motion.button>
+                {/* Export Button (ONLY in Library mode — with confirmation) */}
+                {isLibraryMode && (
+                  <motion.button 
+                    type="button"
+                    onClick={onExport || handleExport}
+                    disabled={isExporting}
+                    whileHover={{ color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)' }}
+                    style={{ 
+                      flex: 1, 
+                      justifyContent: 'center', 
+                      background: 'rgba(255,255,255,0.04)', 
+                      border: '1px solid rgba(255,255,255,0.08)', 
+                      color: isExporting ? '#10b981' : 'rgba(255,255,255,0.85)', 
+                      fontSize: 14, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8, 
+                      cursor: isExporting ? 'not-allowed' : 'pointer', 
+                      padding: '12px 20px', 
+                      borderRadius: 8, 
+                      transition: 'all 0.2s', 
+                      fontWeight: 500 
+                    }}
+                  >
+                    {isExporting ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
+                    {isExporting ? 'Exporting…' : 'Export'}
+                  </motion.button>
+                )}
+
+                {/* Delete Button (ONLY in Library mode) */}
+                {isLibraryMode && (
+                  <motion.button 
+                    type="button"
+                    onClick={onDelete}
+                    whileHover={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' }}
+                    style={{ 
+                      flex: 1, 
+                      justifyContent: 'center', 
+                      background: 'rgba(255,255,255,0.04)', 
+                      border: '1px solid rgba(255,255,255,0.08)', 
+                      color: 'rgba(255,255,255,0.85)', 
+                      fontSize: 14, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8, 
+                      cursor: 'pointer', 
+                      padding: '12px 20px', 
+                      borderRadius: 8, 
+                      transition: 'all 0.2s', 
+                      fontWeight: 500 
+                    }}
+                  >
+                    <Trash2 size={16} /> Delete
+                  </motion.button>
+                )}
+
+                {/* Back to Library (Library mode) OR Process Another (Upload mode) */}
                 {isLibraryMode ? (
                   <motion.button 
+                    type="button"
                     onClick={onBack} 
                     whileHover={{ color: '#fff', backgroundColor: 'rgba(255,255,255,0.1)' }}
-                    style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
+                    style={{ 
+                      flex: 1, 
+                      justifyContent: 'center', 
+                      background: 'rgba(255,255,255,0.04)', 
+                      border: '1px solid rgba(255,255,255,0.08)', 
+                      color: 'rgba(255,255,255,0.85)', 
+                      fontSize: 14, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8, 
+                      cursor: 'pointer', 
+                      padding: '12px 20px', 
+                      borderRadius: 8, 
+                      transition: 'all 0.2s', 
+                      fontWeight: 500 
+                    }}
                   >
                     Back to Library
                   </motion.button>
                 ) : (
                   <motion.button 
+                    type="button"
                     onClick={resetUpload} 
                     whileHover={{ color: '#fff', backgroundColor: 'rgba(255,255,255,0.1)' }}
-                    style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '12px 20px', borderRadius: 8, transition: 'all 0.2s', fontWeight: 500 }}
+                    style={{ 
+                      flex: 1, 
+                      justifyContent: 'center', 
+                      background: 'rgba(255,255,255,0.04)', 
+                      border: '1px solid rgba(255,255,255,0.08)', 
+                      color: 'rgba(255,255,255,0.85)', 
+                      fontSize: 14, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8, 
+                      cursor: 'pointer', 
+                      padding: '12px 20px', 
+                      borderRadius: 8, 
+                      transition: 'all 0.2s', 
+                      fontWeight: 500 
+                    }}
                   >
                     <RefreshCcw size={16} /> Process Another
                   </motion.button>
                 )}
+
+                {/* Save to Library Button */}
                 <motion.button
+                  type="button"
                   onClick={async () => {
                     const payload = {
                       ...displayData,
@@ -742,9 +869,20 @@ export default function ExtractionResultWorkspace({
                   whileHover={{ scale: 1.02, boxShadow: '0 8px 20px rgba(249,115,22,0.4)' }}
                   whileTap={{ scale: 0.98 }}
                   style={{ 
-                    flex: 1, justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8, background: 'linear-gradient(135deg, #f97316 0%, #e85d04 100%)', 
-                    border: 'none', borderRadius: 8, padding: '12px 24px', color: '#fff', fontSize: 14, fontWeight: 600, 
-                    cursor: 'pointer', boxShadow: '0 4px 14px rgba(249,115,22,0.35)'
+                    flex: 1, 
+                    justifyContent: 'center', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 8, 
+                    background: 'linear-gradient(135deg, #f97316 0%, #e85d04 100%)', 
+                    border: 'none', 
+                    borderRadius: 8, 
+                    padding: '12px 24px', 
+                    color: '#fff', 
+                    fontSize: 14, 
+                    fontWeight: 600, 
+                    cursor: 'pointer', 
+                    boxShadow: '0 4px 14px rgba(249,115,22,0.35)'
                   }}
                 >
                   <Save size={16} /> Save to Library

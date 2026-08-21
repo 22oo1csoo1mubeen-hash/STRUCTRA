@@ -17,6 +17,8 @@ class AssistantIntent(str, Enum):
 
     LATEST_RECEIPT_ITEMS = "LATEST_RECEIPT_ITEMS"
     LATEST_RECEIPT = "LATEST_RECEIPT"
+    OLDEST_RECEIPT = "OLDEST_RECEIPT"
+    OLDEST_ITEM = "OLDEST_ITEM"
     VENDOR_ITEMS = "VENDOR_ITEMS"
     VENDOR_SPENDING = "VENDOR_SPENDING"
     ITEM_QUANTITY = "ITEM_QUANTITY"
@@ -51,6 +53,7 @@ class ParsedQueryIntent:
     max_amount: float | None = None
     temporal_label: str | None = None
     is_latest: bool = False
+    is_oldest: bool = False
     is_most_expensive: bool = False
     is_comparison: bool = False
     confidence: float = 1.0
@@ -63,7 +66,8 @@ class ParsedQueryIntent:
 _VENDOR_STOPWORDS = {
     "my", "the", "a", "an", "all", "latest", "recent", "most", "last", "any", "some",
     "document", "documents", "receipt", "receipts", "invoice", "invoices", "bill", "bills",
-    "library", "items", "item", "purchase", "purchases", "store", "stores", "shop", "shops",
+    "paper", "papers", "statement", "statements", "transaction", "transactions", "entry", "entries",
+    "library", "libraries", "items", "item", "purchase", "purchases", "store", "stores", "shop", "shops",
     "month", "year", "today", "yesterday", "supermarket", "there", "that", "it", "those",
     "here", "total", "totals", "spending", "spend", "spent", "cost", "costs", "costing",
     "money", "overall", "highest", "much", "many", "what", "did", "have", "you", "bought",
@@ -85,6 +89,10 @@ _VENDOR_STOPWORDS = {
     "week", "weeks", "day", "days", "months", "years", "weekend", "weekends", "quarter", "quarters", "recently", "current", "previous",
     "cheap", "cheapest", "chepeast", "least", "lowest", "minimum", "min", "max", "highest", "maximum", "expensive", "costly", "costliest", "smallest", "biggest", "largest",
     "of", "for", "on", "off", "with", "without", "about", "into", "onto", "upon",
+    "oldest", "earliest", "first", "starting", "old", "new", "inventory", "collection", "database",
+    "record", "records", "archive", "archives", "file", "files", "folder", "folders", "account",
+    "accounts", "vault", "cabinet", "storage", "profile", "history", "app", "application", "dashboard",
+    "wallet", "docs", "doc",
 }
 
 _MONTH_NAMES = {
@@ -92,7 +100,7 @@ _MONTH_NAMES = {
     "february": 2, "feb": 2,
     "march": 3, "mar": 3,
     "april": 4, "apr": 4,
-    "may": 5, "jun": 6,
+    "may": 5,
     "june": 6, "jun": 6,
     "july": 7, "jul": 7,
     "august": 8, "aug": 8,
@@ -147,7 +155,10 @@ def _extract_item_name(text: str) -> str | None:
     """Extract item name with strict word boundary protection and comprehensive natural language patterns."""
     lower = text.lower().strip()
 
-    # Guard: pure numeric/amount range queries without item noun
+    # Guard: pure numeric/amount range queries or single 4-digit years without item noun
+    if re.search(r"^\s*(?:19\d\d|20\d\d)\s*$", lower):
+        return None
+
     clean_amt = text.replace("₹", " ").replace("rs.", " ").replace("rs", " ").replace("inr", " ")
     clean_amt = re.sub(r"(\d+),(\d+)", r"\1\2", clean_amt).strip()
     if re.search(r"^\s*(?:in\s+)?(?:the\s+)?(?:range\s+(?:of\s+|:\s*)?)?\d+(?:\.\d+)?\s*(?:-|–|—|to|and)\s*\d+(?:\.\d+)?(?:\s*(?:range|bracket))?\s*$", clean_amt, re.IGNORECASE):
@@ -156,11 +167,20 @@ def _extract_item_name(text: str) -> str | None:
     def _sanitize_cand(cand_str: str) -> str | None:
         if not cand_str:
             return None
-        cleaned = re.sub(r"\b(?:range|ranges|bracket|brackets|in|the|of|to|and|from|between|above|below|under|over|more|less|than)\b", " ", cand_str, flags=re.IGNORECASE)
+        cleaned = re.sub(
+            r"\b(?:range|ranges|bracket|brackets|in|the|of|to|and|from|between|above|below|under|over|more|less|than|receipt|receipts|invoice|invoices|document|documents|bill|bills|record|records|paper|papers|statement|statements|year|month)\b",
+            " ",
+            cand_str,
+            flags=re.IGNORECASE,
+        )
         cleaned = re.sub(r"[\d\s\.\-–—,₹]", "", cleaned)
         if not cleaned:
             return None
-        tokens = [t.strip(".,;:?!'\"") for t in cand_str.split() if _clean_token(t) not in _VENDOR_STOPWORDS and not re.match(r"^\d", t)]
+        tokens = [
+            t.strip(".,;:?!'\"")
+            for t in cand_str.split()
+            if _clean_token(t) not in _VENDOR_STOPWORDS and not re.match(r"^\d+$", t) and _clean_token(t) not in _MONTH_NAMES and len(t) > 1
+        ]
         return " ".join(tokens) if tokens else None
 
     # 1. "quantity and price of X" / "price and quantity of X"
@@ -261,7 +281,7 @@ def _extract_item_name(text: str) -> str | None:
     )
     if m_item_filter:
         res = _sanitize_cand(m_item_filter.group(1))
-        if res and res not in ("item", "items", "product", "products", "thing", "things", "purchase", "purchases", "receipt", "receipts"):
+        if res and _clean_token(res) not in _VENDOR_STOPWORDS:
             return res
 
     # Guard: general spending inquiries
@@ -269,7 +289,7 @@ def _extract_item_name(text: str) -> str | None:
         m_on = re.search(r"spend\s+on\s+([A-Za-z0-9\s]+?)(?:\s+(?:at|from|in)\b|[?.]|$)", lower)
         if m_on:
             cand = m_on.group(1).strip()
-            tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
+            tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS and not re.match(r"^\d+$", t)]
             if tokens:
                 return " ".join(tokens)
         return None
@@ -281,7 +301,7 @@ def _extract_item_name(text: str) -> str | None:
     )
     if m_lookup:
         cand = m_lookup.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
+        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS and not re.match(r"^\d+$", t)]
         if tokens:
             return " ".join(tokens)
 
@@ -292,7 +312,7 @@ def _extract_item_name(text: str) -> str | None:
     )
     if m_suffix:
         cand = m_suffix.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
+        tokens = [t.strip(".,;:?!'\"") for t in cand.split() if _clean_token(t) not in _VENDOR_STOPWORDS and not re.match(r"^\d+$", t)]
         if tokens:
             return " ".join(tokens)
 
@@ -304,13 +324,19 @@ def _extract_item_name(text: str) -> str | None:
     )
     if m_contains:
         item = m_contains.group(1).strip()
-        tokens = [t.strip(".,;:?!'\"") for t in item.split() if _clean_token(t) not in _VENDOR_STOPWORDS]
+        tokens = [t.strip(".,;:?!'\"") for t in item.split() if _clean_token(t) not in _VENDOR_STOPWORDS and not re.match(r"^\d+$", t)]
         if tokens:
             return " ".join(tokens)
 
     # 13. Single noun or short phrase that is purely an item name (e.g. "crunchy salad", "brownie", "ginger ale")
     tokens = [t.strip(".,;:?!'\"") for t in lower.split()]
-    valid_tokens = [t for t in tokens if _clean_token(t) not in _VENDOR_STOPWORDS and len(t) > 1]
+    valid_tokens = [
+        t for t in tokens
+        if _clean_token(t) not in _VENDOR_STOPWORDS
+        and len(t) > 1
+        and not re.match(r"^\d+$", t)
+        and _clean_token(t) not in _MONTH_NAMES
+    ]
     if len(tokens) <= 4 and valid_tokens and len(valid_tokens) == len(tokens):
         return " ".join(valid_tokens)
 
@@ -381,7 +407,23 @@ def _resolve_temporal_range(
         target_year = today.year - n
         return f"{target_year:04d}-01-01", f"{target_year:04d}-12-31", f"{n} years ago"
 
-    # 10. "in <month>" / "<month> 2026" / "last August"
+    # 10. Specific exact date: e.g. "10-Aug-1995", "10 Aug 1995", "10/08/1995", "1995-08-10", "August 10 1995"
+    m_exact_date = re.search(
+        r"\b(?:on\s+|dated\s+)?(\d{1,2})[\s\-\/\.]([A-Za-z]{3,9}|\d{1,2})[\s\-\/\.](\d{2,4})\b",
+        lower,
+    )
+    if m_exact_date:
+        p1, p2, p3 = m_exact_date.group(1), m_exact_date.group(2), m_exact_date.group(3)
+        m_num = _MONTH_NAMES.get(p2.lower())
+        if m_num:
+            d_val = int(p1)
+            y_val = int(p3)
+            if y_val < 100:
+                y_val += 1900 if y_val >= 50 else 2000
+            iso_d = f"{y_val:04d}-{m_num:02d}-{d_val:02d}"
+            return iso_d, iso_d, f"{d_val} {p2.capitalize()} {y_val}"
+
+    # 11. "in <month>" / "<month> 2026" / "last August"
     for m_name, m_num in _MONTH_NAMES.items():
         if re.search(rf"\b(?:in\s+|last\s+)?{m_name}(?:\s+(\d{{4}}))?\b", lower):
             m_year_match = re.search(rf"\b{m_name}\s+(\d{{4}})\b", lower)
@@ -393,7 +435,36 @@ def _resolve_temporal_range(
             end_iso = f"{target_year:04d}-{m_num:02d}-{last_day:02d}"
             return start_iso, end_iso, m_name.capitalize()
 
-    # 11. Explicit Year Range: e.g. "from 2015 to 2018", "between 2015 and 2020", "2015 - 2018"
+    # 12. "before <year>" / "prior to <year>" / "earlier than <year>" / "until <year>" / "up to <year>"
+    m_before_yr = re.search(
+        r"\b(?:before|prior\s+to|earlier\s+than|until|up\s+to)\s+(?:year\s+)?(19\d\d|20\d\d)(?:\s+year)?\b",
+        lower,
+    )
+    if m_before_yr and not re.search(r"(?:₹|rs\.?|inr)\s*\d", lower):
+        target_y = int(m_before_yr.group(1))
+        end_y = target_y - 1 if ("before" in lower or "prior" in lower or "earlier" in lower) else target_y
+        return "1970-01-01", f"{end_y:04d}-12-31", f"before {target_y}"
+
+    # 13. "after <year>" / "since <year>" / "from <year> onwards" / "later than <year>"
+    m_after_yr = re.search(
+        r"\b(?:after|since|later\s+than|from)\s+(?:year\s+)?(19\d\d|20\d\d)(?:\s+(?:onwards|onward|year))?\b",
+        lower,
+    )
+    if m_after_yr and not re.search(r"(?:₹|rs\.?|inr)\s*\d", lower) and ("after" in lower or "since" in lower or "onward" in lower or "later than" in lower):
+        target_y = int(m_after_yr.group(1))
+        start_y = target_y if ("since" in lower or "from" in lower) else target_y + 1
+        return f"{start_y:04d}-01-01", today.strftime("%Y-%m-%d"), f"after {target_y}"
+
+    # 14. Decades: "in the 90s", "in 90s", "in the 80s", "in 2000s", "in 2010s"
+    m_decade = re.search(r"\b(?:in\s+(?:the\s+)?)?((?:19)?[89]0s|20[012]0s)\b", lower)
+    if m_decade:
+        dec_str = m_decade.group(1).rstrip("s")
+        dec_num = int(dec_str)
+        if dec_num < 100:
+            dec_num += 1900
+        return f"{dec_num:04d}-01-01", f"{dec_num + 9:04d}-12-31", f"{dec_num}s"
+
+    # 15. Explicit Year Range: e.g. "from 2015 to 2018", "between 2015 and 2020", "2015 - 2018"
     m_yr_range = re.search(
         r"\b(?:between|from|in)?\s*(19\d\d|20\d\d)\s*(?:-|–|—|to|and)\s*(19\d\d|20\d\d)\b",
         lower,
@@ -404,19 +475,18 @@ def _resolve_temporal_range(
             min_y, max_y = min(y1, y2), max(y1, y2)
             return f"{min_y:04d}-01-01", f"{max_y:04d}-12-31", f"{min_y} - {max_y}"
 
-    # 12. Explicit 4-digit Year: e.g. "from 2015", "in 2015", "of 2015", "for 2015", "during 2016", "dated 2015", "dated on 2015", "year 2015", "2015 receipts", "2016"
+    # 16. Explicit 4-digit Year: e.g. "from 2015", "in 2015", "of 2015", "for 2015", "during 2016", "dated 2015", "dated on 2015", "year 2015", "2015 receipts", "2016", "receipt which is from year 1995"
     if not re.search(r"\b(?:between|from)\s+\d{1,3}\s+(?:and|to|-)\s+\d+", lower) and not re.search(r"\b\d{1,3}\s*(?:-|to)\s*\d+\b", lower):
         m_year = re.search(
-            r"\b(?:from|in|of|for|during|dated(?:\s+on)?|year\s+)?(19\d\d|20\d\d)(?:\s+(?:receipts?|documents?|bills?|invoices?|purchases?|spending|expenses?))?\b",
+            r"\b(?:from|in|of|for|during|dated(?:\s+on)?|year\s+)?(19\d\d|20\d\d)(?:\s+(?:receipts?|documents?|bills?|invoices?|purchases?|spending|expenses?|year))?\b",
             lower,
         )
         if m_year and not re.search(r"(?:₹|rs\.?|inr)\s*\d", lower):
             target_y = int(m_year.group(1))
-            # Ensure it is not part of a price range boundary or amount keyword
             if not re.search(rf"\b(?:range|bracket|above|below|under|over|more|less|greater|priced|costing|cost|bill\s+of|total\s+of)\s+(?:of\s+|than\s+)?{target_y}\b", lower):
                 return f"{target_y:04d}-01-01", f"{target_y:04d}-12-31", str(target_y)
 
-    # 13. "recently" / "recent"
+    # 17. "recently" / "recent"
     if re.search(r"\b(recently|recent)\b", lower):
         start_rec = today - timedelta(days=30)
         return start_rec.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d"), "recently"
@@ -612,7 +682,8 @@ class AssistantIntentEngine:
         min_amount, max_amount = _extract_amount_filters(msg)
         comp_v1, comp_v2 = _extract_comparison_vendors(msg)
 
-        is_latest = bool(re.search(r"\b(latest|most recent|newest|last receipt|last purchase)\b", lower))
+        is_latest = bool(re.search(r"\b(latest|most recent|newest|last receipt|last purchase|newest receipt)\b", lower))
+        is_oldest = bool(re.search(r"\b(oldest|earliest|first receipt|first document|first purchase|oldest receipt|earliest receipt|oldest purchase|earliest purchase|oldest bill|earliest invoice|first item|oldest item|earliest item)\b", lower))
         is_expensive = bool(re.search(r"\b(most expensive|highest|costliest|largest purchase|biggest spend|highest bill|expensive|costly)\b", lower))
         is_cheap = bool(re.search(r"\b(cheap|cheapest|chepeast|least expensive|lowest price|lowest cost|lowest bill|lowest receipt|smallest purchase|smallest bill|minimum spend|min spend|cheaper|least costly)\b", lower))
 
@@ -653,13 +724,29 @@ class AssistantIntentEngine:
             )
 
         # 3. Document count check
-        if re.search(r"(how many|count of|number of|total).*(receipts?|documents?|invoices?|bills?)", lower):
+        if re.search(r"(how many|count of|number of|total).*(receipts?|documents?|invoices?|bills?|records?|files?|statements?|transactions?|docs?)", lower):
             return ParsedQueryIntent(
                 intent=AssistantIntent.DOCUMENT_COUNT,
                 raw_message=msg,
             )
 
-        # 4. Item History / Specific Item Intelligence: "when did I last buy eggs", "where did I buy eggs", "how much did eggs cost me"
+        # 4. Oldest / Earliest Receipt or Item
+        if is_oldest:
+            if re.search(r"\b(item|product|thing|bought)\b", lower):
+                return ParsedQueryIntent(
+                    intent=AssistantIntent.OLDEST_ITEM,
+                    vendor=vendor,
+                    is_oldest=True,
+                    raw_message=msg,
+                )
+            return ParsedQueryIntent(
+                intent=AssistantIntent.OLDEST_RECEIPT,
+                vendor=vendor,
+                is_oldest=True,
+                raw_message=msg,
+            )
+
+        # 5. Item History / Specific Item Intelligence: "when did I last buy eggs", "where did I buy eggs", "how much did eggs cost me"
         if item_query and (
             re.search(r"\b(when|where|cost\s+me|last\s+buy|which\s+store)\b", lower)
             or "most expensive" in lower
@@ -673,7 +760,7 @@ class AssistantIntentEngine:
                 raw_message=msg,
             )
 
-        # 5. Top vendors / highest spending vendor
+        # 6. Top vendors / highest spending vendor
         if (
             re.search(r"(which|who|what)\s+(store|vendor).*(most\s+money|highest\s+spend|most\s+spend|spend.*most|top\s+vendor)", lower)
             or re.search(r"\b(top\s+vendors?|where\s+do\s+i\s+spend\s+the\s+most)\b", lower)
@@ -684,24 +771,18 @@ class AssistantIntentEngine:
                 raw_message=msg,
             )
 
-        # 6. Most bought / frequent items
+        # 7. Most bought / frequent items
         if re.search(r"(most (bought|purchased|frequent)|buy most frequently|items?.*most often|frequently\s+purchased)", lower):
             return ParsedQueryIntent(
                 intent=AssistantIntent.MOST_FREQUENT_ITEMS,
                 raw_message=msg,
             )
 
-        # 7. Cheapest item vs receipt
+        # 8. Cheapest item vs receipt / invoice / document
         if is_cheap:
-            if re.search(r"\b(receipt|invoice|bill|document)\b", lower):
+            if re.search(r"\b(receipt|invoice|bill|document|record|file|paper|statement|transaction|doc)s?\b", lower):
                 return ParsedQueryIntent(
                     intent=AssistantIntent.CHEAPEST_RECEIPT,
-                    vendor=vendor,
-                    raw_message=msg,
-                )
-            if re.search(r"\b(item|product|thing|purchase|bought)\b", lower) or "purchase" in lower:
-                return ParsedQueryIntent(
-                    intent=AssistantIntent.CHEAPEST_ITEM,
                     vendor=vendor,
                     raw_message=msg,
                 )
@@ -711,18 +792,11 @@ class AssistantIntentEngine:
                 raw_message=msg,
             )
 
-        # 8. Most expensive item vs receipt
+        # 9. Most expensive item vs receipt / invoice / document
         if is_expensive:
-            if re.search(r"\b(receipt|invoice|bill|document)\b", lower):
+            if re.search(r"\b(receipt|invoice|bill|document|record|file|paper|statement|transaction|doc)s?\b", lower):
                 return ParsedQueryIntent(
                     intent=AssistantIntent.MOST_EXPENSIVE_RECEIPT,
-                    vendor=vendor,
-                    is_most_expensive=True,
-                    raw_message=msg,
-                )
-            if re.search(r"\b(item|product|thing|purchase|bought)\b", lower) or "purchase" in lower:
-                return ParsedQueryIntent(
-                    intent=AssistantIntent.MOST_EXPENSIVE_ITEM,
                     vendor=vendor,
                     is_most_expensive=True,
                     raw_message=msg,
@@ -734,26 +808,28 @@ class AssistantIntentEngine:
                 raw_message=msg,
             )
 
-        # 8. Item quantity (e.g. "how many eggs did I buy", "how many eggs have I purchased")
-        if item_query and re.search(r"(how many|count of|quantity of|number of|total quantity)", lower):
-            return ParsedQueryIntent(
-                intent=AssistantIntent.ITEM_QUANTITY,
-                item_query=item_query,
-                vendor=vendor,
-                raw_message=msg,
-            )
-
-        # 9. Item search / purchases (e.g. "show my egg purchases", "where is milk", "find coffee")
-        if item_query:
-            return ParsedQueryIntent(
-                intent=AssistantIntent.ITEM_SEARCH,
-                item_query=item_query,
-                vendor=vendor,
-                raw_message=msg,
-            )
-
-        # 10. Temporal Spending: "what did I buy last month?", "spending in August", "purchases this week"
+        # 10. Temporal Spending: "what did I buy last month?", "spending in August", "purchases this week", "receipts before 2000 year", "2002", "receipts in 2002", "invoices in 2002", "documents from 2002"
         if start_date is not None and end_date is not None:
+            if item_query and not re.search(r"^(?:19\d\d|20\d\d)$", item_query):
+                if re.search(r"(how many|count of|quantity of|number of|total quantity)", lower):
+                    return ParsedQueryIntent(
+                        intent=AssistantIntent.ITEM_QUANTITY,
+                        item_query=item_query,
+                        vendor=vendor,
+                        start_date=start_date,
+                        end_date=end_date,
+                        temporal_label=temporal_label,
+                        raw_message=msg,
+                    )
+                return ParsedQueryIntent(
+                    intent=AssistantIntent.FILTERED_RECEIPTS,
+                    vendor=vendor,
+                    item_query=item_query,
+                    start_date=start_date,
+                    end_date=end_date,
+                    temporal_label=temporal_label,
+                    raw_message=msg,
+                )
             return ParsedQueryIntent(
                 intent=AssistantIntent.TEMPORAL_SPENDING,
                 vendor=vendor,
@@ -763,7 +839,25 @@ class AssistantIntentEngine:
                 raw_message=msg,
             )
 
-        # 11. Latest receipt items (e.g. "what did I buy in my latest DMart receipt?", "give me the latest dmart purchases")
+        # 11. Item quantity (e.g. "how many eggs did I buy", "how many eggs have I purchased")
+        if item_query and re.search(r"(how many|count of|quantity of|number of|total quantity)", lower):
+            return ParsedQueryIntent(
+                intent=AssistantIntent.ITEM_QUANTITY,
+                item_query=item_query,
+                vendor=vendor,
+                raw_message=msg,
+            )
+
+        # 12. Item search / purchases (e.g. "show my egg purchases", "where is milk", "find coffee")
+        if item_query:
+            return ParsedQueryIntent(
+                intent=AssistantIntent.ITEM_SEARCH,
+                item_query=item_query,
+                vendor=vendor,
+                raw_message=msg,
+            )
+
+        # 13. Latest receipt items (e.g. "what did I buy in my latest DMart receipt?", "give me the latest dmart purchases")
         if is_latest and vendor and re.search(r"\b(buy|items?|products?|bought|contain|contents?|list|purchases?)\b", lower):
             return ParsedQueryIntent(
                 intent=AssistantIntent.LATEST_RECEIPT_ITEMS,
@@ -772,7 +866,7 @@ class AssistantIntentEngine:
                 raw_message=msg,
             )
 
-        # 12. Vendor items (e.g. "what did I buy from DMart?", "show my DMart purchases")
+        # 14. Vendor items (e.g. "what did I buy from DMart?", "show my DMart purchases")
         if vendor and re.search(r"\b(buy|bought|purchases?|items?|products?|order|what.*get)\b", lower):
             return ParsedQueryIntent(
                 intent=AssistantIntent.VENDOR_ITEMS,
@@ -780,7 +874,7 @@ class AssistantIntentEngine:
                 raw_message=msg,
             )
 
-        # 13. Latest receipt (e.g. "what is my latest receipt?", "show my latest receipt from DMart")
+        # 15. Latest receipt (e.g. "what is my latest receipt?", "show my latest receipt from DMart")
         if is_latest:
             return ParsedQueryIntent(
                 intent=AssistantIntent.LATEST_RECEIPT,
@@ -789,7 +883,7 @@ class AssistantIntentEngine:
                 raw_message=msg,
             )
 
-        # 14. Vendor spending (e.g. "how much did I spend at DMart?", "DMart total", "how much was that")
+        # 16. Vendor spending (e.g. "how much did I spend at DMart?", "DMart total", "how much was that")
         if vendor:
             return ParsedQueryIntent(
                 intent=AssistantIntent.VENDOR_SPENDING,
@@ -804,7 +898,7 @@ class AssistantIntentEngine:
                 raw_message=msg,
             )
 
-        # 15. Total spending / general spending
+        # 17. Total spending / general spending
         if re.search(r"(how much.*(spend|spent|total|cost)|total spending|overall spend|my spending|summary of my purchases|summary)", lower):
             return ParsedQueryIntent(
                 intent=AssistantIntent.TOTAL_SPENDING,
