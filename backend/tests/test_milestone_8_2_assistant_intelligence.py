@@ -41,7 +41,7 @@ Covers all 38 required test scenarios:
 38. Existing Dashboard endpoints remain intact.
 """
 
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 import json
 from types import SimpleNamespace
@@ -775,3 +775,202 @@ async def test_existing_dashboard_endpoints_intact():
         dash = await get_user_dashboard_data(user_id=USER_A_ID, settings=settings)
         assert dash.summary.total_documents == 2
         assert dash.summary.total_amount_spent == 1200.0
+
+
+# ===========================================================================
+# 39. Temporal Most Expensive Item Query
+# ===========================================================================
+@pytest.mark.anyio
+async def test_temporal_most_expensive_item_query():
+    """Scenario 39: Querying the most expensive item in a specific year correctly bounds retrieval."""
+    doc_2023 = _make_doc(
+        USER_A_ID,
+        filename="hospital.jpg",
+        vendor="V&RO HOSPITALITY",
+        date_str="2023-05-30",
+        total=5000.0,
+        line_items=[
+            {"description": "Giant Party Platter", "quantity": 1.0, "unit_price": 2250.0, "line_total": 2250.0}
+        ],
+    )
+    doc_2026 = _make_doc(
+        USER_A_ID,
+        filename="Hotel2.png",
+        vendor="GRAND PLAZA HOTEL",
+        date_str="2026-03-18",
+        total=780.75,
+        line_items=[
+            {"description": "ROOM - KING SUITE", "quantity": 3.0, "unit_price": 189.0, "line_total": 567.0},
+            {"description": "MINI BAR", "quantity": 1.0, "unit_price": 32.0, "line_total": 32.0},
+        ],
+    )
+    settings = SimpleNamespace(supabase_url="https://example.supabase.co", supabase_storage_bucket="documents")
+    with patch("app.services.dashboard._get_document_metadata", return_value=[doc_2023, doc_2026]):
+        retrieval = AssistantRetrievalService(USER_A_ID, settings)
+
+        # 2026 query
+        parsed = AssistantIntentEngine.parse_query("what is the expensive product i brought in 2026")
+        assert parsed.intent == AssistantIntent.MOST_EXPENSIVE_ITEM
+        assert parsed.start_date == "2026-01-01"
+        assert parsed.end_date == "2026-12-31"
+
+        item_2026 = await retrieval.get_most_expensive_item(
+            start_date=parsed.start_date,
+            end_date=parsed.end_date,
+        )
+        assert item_2026 is not None
+        assert item_2026["name"] == "ROOM - KING SUITE"
+        assert item_2026["amount"] == 567.0
+        assert item_2026["vendor"] == "GRAND PLAZA HOTEL"
+        assert item_2026["filename"] == "Hotel2.png"
+
+        # Overall query without year
+        overall_item = await retrieval.get_most_expensive_item()
+        assert overall_item is not None
+        assert overall_item["name"] == "Giant Party Platter"
+        assert overall_item["amount"] == 2250.0
+
+
+# ===========================================================================
+# 40. Temporal Cheapest Item Query
+# ===========================================================================
+@pytest.mark.anyio
+async def test_temporal_cheapest_item_query():
+    """Scenario 40: Querying cheapest item in a specific year correctly filters line items."""
+    doc_2026 = _make_doc(
+        USER_A_ID,
+        filename="Hotel2.png",
+        vendor="GRAND PLAZA HOTEL",
+        date_str="2026-03-18",
+        total=780.75,
+        line_items=[
+            {"description": "ROOM - KING SUITE", "quantity": 3.0, "unit_price": 189.0, "line_total": 567.0},
+            {"description": "PARKING (DAILY)", "quantity": 2.0, "unit_price": 25.0, "line_total": 50.0},
+        ],
+    )
+    settings = SimpleNamespace(supabase_url="https://example.supabase.co", supabase_storage_bucket="documents")
+    with patch("app.services.dashboard._get_document_metadata", return_value=[doc_2026]):
+        retrieval = AssistantRetrievalService(USER_A_ID, settings)
+        parsed = AssistantIntentEngine.parse_query("cheapest item in 2026")
+        assert parsed.intent == AssistantIntent.CHEAPEST_ITEM
+        assert parsed.start_date == "2026-01-01"
+
+        cheap = await retrieval.get_cheapest_item(
+            start_date=parsed.start_date,
+            end_date=parsed.end_date,
+        )
+        assert cheap is not None
+        assert cheap["name"] == "PARKING (DAILY)"
+        assert cheap["unit_price"] == 25.0
+
+
+# ===========================================================================
+# 41. Temporal Most Expensive Receipt Query
+# ===========================================================================
+@pytest.mark.anyio
+async def test_temporal_most_expensive_receipt_query():
+    """Scenario 41: Querying most expensive receipt in a year retrieves the highest receipt for that year."""
+    doc1 = _make_doc(USER_A_ID, filename="r1.pdf", vendor="A", date_str="2025-01-10", total=5000.0)
+    doc2 = _make_doc(USER_A_ID, filename="r2.pdf", vendor="B", date_str="2026-02-15", total=300.0)
+    doc3 = _make_doc(USER_A_ID, filename="r3.pdf", vendor="C", date_str="2026-05-20", total=750.0)
+    settings = SimpleNamespace(supabase_url="https://example.supabase.co", supabase_storage_bucket="documents")
+    with patch("app.services.dashboard._get_document_metadata", return_value=[doc1, doc2, doc3]):
+        retrieval = AssistantRetrievalService(USER_A_ID, settings)
+        parsed = AssistantIntentEngine.parse_query("most expensive receipt in 2026")
+        assert parsed.intent == AssistantIntent.MOST_EXPENSIVE_RECEIPT
+        assert parsed.start_date == "2026-01-01"
+
+        rec = await retrieval.get_most_expensive_receipt(
+            start_date=parsed.start_date,
+            end_date=parsed.end_date,
+        )
+        assert rec is not None
+        assert rec["filename"] == "r3.pdf"
+        assert rec["total_amount"] == 750.0
+
+
+# ===========================================================================
+# 42. Context Attribution Correctness
+# ===========================================================================
+@pytest.mark.anyio
+async def test_context_attribution_correctness():
+    """Scenario 42: AssistantContextBuilder produces correct document filename and date attribution."""
+    doc = _make_doc(
+        USER_A_ID,
+        filename="Hotel2.png",
+        vendor="GRAND PLAZA HOTEL",
+        date_str="2026-03-18",
+        total=780.75,
+    )
+    parsed = AssistantIntentEngine.parse_query("what is the expensive product i brought in 2026")
+    item_payload = {
+        "most_expensive_item": {
+            "name": "ROOM - KING SUITE",
+            "amount": 567.0,
+            "unit_price": 189.0,
+            "quantity": 3.0,
+            "vendor": "GRAND PLAZA HOTEL",
+            "date": "2026-03-18",
+            "document_id": str(doc.id),
+            "filename": "Hotel2.png",
+        }
+    }
+    _, sources, metadata = AssistantContextBuilder.build_context_for_intent(parsed, item_payload)
+    assert len(sources) == 1
+    assert sources[0].filename == "Hotel2.png"
+    assert sources[0].vendor == "GRAND PLAZA HOTEL"
+    assert sources[0].document_date == "2026-03-18"
+    assert metadata["title"] == "Most Expensive Item (2026)"
+    assert "ROOM - KING SUITE" in metadata["summary"]
+
+
+# ===========================================================================
+# 43. Recent Receipts Sorted by Date
+# ===========================================================================
+@pytest.mark.anyio
+async def test_recent_receipts_sorting_by_date():
+    """Scenario 43: 'Show me my recent receipts' retrieves top 5 receipts sorted by document date (newest first)."""
+    docs = [
+        _make_doc(USER_A_ID, filename=f"doc_{i}.pdf", vendor=f"Vendor_{i}", date_str=f"202{i}-01-01", total=100.0 * i)
+        for i in range(1, 8)
+    ]
+    settings = SimpleNamespace(supabase_url="https://example.supabase.co", supabase_storage_bucket="documents")
+    with patch("app.services.dashboard._get_document_metadata", return_value=docs):
+        retrieval = AssistantRetrievalService(USER_A_ID, settings)
+        parsed = AssistantIntentEngine.parse_query("Show me my recent receipts")
+        assert parsed.intent == AssistantIntent.RECENT_RECEIPTS
+
+        recent = await retrieval.get_recent_receipts(limit=5)
+        assert len(recent) == 5
+        assert [d.filename for d in recent] == ["doc_7.pdf", "doc_6.pdf", "doc_5.pdf", "doc_4.pdf", "doc_3.pdf"]
+
+
+# ===========================================================================
+# 44. Recent Uploads Sorted by Created At
+# ===========================================================================
+@pytest.mark.anyio
+async def test_recent_uploads_sorting_by_created_at():
+    """Scenario 44: 'Show me my recent uploaded receipts' retrieves top 5 receipts sorted by upload timestamp."""
+    base_dt = datetime(2026, 8, 20, 10, 0, 0, tzinfo=timezone.utc)
+    docs = [
+        _make_doc(
+            USER_A_ID,
+            filename=f"upload_{i}.pdf",
+            vendor=f"Vendor_{i}",
+            date_str="2020-01-01",
+            total=50.0 * i,
+            created_at=base_dt + timedelta(minutes=i * 10),
+        )
+        for i in range(1, 8)
+    ]
+    settings = SimpleNamespace(supabase_url="https://example.supabase.co", supabase_storage_bucket="documents")
+    with patch("app.services.dashboard._get_document_metadata", return_value=docs):
+        retrieval = AssistantRetrievalService(USER_A_ID, settings)
+        parsed = AssistantIntentEngine.parse_query("Show me my recent uploaded receipts")
+        assert parsed.intent == AssistantIntent.RECENT_UPLOADS
+
+        recent_up = await retrieval.get_recent_uploads(limit=5)
+        assert len(recent_up) == 5
+        assert [d.filename for d in recent_up] == ["upload_7.pdf", "upload_6.pdf", "upload_5.pdf", "upload_4.pdf", "upload_3.pdf"]
+
+

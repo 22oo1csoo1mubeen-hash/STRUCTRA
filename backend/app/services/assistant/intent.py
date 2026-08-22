@@ -15,6 +15,8 @@ from typing import Any
 class AssistantIntent(str, Enum):
     """Classified user intent for document intelligence querying."""
 
+    RECENT_RECEIPTS = "RECENT_RECEIPTS"
+    RECENT_UPLOADS = "RECENT_UPLOADS"
     LATEST_RECEIPT_ITEMS = "LATEST_RECEIPT_ITEMS"
     LATEST_RECEIPT = "LATEST_RECEIPT"
     OLDEST_RECEIPT = "OLDEST_RECEIPT"
@@ -70,7 +72,7 @@ _VENDOR_STOPWORDS = {
     "library", "libraries", "items", "item", "purchase", "purchases", "store", "stores", "shop", "shops",
     "month", "year", "today", "yesterday", "supermarket", "there", "that", "it", "those",
     "here", "total", "totals", "spending", "spend", "spent", "cost", "costs", "costing",
-    "money", "overall", "highest", "much", "many", "what", "did", "have", "you", "bought",
+    "money", "overall", "highest", "much", "many", "what", "did", "have", "you", "bought", "brought", "bring", "brings", "bringing",
     "purchased", "uploaded", "here", "found", "saved", "processed", "duplicate", "original",
     "new", "old", "single", "multiple", "first", "second", "one", "two", "both", "either",
     "neither", "other", "another", "exact", "valid", "invalid", "needs", "review", "than",
@@ -84,10 +86,10 @@ _VENDOR_STOPWORDS = {
     "ok", "okay", "bye", "goodbye", "good", "morning", "afternoon", "evening", "night", "test", "help",
     "i", "we", "he", "she", "they", "me", "us", "him", "her", "them", "my", "our", "your", "his", "their",
     "has", "had", "having", "do", "does", "done", "am", "is", "are", "was", "were", "be", "been", "being",
-    "got", "take", "took", "taken", "order", "orders", "ordered", "buy", "buys", "buying",
+    "got", "take", "took", "taken", "order", "orders", "ordered", "buy", "buys", "buying", "bought", "brought",
     "where", "when", "why", "which", "who", "whom", "whose", "how", "time", "times", "place", "places", "vendor", "vendors",
     "week", "weeks", "day", "days", "months", "years", "weekend", "weekends", "quarter", "quarters", "recently", "current", "previous",
-    "cheap", "cheapest", "chepeast", "least", "lowest", "minimum", "min", "max", "highest", "maximum", "expensive", "costly", "costliest", "smallest", "biggest", "largest",
+    "cheap", "cheapest", "chepeast", "chepest", "least", "lowest", "minimum", "min", "max", "highest", "maximum", "expensive", "expencive", "costly", "costliest", "smallest", "biggest", "largest",
     "of", "for", "on", "off", "with", "without", "about", "into", "onto", "upon",
     "oldest", "earliest", "first", "starting", "old", "new", "inventory", "collection", "database",
     "record", "records", "archive", "archives", "file", "files", "folder", "folders", "account",
@@ -486,11 +488,6 @@ def _resolve_temporal_range(
             if not re.search(rf"\b(?:range|bracket|above|below|under|over|more|less|greater|priced|costing|cost|bill\s+of|total\s+of)\s+(?:of\s+|than\s+)?{target_y}\b", lower):
                 return f"{target_y:04d}-01-01", f"{target_y:04d}-12-31", str(target_y)
 
-    # 17. "recently" / "recent"
-    if re.search(r"\b(recently|recent)\b", lower):
-        start_rec = today - timedelta(days=30)
-        return start_rec.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d"), "recently"
-
     return None, None, None
 
 
@@ -684,8 +681,8 @@ class AssistantIntentEngine:
 
         is_latest = bool(re.search(r"\b(latest|most recent|newest|last receipt|last purchase|newest receipt)\b", lower))
         is_oldest = bool(re.search(r"\b(oldest|earliest|first receipt|first document|first purchase|oldest receipt|earliest receipt|oldest purchase|earliest purchase|oldest bill|earliest invoice|first item|oldest item|earliest item)\b", lower))
-        is_expensive = bool(re.search(r"\b(most expensive|highest|costliest|largest purchase|biggest spend|highest bill|expensive|costly)\b", lower))
-        is_cheap = bool(re.search(r"\b(cheap|cheapest|chepeast|least expensive|lowest price|lowest cost|lowest bill|lowest receipt|smallest purchase|smallest bill|minimum spend|min spend|cheaper|least costly)\b", lower))
+        is_expensive = bool(re.search(r"\b(most expensive|highest|costliest|largest purchase|biggest spend|highest bill|expensive|expencive|costly|costliest)\b", lower))
+        is_cheap = bool(re.search(r"\b(cheap|cheapest|chepeast|chepest|least expensive|lowest price|lowest cost|lowest bill|lowest receipt|smallest purchase|smallest bill|minimum spend|min spend|cheaper|least costly)\b", lower))
 
         # Check follow-up context if entities are missing but anaphoric references exist
         if conversation_history:
@@ -705,6 +702,9 @@ class AssistantIntentEngine:
                 intent=AssistantIntent.VENDOR_COMPARISON,
                 vendor=comp_v1,
                 vendor_b=comp_v2,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
                 is_comparison=True,
                 raw_message=msg,
             )
@@ -727,28 +727,43 @@ class AssistantIntentEngine:
         if re.search(r"(how many|count of|number of|total).*(receipts?|documents?|invoices?|bills?|records?|files?|statements?|transactions?|docs?)", lower):
             return ParsedQueryIntent(
                 intent=AssistantIntent.DOCUMENT_COUNT,
+                vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
                 raw_message=msg,
             )
 
         # 4. Oldest / Earliest Receipt or Item
         if is_oldest:
-            if re.search(r"\b(item|product|thing|bought)\b", lower):
+            if re.search(r"\b(item|product|thing|bought|brought)\b", lower):
                 return ParsedQueryIntent(
                     intent=AssistantIntent.OLDEST_ITEM,
                     vendor=vendor,
+                    item_query=item_query,
+                    start_date=start_date,
+                    end_date=end_date,
+                    temporal_label=temporal_label,
+                    min_amount=min_amount,
+                    max_amount=max_amount,
                     is_oldest=True,
                     raw_message=msg,
                 )
             return ParsedQueryIntent(
                 intent=AssistantIntent.OLDEST_RECEIPT,
                 vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
+                min_amount=min_amount,
+                max_amount=max_amount,
                 is_oldest=True,
                 raw_message=msg,
             )
 
         # 5. Item History / Specific Item Intelligence: "when did I last buy eggs", "where did I buy eggs", "how much did eggs cost me"
         if item_query and (
-            re.search(r"\b(when|where|cost\s+me|last\s+buy|which\s+store)\b", lower)
+            re.search(r"\b(when|where|cost\s+me|last\s+buy|last\s+bought|which\s+store)\b", lower)
             or "most expensive" in lower
             or is_cheap
         ):
@@ -756,6 +771,11 @@ class AssistantIntentEngine:
                 intent=AssistantIntent.ITEM_HISTORY,
                 item_query=item_query,
                 vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
+                min_amount=min_amount,
+                max_amount=max_amount,
                 is_most_expensive=is_expensive,
                 raw_message=msg,
             )
@@ -768,13 +788,20 @@ class AssistantIntentEngine:
             return ParsedQueryIntent(
                 intent=AssistantIntent.TOP_VENDORS,
                 vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
                 raw_message=msg,
             )
 
         # 7. Most bought / frequent items
-        if re.search(r"(most (bought|purchased|frequent)|buy most frequently|items?.*most often|frequently\s+purchased)", lower):
+        if re.search(r"(most (bought|brought|purchased|frequent)|buy most frequently|items?.*most often|frequently\s+purchased)", lower):
             return ParsedQueryIntent(
                 intent=AssistantIntent.MOST_FREQUENT_ITEMS,
+                vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
                 raw_message=msg,
             )
 
@@ -784,11 +811,22 @@ class AssistantIntentEngine:
                 return ParsedQueryIntent(
                     intent=AssistantIntent.CHEAPEST_RECEIPT,
                     vendor=vendor,
+                    start_date=start_date,
+                    end_date=end_date,
+                    temporal_label=temporal_label,
+                    min_amount=min_amount,
+                    max_amount=max_amount,
                     raw_message=msg,
                 )
             return ParsedQueryIntent(
                 intent=AssistantIntent.CHEAPEST_ITEM,
                 vendor=vendor,
+                item_query=item_query,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
+                min_amount=min_amount,
+                max_amount=max_amount,
                 raw_message=msg,
             )
 
@@ -798,12 +836,23 @@ class AssistantIntentEngine:
                 return ParsedQueryIntent(
                     intent=AssistantIntent.MOST_EXPENSIVE_RECEIPT,
                     vendor=vendor,
+                    start_date=start_date,
+                    end_date=end_date,
+                    temporal_label=temporal_label,
+                    min_amount=min_amount,
+                    max_amount=max_amount,
                     is_most_expensive=True,
                     raw_message=msg,
                 )
             return ParsedQueryIntent(
                 intent=AssistantIntent.MOST_EXPENSIVE_ITEM,
                 vendor=vendor,
+                item_query=item_query,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
+                min_amount=min_amount,
+                max_amount=max_amount,
                 is_most_expensive=True,
                 raw_message=msg,
             )
@@ -845,6 +894,9 @@ class AssistantIntentEngine:
                 intent=AssistantIntent.ITEM_QUANTITY,
                 item_query=item_query,
                 vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
                 raw_message=msg,
             )
 
@@ -854,23 +906,79 @@ class AssistantIntentEngine:
                 intent=AssistantIntent.ITEM_SEARCH,
                 item_query=item_query,
                 vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
+                min_amount=min_amount,
+                max_amount=max_amount,
                 raw_message=msg,
             )
 
         # 13. Latest receipt items (e.g. "what did I buy in my latest DMart receipt?", "give me the latest dmart purchases")
-        if is_latest and vendor and re.search(r"\b(buy|items?|products?|bought|contain|contents?|list|purchases?)\b", lower):
+        if is_latest and vendor and re.search(r"\b(buy|items?|products?|bought|brought|contain|contents?|list|purchases?)\b", lower):
             return ParsedQueryIntent(
                 intent=AssistantIntent.LATEST_RECEIPT_ITEMS,
                 vendor=vendor,
+                item_query=item_query,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
                 is_latest=True,
                 raw_message=msg,
             )
 
         # 14. Vendor items (e.g. "what did I buy from DMart?", "show my DMart purchases")
-        if vendor and re.search(r"\b(buy|bought|purchases?|items?|products?|order|what.*get)\b", lower):
+        if vendor and re.search(r"\b(buy|bought|brought|purchases?|items?|products?|order|what.*get)\b", lower):
             return ParsedQueryIntent(
                 intent=AssistantIntent.VENDOR_ITEMS,
                 vendor=vendor,
+                item_query=item_query,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
+                min_amount=min_amount,
+                max_amount=max_amount,
+                raw_message=msg,
+            )
+
+        # 14b. Recent Uploads (e.g. "show me my recent uploaded receipts", "most recently uploaded receipts", "recent uploads", "my uploads", "uploaded receipts")
+        if re.search(r"\b(uploaded|uploads?|uploading)\b", lower) and not item_query:
+            return ParsedQueryIntent(
+                intent=AssistantIntent.RECENT_UPLOADS,
+                vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
+                min_amount=min_amount,
+                max_amount=max_amount,
+                raw_message=msg,
+            )
+
+        # 14c. Recent Receipts / General Receipt Listings (e.g. "show me my recent receipts", "recent purchases", "my receipts", "show receipts", "list receipts", "what receipts do i have")
+        if (
+            re.search(r"\b(recent|recently|newest|latest)\s+(?:receipts?|documents?|invoices?|bills?|purchases?|expenses?|orders?|transactions?|docs?|files?)\b", lower)
+            or re.search(r"\b(?:show|list|get|find|display|see|view|what are)\s+(?:me\s+)?(?:all\s+)?(?:my\s+)?(?:recent\s+|latest\s+)?(?:receipts?|documents?|invoices?|bills?|purchases?|docs?)\b", lower)
+            or re.search(r"\b(?:what\s+receipts?|what\s+documents?|what\s+invoices?|what\s+bills?)\s+(?:do\s+i\s+have|are\s+there|have\s+i|exist)\b", lower)
+        ) and not item_query:
+            # If user explicitly asked for single "latest receipt / purchase" (and not plural or general recent)
+            if re.search(r"\b(?:what\s+is|what's|show\s+my|get\s+my)?\s*(?:the\s+|my\s+)?latest\s+(?:receipt|purchase|bill|invoice|doc|document)\b", lower) and not re.search(r"\b(receipts|documents|invoices|bills|purchases)\b", lower):
+                return ParsedQueryIntent(
+                    intent=AssistantIntent.LATEST_RECEIPT,
+                    vendor=vendor,
+                    start_date=start_date,
+                    end_date=end_date,
+                    temporal_label=temporal_label,
+                    is_latest=True,
+                    raw_message=msg,
+                )
+            return ParsedQueryIntent(
+                intent=AssistantIntent.RECENT_RECEIPTS,
+                vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
+                min_amount=min_amount,
+                max_amount=max_amount,
                 raw_message=msg,
             )
 
@@ -879,6 +987,9 @@ class AssistantIntentEngine:
             return ParsedQueryIntent(
                 intent=AssistantIntent.LATEST_RECEIPT,
                 vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
                 is_latest=True,
                 raw_message=msg,
             )
@@ -888,6 +999,11 @@ class AssistantIntentEngine:
             return ParsedQueryIntent(
                 intent=AssistantIntent.VENDOR_SPENDING,
                 vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
+                min_amount=min_amount,
+                max_amount=max_amount,
                 raw_message=msg,
             )
 
@@ -895,6 +1011,9 @@ class AssistantIntentEngine:
         if re.search(r"\b(that|it)\b", lower) and not vendor and not item_query and not comp_v1:
             return ParsedQueryIntent(
                 intent=AssistantIntent.GENERAL_QUERY,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
                 raw_message=msg,
             )
 
@@ -902,10 +1021,21 @@ class AssistantIntentEngine:
         if re.search(r"(how much.*(spend|spent|total|cost)|total spending|overall spend|my spending|summary of my purchases|summary)", lower):
             return ParsedQueryIntent(
                 intent=AssistantIntent.TOTAL_SPENDING,
+                vendor=vendor,
+                start_date=start_date,
+                end_date=end_date,
+                temporal_label=temporal_label,
                 raw_message=msg,
             )
 
         return ParsedQueryIntent(
             intent=AssistantIntent.GENERAL_QUERY,
+            vendor=vendor,
+            item_query=item_query,
+            start_date=start_date,
+            end_date=end_date,
+            temporal_label=temporal_label,
+            min_amount=min_amount,
+            max_amount=max_amount,
             raw_message=msg,
         )

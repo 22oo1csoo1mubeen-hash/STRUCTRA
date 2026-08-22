@@ -1,324 +1,348 @@
-# Main Application — AI Assistant Workspace
+# Main Application — Profile Workspace
 
 ## Location
 
-design-assets/Main Page/AI Assistant/
+design-assets/Main Page/Profile/
 
 ## Official UI References
 
-### assistant-reference.png
+### Profile-header-reference.png
 
 Purpose:
 
-Official reference for the primary AI Assistant UI.
+Official reference for the Profile Overview section.
 
-This reference defines the approved visual design for the STRUCTRA AI Assistant
-workspace.
+This reference defines the approved Profile landing experience inside the STRUCTRA application.
 
 Use it to reproduce:
 
-- Layout
+- Profile header glass card
+- User avatar
+- User information
+- Premium plan badge
+- Member since section
+- Edit Profile button
+- Quick overview cards
+- Account status
+- Storage usage
+- Documents uploaded
+- Last login
+- Secure data information card
 - Glassmorphism
-- Background
 - Typography
 - Spacing
 - Borders
 - Glow effects
-- Cards
-- Buttons
-- Icons
 - Visual hierarchy
-- Input area
-- Header / greeting area
-- Suggested prompt cards
-- Empty conversation state
-- Floating AI Assistant button
-- Animations where applicable
 
-The AI Assistant must preserve the established STRUCTRA application shell:
+---
 
-- Left sidebar
-- Global search / top navigation
-- User / profile area
-- STRUCTRA background
-- Dark premium visual language
-- Warm orange / amber accent
+### personal-info-reference.png
+
+Purpose:
+
+Official reference for the Personal Information section.
+
+This reference defines how users manage and update their personal details.
+
+Recreate the approved UI including:
+
+- Personal information form
+- Full name
+- Email address
+- Phone number
+- Organization
+- Job title
+- Location
+- Profile picture management
+- Change profile picture
+- Remove profile picture
+- Preferred language
+- Verified email badge
+- Edit mode
+- Save Changes
+- Cancel
+- Premium STRUCTRA styling
+
+---
+
+### Account-security-reference.png
+
+Purpose:
+
+Official reference for the Account & Security section.
+
+This screen manages authentication, account recovery, passwords and active sessions.
+
+Use the reference to reproduce:
+
+- Sign-in method
+- Google Account login
+- Email & Password login
+- Active authentication method
+- Password management
+- Change password
+- Account recovery
+- Recovery email
+- Recovery phone
+- Active sessions
+- Current device
+- Other signed-in devices
+- Manage sessions
+- Security activity
+- Recent login activity
+- Glass cards
+- Orange accent buttons
+- Premium dark UI
+
+IMPORTANT:
+
+The UI must support both authentication methods.
+
+**Google Account**
+
+- Show Google Account as the active sign-in method.
+- Do NOT display password creation for Google-only users.
+- Password section should be hidden when the account is Google-only.
+
+**Email & Password Account**
+
+- Show Email & Password as the active sign-in method.
+- Display Change Password.
+- Display Account Recovery.
+- Display Active Sessions.
+- Display Security Activity.
+
+The interface should automatically adapt based on the user's authentication provider.
+
+---
+
+### danger-zone-reference.png
+
+Purpose:
+
+Official reference for the Danger Zone section.
+
+This screen manages permanent account deletion.
+
+Recreate:
+
+- Danger Zone warning header
+- Permanent deletion warning
+- Information about what will be deleted
+- Uploaded documents
+- Extracted information
+- AI conversations
+- Account settings
+- Usage history
+- Confirmation warning card
+- DELETE confirmation input
+- Delete Account button
+- Cancel button
+- Premium warning styling
+- Red danger accents
 - Glassmorphism
-- Existing typography and spacing system
-
-IMPORTANT:
-
-Do NOT redesign the existing application shell or left sidebar.
-
-The AI Assistant page should feel like a native part of the existing STRUCTRA
-application rather than a separate product.
+- Dark STRUCTRA visual language
 
 ---
 
-### assistant-stages-reference.png
+# Profile Workspace
+
+The Profile section is a dedicated account-management workspace inside the existing STRUCTRA application.
+
+It contains **four mini sections**:
+
+1. Profile
+2. Personal Information
+3. Account & Security
+4. Danger Zone
+
+These sections should switch inside the same workspace without navigating to different pages.
+
+---
+
+# Profile Navigation
+
+When the user opens **Profile**, display a left-side Profile navigation panel containing:
+
+- Profile
+- Personal Information
+- Account & Security
+- Danger Zone
+
+The currently selected section should use the existing STRUCTRA orange active state.
+
+Do not redesign the existing application sidebar.
+
+---
+
+# Profile Section
 
 Purpose:
 
-Official reference for the AI Assistant interaction states.
+Provide a clean overview of the user's account.
 
-This reference defines the visual progression of the Assistant workspace when
-the user interacts with STRUCTRA.
+Display:
 
-The Assistant should transform between states within the same workspace rather
-than navigating to separate pages.
+- Profile header card
+- User avatar
+- Name
+- Email
+- Premium plan badge
+- Member since
+- Edit Profile button
+- Email
+- Account type
+- Documents uploaded
+- Member since
+- Quick overview cards
+- Account status
+- Last login
+- Storage usage
+- Security / privacy information card
 
-## AI Assistant Identity
-
-The Assistant is named:
-
-**STRUCTRA**
-
-The top greeting should introduce the assistant clearly.
-
-Example:
-
-**Hi, I am STRUCTRA.**
-
-Supporting text may communicate that STRUCTRA can help with:
-
-- documents
-- receipts
-- invoices
-- spending
-- vendors
-- purchases
-- document-library insights
-
-Use concise, friendly wording consistent with the approved reference.
+This should match the approved Profile header reference.
 
 ---
 
-# AI Assistant States
-
-## STATE 1 — Initial / No Question
+# Personal Information Section
 
 Purpose:
 
-Default state immediately after opening the AI Assistant.
+Allow users to manage their personal details.
 
-Show:
+Display editable information including:
 
-- STRUCTRA greeting
-- Short assistant description
-- Suggested prompt cards
-- Natural-language usage tip
-- Large conversation workspace
-- Empty conversation state
-- Assistant input field
-- Attachment control where supported
-- Send button
-- Privacy / data usage note where applicable
-- Floating AI Assistant button
+- Full name
+- Email
+- Phone number
+- Organization
+- Job title
+- Location
+- Profile picture
+- Preferred language
 
-Example:
+Provide:
 
-**Hi, I am STRUCTRA.**
+- Edit Mode
+- Save Changes
+- Cancel
 
-Your AI assistant for documents, receipts, invoices and insights.
-
-The suggested prompts should help users discover useful capabilities without
-overwhelming the interface.
-
-Examples:
-
-- Spending trends
-- Top vendors
-- Recent receipts
-- Expensive purchases
+Do not allow editing until Edit Mode is enabled.
 
 ---
 
-## STATE 2 — Question Entered
-
-Displayed after the user submits a question.
-
-The conversation workspace becomes the primary focus.
-
-IMPORTANT:
-
-Once the user has submitted a question:
-
-- Remove the top suggestion cards.
-- Keep the STRUCTRA greeting.
-- Keep the small assistant guidance / tooltip text where appropriate.
-- Expand the conversation area vertically.
-- Preserve the same overall glassmorphism and page structure.
-- Do not navigate away from the AI Assistant route.
-
-The user's question should appear as a clearly distinguished user message.
-
-Example:
-
-> Explore the document library. Check how many items I have bought in
-> DMart from the latest DMart receipt.
-
-The input remains available for follow-up questions.
-
----
-
-## STATE 3 — AI Processing / Loading
+# Account & Security Section
 
 Purpose:
 
-Show that STRUCTRA is actively analysing the user's persisted document
-information.
+Manage authentication and account security.
 
-Show:
+Support two account types.
 
-- User's submitted question
-- STRUCTRA processing indicator
-- Smooth animated assistant state
-- Friendly progress / thinking message
-- Conversation input remains available where appropriate
+## Google Account Users
 
-Example:
+Display:
 
-**Let me explore your Document Library...**
+- Google Account as the active sign-in method.
+- Connected Google email.
+- Account recovery information.
+- Active sessions.
+- Security activity.
 
-Analysing the latest DMart receipt...
+Hide password management for Google-only users.
 
-Use subtle premium animation.
+## Email & Password Users
 
-Do NOT use a long artificial delay.
+Display:
 
-The loading state should disappear immediately when the backend response is
-available.
+- Email & Password as the active sign-in method.
+- Change Password.
+- Account recovery.
+- Recovery email.
+- Recovery phone.
+- Active sessions.
+- Current device.
+- Other logged-in devices.
+- Security activity.
+
+The UI should automatically adapt depending on the authentication provider.
 
 ---
 
-## STATE 4 — Result Displayed
+# Danger Zone Section
 
 Purpose:
 
-Present the answer returned by STRUCTRA.
+Allow users to permanently delete their account.
 
-The response should appear as a polished assistant message/card within the
-same conversation workspace.
+Display:
 
-The result should:
+- Permanent deletion warning.
+- What will be deleted.
+- Uploaded documents.
+- Extracted information.
+- AI conversations.
+- Account information.
+- Analytics and activity.
+- DELETE confirmation input.
+- Delete My Account button.
+- Cancel button.
 
-- Clearly answer the user's question
-- Use accurate values from the user's persisted Document Library
-- Reference the relevant document when appropriate
-- Present structured information cleanly
-- Remain readable without turning the page into a generic data table
+Account deletion must require the user to type:
 
-Example:
+DELETE
 
-**Here's what I found in your latest DMart receipt.**
-
-**18 items purchased**
-
-- Total amount: ₹1,425.60
-- Receipt date: 16 Aug 2026
-- Vendor: DMart
-
-Additional actions may be available when appropriate, such as opening the
-source document through the existing Document Library detail experience.
-
-Do NOT invent values.
-
-The Assistant must use actual backend / persisted document data.
+before enabling the Delete Account button.
 
 ---
 
-# Conversation Behaviour
+# Visual Requirements
 
-The AI Assistant is session-based.
+Preserve the existing STRUCTRA design language.
 
-The conversation should persist while the current browser session remains open.
-
-Important:
-
-- Closing and reopening a browser session should start a fresh Assistant
-  conversation.
-- Closing and reopening a tab should NOT clear the current session.
-- Do NOT add a visible chat-history / previous-conversations sidebar.
-- Do NOT introduce persistent conversation history UI.
-- The Assistant should remain focused on the current session.
-
-The session behaviour must not change the application's persistent Document
-Library data.
-
----
-
-# Data & Functionality Rules
-
-STRUCTRA should answer questions using actual application data and existing
-backend capabilities.
-
-The Assistant may retrieve information such as:
-
-- saved documents
-- vendors
-- spending
-- purchased items
-- receipt details
-- invoice details
-- confidence / quality
-- review status
-- recent documents
-
-The Assistant must NOT fabricate:
-
-- totals
-- item quantities
-- vendor names
-- document dates
-- confidence values
-- review status
-- document existence
-
-Whenever a question depends on a specific saved document, use the existing
-Document Library / document-detail capabilities where appropriate.
-
-Do not create a second document-detail implementation for the Assistant.
-
----
-
-# Visual / Interaction Requirements
-
-Preserve the established STRUCTRA visual language:
+Use:
 
 - Deep dark background
-- Warm orange / amber highlights
 - Premium glassmorphism
-- Subtle borders
+- Warm orange accents
+- Red warning accents only inside Danger Zone
+- Soft borders
 - Ambient glow
-- Strong typography hierarchy
-- Smooth transitions
 - Clean spacing
-- Responsive layout
+- Strong typography hierarchy
+- Rounded glass cards
+- Smooth transitions
 
-The Assistant should feel:
+Do NOT redesign:
 
-- intelligent
-- premium
-- calm
-- fast
-- trustworthy
+- Main application sidebar
+- Top navigation
+- User/profile area
+- Background
+- Existing STRUCTRA application shell
 
-Avoid:
-
-- excessive neon
-- unnecessary gradients
-- distracting animation
-- generic chatbot styling
-- unnecessary panels
-- visible conversation-history navigation
+The Profile workspace must feel like a native part of the existing STRUCTRA application.
 
 ---
 
-# MainPage Asset Structure
+# Update assets-map.md
 
-```text
-design-assets/
-└── Main Page/
-    └── AI Assistant/
-        ├── assistant-reference.png
-        └── assistant-stages-reference.png
+The core functionality sections of the Main Page are now complete.
+
+Remove the asset mappings related to:
+
+- Upload Documents
+- Dashboard
+- Document Library
+- AI Assistant
+
+Replace them with the new Profile workspace asset mappings:
+
+design-assets/Main Page/Profile/Profile-header-reference.png
+
+design-assets/Main Page/Profile/personal-info-reference.png
+
+design-assets/Main Page/Profile/Account-security-reference.png
+
+design-assets/Main Page/Profile/danger-zone-reference.png

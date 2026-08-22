@@ -57,6 +57,10 @@ _DATE_FORMATS = (
     "%B %d %Y",
     "%d-%b-%Y",
     "%d-%B-%Y",
+    "%d/%b/%Y",
+    "%d/%B/%Y",
+    "%b/%d/%Y",
+    "%B/%d/%Y",
     # 2-digit years
     "%d/%m/%y",
     "%m/%d/%y",
@@ -72,6 +76,10 @@ _DATE_FORMATS = (
     "%b %d %y",
     "%d-%b-%y",
     "%d-%B-%y",
+    "%d/%b/%y",
+    "%d/%B/%y",
+    "%b/%d/%y",
+    "%B/%d/%y",
 )
 
 

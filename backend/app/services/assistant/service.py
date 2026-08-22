@@ -165,31 +165,82 @@ def _build_deterministic_fallback_reply(
         tot = retrieved_payload.get("total_spending") or {}
         tot_str = _fmt_currency(tot.get("total_spent", 0.0))
         cnt = tot.get("total_documents", 0)
-        return f"Your total spending across {cnt} receipt{'s' if cnt != 1 else ''} is {tot_str}."
+        time_str = f" in {parsed_intent.temporal_label}" if parsed_intent.temporal_label else ""
+        v_str = f" at {parsed_intent.vendor}" if parsed_intent.vendor else ""
+        return f"Your total spending{time_str}{v_str} across {cnt} receipt{'s' if cnt != 1 else ''} is {tot_str}."
 
     if intent == AssistantIntent.MOST_EXPENSIVE_RECEIPT:
         rec = retrieved_payload.get("most_expensive_receipt")
         if not rec:
+            if parsed_intent.temporal_label:
+                return f"No receipts found for {parsed_intent.temporal_label}."
             return "No receipts found in your library."
-        return f"Your most expensive receipt is from {rec.get('vendor') or 'Unknown'} ({rec.get('filename')}) totaling {_fmt_currency(rec.get('total_amount'))}."
+        time_str = f" in {parsed_intent.temporal_label}" if parsed_intent.temporal_label else ""
+        return f"Your most expensive receipt{time_str} is from {rec.get('vendor') or 'Unknown'} ({rec.get('filename')}) totaling {_fmt_currency(rec.get('total_amount'))}."
 
     if intent == AssistantIntent.MOST_EXPENSIVE_ITEM:
         it = retrieved_payload.get("most_expensive_item")
         if not it:
+            if parsed_intent.temporal_label:
+                return f"No line items found for {parsed_intent.temporal_label}."
             return "No line items found in your library."
-        return f"Your most expensive purchased item is '{it['name']}' costing {_fmt_currency(it['amount'])}{' from ' + it['vendor'] if it.get('vendor') else ''}."
+        time_str = f" in {parsed_intent.temporal_label}" if parsed_intent.temporal_label else ""
+        return f"Your most expensive purchased item{time_str} is '{it['name']}' costing {_fmt_currency(it['amount'])}{' from ' + it['vendor'] if it.get('vendor') else ''}."
 
     if intent == AssistantIntent.CHEAPEST_RECEIPT:
         rec = retrieved_payload.get("cheapest_receipt")
         if not rec:
+            if parsed_intent.temporal_label:
+                return f"No receipts found for {parsed_intent.temporal_label}."
             return "No receipts found in your library."
-        return f"Your cheapest receipt is from {rec.get('vendor') or 'Unknown'} ({rec.get('filename')}) totaling {_fmt_currency(rec.get('total_amount'))}."
+        time_str = f" in {parsed_intent.temporal_label}" if parsed_intent.temporal_label else ""
+        return f"Your cheapest receipt{time_str} is from {rec.get('vendor') or 'Unknown'} ({rec.get('filename')}) totaling {_fmt_currency(rec.get('total_amount'))}."
 
     if intent == AssistantIntent.CHEAPEST_ITEM:
         it = retrieved_payload.get("cheapest_item")
         if not it:
+            if parsed_intent.temporal_label:
+                return f"No line items found for {parsed_intent.temporal_label}."
             return "No line items found in your library."
-        return f"Your cheapest purchased item is '{it['name']}' costing {_fmt_currency(it['amount'])}{' from ' + it['vendor'] if it.get('vendor') else ''}."
+        time_str = f" in {parsed_intent.temporal_label}" if parsed_intent.temporal_label else ""
+        return f"Your cheapest purchased item{time_str} is '{it['name']}' costing {_fmt_currency(it['amount'])}{' from ' + it['vendor'] if it.get('vendor') else ''}."
+
+    if intent == AssistantIntent.RECENT_RECEIPTS:
+        docs = retrieved_payload.get("recent_documents") or []
+        if not docs:
+            return "No receipts found in your library."
+        v_str = f" from {parsed_intent.vendor}" if parsed_intent.vendor else ""
+        lines = [
+            f"**Your {len(docs)} most recent receipts{v_str} (sorted by date):**\n",
+            "| Filename | Vendor | Date | Total |",
+            "| :--- | :--- | :--- | :--- |",
+        ]
+        for d in docs:
+            ext = d.extraction_result or {}
+            v_name = ext.get("vendor_company") or "Unknown Vendor"
+            d_str = ext.get("date") or "N/A"
+            tot_str = _fmt_currency(ext.get("total"))
+            lines.append(f"| `{d.filename}` | {v_name} | {d_str} | {tot_str} |")
+        return "\n".join(lines)
+
+    if intent == AssistantIntent.RECENT_UPLOADS:
+        docs = retrieved_payload.get("uploaded_documents") or []
+        if not docs:
+            return "No uploaded receipts found in your library."
+        v_str = f" from {parsed_intent.vendor}" if parsed_intent.vendor else ""
+        lines = [
+            f"**Your {len(docs)} most recently uploaded receipts{v_str}:**\n",
+            "| Filename | Vendor | Date | Uploaded | Total |",
+            "| :--- | :--- | :--- | :--- | :--- |",
+        ]
+        for d in docs:
+            ext = d.extraction_result or {}
+            v_name = ext.get("vendor_company") or "Unknown Vendor"
+            d_str = ext.get("date") or "N/A"
+            up_str = d.created_at.strftime("%d-%b-%Y") if d.created_at else "N/A"
+            tot_str = _fmt_currency(ext.get("total"))
+            lines.append(f"| `{d.filename}` | {v_name} | {d_str} | {up_str} | {tot_str} |")
+        return "\n".join(lines)
 
     return None
 
@@ -248,7 +299,23 @@ async def run_assistant_chat(
             retrieved_payload["ambiguous_vendors"] = candidates
 
     if not retrieved_payload.get("ambiguous_vendors"):
-        if intent == AssistantIntent.VENDOR_COMPARISON and parsed_intent.vendor and parsed_intent.vendor_b:
+        if intent == AssistantIntent.RECENT_UPLOADS:
+            upload_docs = await retrieval.get_recent_uploads(limit=5, vendor=parsed_intent.vendor)
+            tot_spend = await retrieval.calculate_total_spending(vendor=parsed_intent.vendor)
+            lib_stats = await retrieval.get_library_stats()
+            retrieved_payload["uploaded_documents"] = upload_docs
+            retrieved_payload["total_spending"] = tot_spend
+            retrieved_payload["library_stats"] = lib_stats
+
+        elif intent == AssistantIntent.RECENT_RECEIPTS:
+            recent_docs = await retrieval.get_recent_receipts(limit=5, vendor=parsed_intent.vendor)
+            tot_spend = await retrieval.calculate_total_spending(vendor=parsed_intent.vendor)
+            lib_stats = await retrieval.get_library_stats()
+            retrieved_payload["recent_documents"] = recent_docs
+            retrieved_payload["total_spending"] = tot_spend
+            retrieved_payload["library_stats"] = lib_stats
+
+        elif intent == AssistantIntent.VENDOR_COMPARISON and parsed_intent.vendor and parsed_intent.vendor_b:
             comp_res = await retrieval.compare_vendors(parsed_intent.vendor, parsed_intent.vendor_b)
             retrieved_payload["vendor_comparison"] = comp_res
 
@@ -285,63 +352,124 @@ async def run_assistant_chat(
             hist_res = await retrieval.get_item_history(
                 item_query=parsed_intent.item_query,
                 vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
             )
             retrieved_payload["item_history"] = hist_res
 
         elif intent in (AssistantIntent.LATEST_RECEIPT_ITEMS, AssistantIntent.LATEST_RECEIPT):
-            latest_doc = await retrieval.get_latest_document(vendor=parsed_intent.vendor)
+            latest_doc = await retrieval.get_latest_document(
+                vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+            )
             retrieved_payload["document"] = latest_doc
 
         elif intent == AssistantIntent.OLDEST_RECEIPT:
-            oldest_doc = await retrieval.get_oldest_document(vendor=parsed_intent.vendor)
+            oldest_doc = await retrieval.get_oldest_document(
+                vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+            )
             retrieved_payload["document"] = oldest_doc
             retrieved_payload["oldest_document"] = oldest_doc
 
         elif intent == AssistantIntent.OLDEST_ITEM:
-            oldest_it = await retrieval.get_oldest_item(vendor=parsed_intent.vendor)
+            oldest_it = await retrieval.get_oldest_item(
+                vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+            )
             retrieved_payload["oldest_item"] = oldest_it
 
         elif intent == AssistantIntent.VENDOR_SPENDING:
-            v_spend = await retrieval.calculate_vendor_spending(vendor=parsed_intent.vendor or "")
+            v_spend = await retrieval.calculate_vendor_spending(
+                vendor=parsed_intent.vendor or "",
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+            )
             retrieved_payload["vendor_spending"] = v_spend
 
         elif intent == AssistantIntent.VENDOR_ITEMS:
-            docs = await retrieval.get_documents_by_vendor(vendor=parsed_intent.vendor or "")
+            docs = await retrieval.get_documents_by_vendor(
+                vendor=parsed_intent.vendor or "",
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+            )
             retrieved_payload["documents"] = docs
 
         elif intent in (AssistantIntent.ITEM_QUANTITY, AssistantIntent.ITEM_SEARCH):
             item_stats = await retrieval.calculate_item_quantities(
                 item_query=parsed_intent.item_query or "",
                 vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
             )
             retrieved_payload["item_stats"] = item_stats
 
         elif intent == AssistantIntent.MOST_EXPENSIVE_ITEM:
-            most_exp = await retrieval.get_most_expensive_item()
+            most_exp = await retrieval.get_most_expensive_item(
+                vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+                min_amount=parsed_intent.min_amount,
+                max_amount=parsed_intent.max_amount,
+                item_query=parsed_intent.item_query,
+            )
             retrieved_payload["most_expensive_item"] = most_exp
 
         elif intent == AssistantIntent.MOST_EXPENSIVE_RECEIPT:
-            most_exp_rec = await retrieval.get_most_expensive_receipt()
+            most_exp_rec = await retrieval.get_most_expensive_receipt(
+                vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+                min_amount=parsed_intent.min_amount,
+                max_amount=parsed_intent.max_amount,
+            )
             retrieved_payload["most_expensive_receipt"] = most_exp_rec
 
         elif intent == AssistantIntent.CHEAPEST_ITEM:
-            cheap_it = await retrieval.get_cheapest_item(vendor=parsed_intent.vendor)
+            cheap_it = await retrieval.get_cheapest_item(
+                vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+                min_amount=parsed_intent.min_amount,
+                max_amount=parsed_intent.max_amount,
+                item_query=parsed_intent.item_query,
+            )
             retrieved_payload["cheapest_item"] = cheap_it
 
         elif intent == AssistantIntent.CHEAPEST_RECEIPT:
-            cheap_rec = await retrieval.get_cheapest_receipt(vendor=parsed_intent.vendor)
+            cheap_rec = await retrieval.get_cheapest_receipt(
+                vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+                min_amount=parsed_intent.min_amount,
+                max_amount=parsed_intent.max_amount,
+            )
             retrieved_payload["cheapest_receipt"] = cheap_rec
 
         elif intent in (AssistantIntent.TOTAL_SPENDING, AssistantIntent.DOCUMENT_COUNT):
-            tot_spend = await retrieval.calculate_total_spending()
+            tot_spend = await retrieval.calculate_total_spending(
+                vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+            )
             retrieved_payload["total_spending"] = tot_spend
 
         elif intent == AssistantIntent.TOP_VENDORS:
-            top_v = await retrieval.get_top_vendors()
+            top_v = await retrieval.get_top_vendors(
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+            )
             retrieved_payload["top_vendors"] = top_v
 
         elif intent == AssistantIntent.MOST_FREQUENT_ITEMS:
-            freq_i = await retrieval.get_most_bought_items()
+            freq_i = await retrieval.get_most_bought_items(
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+                vendor=parsed_intent.vendor,
+            )
             retrieved_payload["most_bought_items"] = freq_i
 
         elif intent == AssistantIntent.CLARIFICATION:
@@ -350,7 +478,11 @@ async def run_assistant_chat(
         else:
             # General query: retrieve complete library overview and summary
             all_docs = await retrieval.get_all_documents()
-            tot_spend = await retrieval.calculate_total_spending()
+            tot_spend = await retrieval.calculate_total_spending(
+                vendor=parsed_intent.vendor,
+                start_date=parsed_intent.start_date,
+                end_date=parsed_intent.end_date,
+            )
             lib_stats = await retrieval.get_library_stats()
             retrieved_payload["all_documents"] = all_docs
             retrieved_payload["recent_documents"] = all_docs[:10]

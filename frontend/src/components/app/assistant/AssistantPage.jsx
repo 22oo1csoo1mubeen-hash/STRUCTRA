@@ -268,36 +268,352 @@ function formatTime(iso) {
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   Markdown-like renderer
+   Markdown-like rich renderer with Table, Code, & Hierarchy Support
 ───────────────────────────────────────────────────────────────── */
+function renderInline(text) {
+  if (!text) return null;
+  const tokens = [];
+  const regex = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|_([^_]+)_)/g;
+  let lastIdx = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      tokens.push(text.slice(lastIdx, match.index));
+    }
+    tokens.push(match[0]);
+    lastIdx = regex.lastIndex;
+  }
+  if (lastIdx < text.length) {
+    tokens.push(text.slice(lastIdx));
+  }
+
+  return tokens.map((tok, i) => {
+    if (tok.startsWith('`') && tok.endsWith('`') && tok.length >= 2) {
+      return (
+        <code
+          key={i}
+          style={{
+            background: 'rgba(255,255,255,0.08)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 4,
+            padding: '1px 5px',
+            fontSize: 12,
+            color: '#fdba74',
+            fontFamily: 'monospace',
+          }}
+        >
+          {tok.slice(1, -1)}
+        </code>
+      );
+    }
+    if (tok.startsWith('**') && tok.endsWith('**') && tok.length >= 4) {
+      return (
+        <strong key={i} style={{ color: '#ffffff', fontWeight: 700 }}>
+          {tok.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (
+      (tok.startsWith('*') && tok.endsWith('*') && tok.length >= 2) ||
+      (tok.startsWith('_') && tok.endsWith('_') && tok.length >= 2)
+    ) {
+      return (
+        <em key={i} style={{ color: 'rgba(255,255,255,0.85)', fontStyle: 'italic' }}>
+          {tok.slice(1, -1)}
+        </em>
+      );
+    }
+    return tok;
+  });
+}
+
+function renderCellContent(cellStr) {
+  if (!cellStr) return '-';
+  const clean = cellStr.trim();
+
+  // If currency (e.g. ₹569.14 or ₹3,150.00)
+  if (/^[₹$]\s*[\d,]+(?:\.\d{1,2})?$/.test(clean) || /^\*\*[₹$]\s*[\d,]+(?:\.\d{1,2})?\*\*$/.test(clean)) {
+    const rawVal = clean.replace(/\*\*/g, '');
+    return (
+      <span style={{ color: '#f97316', fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' }}>
+        {rawVal}
+      </span>
+    );
+  }
+
+  // If filename (e.g. invoice7.jpg, Hotel2.png, `Hotel2.png`)
+  const fnMatch = clean.match(/^`?([a-zA-Z0-9_\-.]+\.(?:png|jpg|jpeg|pdf|webp))`?$/i);
+  if (fnMatch) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 6,
+          padding: '2px 7px',
+          fontSize: 11.5,
+          fontFamily: 'monospace',
+          color: '#ffffff',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        📄 {fnMatch[1]}
+      </span>
+    );
+  }
+
+  // If semicolon or newline separated items in cell (e.g. item list)
+  const subItems = clean.split(/;\s*|\n/).map((s) => s.trim()).filter(Boolean);
+  if (subItems.length > 1) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {subItems.map((it, idx) => (
+          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'rgba(255,255,255,0.85)' }}>
+            <span style={{ color: '#f97316', fontSize: 7, flexShrink: 0 }}>●</span>
+            <span>{renderInline(it)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return renderInline(clean);
+}
+
 function RenderMarkdown({ text }) {
   if (!text) return null;
   const lines = text.split('\n');
+
+  // Group lines into blocks (Tables, Headings, List items, Paragraphs)
+  const blocks = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const rawLine = lines[i];
+    const trimmed = rawLine.trim();
+
+    // Check if table start (contains | and has at least 2 pipes)
+    if (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.split('|').length >= 3) {
+      const tableLines = [];
+      while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+      blocks.push({ type: 'table', lines: tableLines });
+      continue;
+    }
+
+    // Code block
+    if (trimmed.startsWith('```')) {
+      const codeLines = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++; // skip closing ```
+      blocks.push({ type: 'code', content: codeLines.join('\n') });
+      continue;
+    }
+
+    // Heading
+    if (trimmed.startsWith('#')) {
+      const levelMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
+      if (levelMatch) {
+        blocks.push({ type: 'heading', level: levelMatch[1].length, text: levelMatch[2] });
+        i++;
+        continue;
+      }
+    }
+
+    // Horizontal rule
+    if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+      blocks.push({ type: 'hr' });
+      i++;
+      continue;
+    }
+
+    // Regular line / list item
+    blocks.push({ type: 'line', raw: rawLine });
+    i++;
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {lines.map((line, idx) => {
-        const isBullet = line.startsWith('- ') || line.startsWith('• ');
-        const content = isBullet ? line.slice(2) : line;
-        const parts = content.split(/(\*\*[^*]+\*\*)/g);
-        const rendered = parts.map((part, pi) =>
-          part.startsWith('**') && part.endsWith('**') ? (
-            <strong key={pi} style={{ color: '#ffffff', fontWeight: 700 }}>
-              {part.slice(2, -2)}
-            </strong>
-          ) : (
-            part
-          )
-        );
-        if (!line.trim()) return <div key={idx} style={{ height: 3 }} />;
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {blocks.map((block, bi) => {
+        if (block.type === 'table') {
+          // Parse table lines into headers and rows
+          const validLines = block.lines.filter((l) => !/^\|(?:\s*:?-+:?\s*\|)+$/.test(l));
+          if (validLines.length === 0) return null;
+
+          const parseRow = (line) =>
+            line
+              .slice(1, -1)
+              .split('|')
+              .map((c) => c.trim());
+
+          const headers = parseRow(validLines[0]);
+          const rows = validLines.slice(1).map(parseRow);
+
+          return (
+            <div
+              key={bi}
+              style={{
+                margin: '8px 0',
+                overflowX: 'auto',
+                borderRadius: 10,
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(18,18,24,0.65)',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+              }}
+            >
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 380 }}>
+                <thead>
+                  <tr style={{ background: 'rgba(249,115,22,0.12)', borderBottom: '1px solid rgba(249,115,22,0.25)' }}>
+                    {headers.map((h, hi) => (
+                      <th
+                        key={hi}
+                        style={{
+                          padding: '9px 12px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: '#fdba74',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {renderInline(h)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, ri) => (
+                    <tr
+                      key={ri}
+                      style={{
+                        background: ri % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'rgba(255,255,255,0.04)',
+                        borderBottom: ri < rows.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                        transition: 'background 0.12s ease',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(249,115,22,0.06)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = ri % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'rgba(255,255,255,0.04)')}
+                    >
+                      {row.map((cell, ci) => (
+                        <td
+                          key={ci}
+                          style={{
+                            padding: '9px 12px',
+                            fontSize: 12.5,
+                            color: 'rgba(255,255,255,0.90)',
+                            verticalAlign: 'middle',
+                          }}
+                        >
+                          {renderCellContent(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
+        if (block.type === 'code') {
+          return (
+            <pre
+              key={bi}
+              style={{
+                margin: '6px 0',
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: 'rgba(10,10,14,0.75)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                color: '#fdba74',
+                fontSize: 12,
+                fontFamily: 'monospace',
+                overflowX: 'auto',
+              }}
+            >
+              {block.content}
+            </pre>
+          );
+        }
+
+        if (block.type === 'heading') {
+          const fontSize = block.level === 1 ? 16 : block.level === 2 ? 15 : 14;
+          return (
+            <div
+              key={bi}
+              style={{
+                fontSize,
+                fontWeight: 700,
+                color: '#ffffff',
+                margin: '6px 0 2px',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {renderInline(block.text)}
+            </div>
+          );
+        }
+
+        if (block.type === 'hr') {
+          return <hr key={bi} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.10)', margin: '8px 0' }} />;
+        }
+
+        // Line / list item
+        const line = block.raw;
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={bi} style={{ height: 2 }} />;
+
+        const indentMatch = line.match(/^(\s+)/);
+        const indentLevel = indentMatch ? Math.min(Math.floor(indentMatch[1].length / 2), 3) : 0;
+
+        const isBullet = trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('* ');
+        const isNumbered = /^\d+\.\s+/.test(trimmed);
+
+        let content = trimmed;
+        if (isBullet) content = trimmed.slice(2);
+        else if (isNumbered) content = trimmed.replace(/^\d+\.\s+/, '');
+
         return (
-          <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: isBullet ? 7 : 0 }}>
+          <div
+            key={bi}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: isBullet || isNumbered ? 7 : 0,
+              paddingLeft: indentLevel * 14,
+            }}
+          >
             {isBullet && (
-              <span style={{ color: '#f97316', marginTop: 2, flexShrink: 0, fontSize: 10, lineHeight: 1.7 }}>
+              <span
+                style={{
+                  color: indentLevel > 0 ? 'rgba(249,115,22,0.7)' : '#f97316',
+                  marginTop: 3,
+                  flexShrink: 0,
+                  fontSize: indentLevel > 0 ? 8 : 10,
+                  lineHeight: 1.6,
+                }}
+              >
                 ●
               </span>
             )}
-            <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.88)', lineHeight: 1.65 }}>
-              {rendered}
+            {isNumbered && (
+              <span style={{ color: '#f97316', fontWeight: 600, fontSize: 12, lineHeight: 1.6, flexShrink: 0 }}>
+                {trimmed.match(/^\d+\./)[0]}
+              </span>
+            )}
+            <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.90)', lineHeight: 1.65, flex: 1 }}>
+              {renderInline(content)}
             </span>
           </div>
         );
@@ -1151,8 +1467,13 @@ export default function AssistantPage() {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+    if (hasMessages) {
+      const timer = setTimeout(() => {
+        conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, isLoading, hasMessages]);
 
   const handleSend = useCallback(() => {
     const text = draftInput.trim();
@@ -1228,11 +1549,12 @@ export default function AssistantPage() {
         {/* ── Header ── */}
         <div
           style={{
-            padding: '30px 36px 20px 36px',
+            padding: hasMessages ? '16px 36px 14px 36px' : '26px 36px 18px 36px',
             textAlign: 'center',
             borderBottom: '1px solid rgba(255,255,255,0.05)',
             flexShrink: 0,
             position: 'relative',
+            transition: 'padding 0.2s ease',
           }}
         >
           {/* Reset button if conversation has messages */}
@@ -1242,8 +1564,8 @@ export default function AssistantPage() {
               title="Start fresh conversation"
               style={{
                 position: 'absolute',
-                top: 24,
-                right: 32,
+                top: 18,
+                right: 28,
                 background: 'rgba(255,255,255,0.05)',
                 border: '1px solid rgba(255,255,255,0.10)',
                 borderRadius: 8,
@@ -1281,18 +1603,19 @@ export default function AssistantPage() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 9,
-              marginBottom: 8,
+              marginBottom: hasMessages ? 4 : 8,
             }}
           >
-            <SparkleIcon size={20} />
+            <SparkleIcon size={hasMessages ? 18 : 20} />
             <h1
               style={{
                 margin: 0,
-                fontSize: 26,
+                fontSize: hasMessages ? 20 : 26,
                 fontWeight: 700,
                 fontFamily: "'Inter', system-ui, sans-serif",
                 letterSpacing: '-0.01em',
                 color: '#ffffff',
+                transition: 'font-size 0.2s ease',
               }}
             >
               Hi, I am{' '}
@@ -1314,15 +1637,20 @@ export default function AssistantPage() {
             style={{
               margin: '0 auto',
               maxWidth: 480,
-              fontSize: 13.5,
+              fontSize: hasMessages ? 12 : 13.5,
               color: 'rgba(255,255,255,0.50)',
               fontFamily: "'Inter', system-ui, sans-serif",
-              lineHeight: 1.55,
+              lineHeight: 1.5,
+              transition: 'font-size 0.2s ease',
             }}
           >
             Your AI assistant for all things documents, receipts, invoices and insights.
-            <br />
-            Ask me anything or explore suggestions below.
+            {!hasMessages && (
+              <>
+                <br />
+                Ask me anything or explore suggestions below.
+              </>
+            )}
           </motion.p>
 
           {/* Suggestion chips — only when no messages */}
@@ -1332,7 +1660,7 @@ export default function AssistantPage() {
                 key="suggestions"
                 initial={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                transition={{ duration: 0.22, ease: 'easeInOut' }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
                 style={{ overflow: 'hidden' }}
               >
                 {/* Chips row */}
@@ -1354,7 +1682,7 @@ export default function AssistantPage() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ duration: 0.35, delay: 0.5 }}
+                  transition={{ duration: 0.3, delay: 0.3 }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1394,157 +1722,153 @@ export default function AssistantPage() {
           }}
         >
           {/* Empty state */}
-          <AnimatePresence>
-            {!hasMessages && (
+          {!hasMessages ? (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.25 }}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 14,
+                paddingBottom: 20,
+              }}
+            >
               <motion.div
-                key="empty"
-                initial={{ opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.92 }}
-                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                animate={{
+                  boxShadow: [
+                    '0 0 0px rgba(249,115,22,0)',
+                    '0 0 22px rgba(249,115,22,0.22)',
+                    '0 0 0px rgba(249,115,22,0)',
+                  ],
+                }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
                 style={{
-                  flex: 1,
+                  width: 66,
+                  height: 66,
+                  borderRadius: 18,
+                  background: 'rgba(249,115,22,0.08)',
+                  border: '1px solid rgba(249,115,22,0.20)',
                   display: 'flex',
-                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 14,
-                  paddingBottom: 20,
                 }}
               >
-                <motion.div
-                  animate={{
-                    boxShadow: [
-                      '0 0 0px rgba(249,115,22,0)',
-                      '0 0 22px rgba(249,115,22,0.22)',
-                      '0 0 0px rgba(249,115,22,0)',
-                    ],
-                  }}
-                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                  style={{
-                    width: 66,
-                    height: 66,
-                    borderRadius: 18,
-                    background: 'rgba(249,115,22,0.08)',
-                    border: '1px solid rgba(249,115,22,0.20)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <RobotIcon size={42} />
-                </motion.div>
-
-                <div style={{ textAlign: 'center' }}>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: 16,
-                      fontWeight: 600,
-                      color: 'rgba(255,255,255,0.88)',
-                      fontFamily: "'Inter', system-ui, sans-serif",
-                      marginBottom: 5,
-                    }}
-                  >
-                    How can I help you today?
-                  </p>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: 13,
-                      color: 'rgba(255,255,255,0.40)',
-                      fontFamily: "'Inter', system-ui, sans-serif",
-                      lineHeight: 1.55,
-                    }}
-                  >
-                    Ask anything about your documents, spending,
-                    <br />
-                    vendors, invoices and more.
-                  </p>
-                </div>
+                <RobotIcon size={42} />
               </motion.div>
-            )}
-          </AnimatePresence>
 
-          {/* Messages */}
-          {messages.map((msg) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              onSelectPrompt={sendMessage}
-              onNavigateDoc={handleNavigateDoc}
-            />
-          ))}
-
-          {/* Loading indicator */}
-          <AnimatePresence>
-            {isLoading && (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.22 }}
-                style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}
-              >
-                <div
+              <div style={{ textAlign: 'center' }}>
+                <p
                   style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 9,
-                    background: 'rgba(249,115,22,0.14)',
-                    border: '1px solid rgba(249,115,22,0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
+                    margin: 0,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: 'rgba(255,255,255,0.88)',
+                    fontFamily: "'Inter', system-ui, sans-serif",
+                    marginBottom: 5,
                   }}
                 >
-                  <RobotIcon size={20} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span
-                    style={{
-                      fontSize: 10.5,
-                      fontWeight: 700,
-                      color: '#f97316',
-                      fontFamily: "'Inter', system-ui, sans-serif",
-                      letterSpacing: '0.06em',
-                      textTransform: 'uppercase',
-                      marginLeft: 2,
-                    }}
-                  >
-                    STRUCTRA
-                  </span>
+                  How can I help you today?
+                </p>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 13,
+                    color: 'rgba(255,255,255,0.40)',
+                    fontFamily: "'Inter', system-ui, sans-serif",
+                    lineHeight: 1.55,
+                  }}
+                >
+                  Ask anything about your documents, spending,
+                  <br />
+                  vendors, invoices and more.
+                </p>
+              </div>
+            </motion.div>
+          ) : (
+            <>
+              {/* Messages */}
+              {messages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  onSelectPrompt={sendMessage}
+                  onNavigateDoc={handleNavigateDoc}
+                />
+              ))}
+
+              {/* Loading indicator */}
+              {isLoading && (
+                <motion.div
+                  key="loading"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18 }}
+                  style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}
+                >
                   <div
                     style={{
-                      padding: '9px 14px',
-                      borderRadius: '3px 13px 13px 13px',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      backdropFilter: 'blur(10px)',
+                      width: 32,
+                      height: 32,
+                      borderRadius: 9,
+                      background: 'rgba(249,115,22,0.14)',
+                      border: '1px solid rgba(249,115,22,0.25)',
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: 6,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                   >
-                    <p
+                    <RobotIcon size={20} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span
                       style={{
-                        margin: 0,
-                        fontSize: 13,
-                        color: 'rgba(255,255,255,0.55)',
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        color: '#f97316',
                         fontFamily: "'Inter', system-ui, sans-serif",
-                        fontStyle: 'italic',
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        marginLeft: 2,
                       }}
                     >
-                      Let me explore your Document Library...
-                    </p>
-                    <TypingIndicator />
+                      STRUCTRA
+                    </span>
+                    <div
+                      style={{
+                        padding: '9px 14px',
+                        borderRadius: '3px 13px 13px 13px',
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        backdropFilter: 'blur(10px)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: 13,
+                          color: 'rgba(255,255,255,0.55)',
+                          fontFamily: "'Inter', system-ui, sans-serif",
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        Let me explore your Document Library...
+                      </p>
+                      <TypingIndicator />
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                </motion.div>
+              )}
+            </>
+          )}
 
           <div ref={conversationEndRef} />
         </div>

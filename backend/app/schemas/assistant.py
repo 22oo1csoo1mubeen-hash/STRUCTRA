@@ -36,6 +36,8 @@ class AssistantSource(BaseModel):
 class AssistantResultType(str, Enum):
     """Classified structured result types for AI assistant responses."""
 
+    RECENT_RECEIPTS = "recent_receipts"
+    RECENT_UPLOADS = "recent_uploads"
     VENDOR_ITEMS = "vendor_items"
     ITEM_QUANTITY = "item_quantity"
     ITEM_SEARCH = "item_search"

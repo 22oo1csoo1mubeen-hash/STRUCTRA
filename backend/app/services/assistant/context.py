@@ -476,6 +476,90 @@ class AssistantContextBuilder:
                 "summary": summary,
             })
 
+        # 7b. Recent Receipts (Sorted by Date Newest First, Top 5)
+        elif intent == AssistantIntent.RECENT_RECEIPTS:
+            docs = retrieved_payload.get("recent_documents") or []
+            v_str = f" from {parsed_intent.vendor}" if parsed_intent.vendor else ""
+            for d in docs:
+                sources.append(_doc_to_source(d))
+
+            title = f"Recent Receipts{v_str}"
+            if docs:
+                summary = f"Here are your {len(docs)} most recent receipts{v_str} sorted by date."
+            else:
+                summary = f"No saved receipts{v_str} found in your library."
+
+            doc_summaries = []
+            for d in docs:
+                ext = d.extraction_result or {}
+                items = ext.get("line_items") or []
+                item_names = [it.get("description") for it in items if isinstance(it, dict) and it.get("description")]
+                doc_summaries.append({
+                    "filename": d.filename,
+                    "vendor": ext.get("vendor_company") or "Unknown Vendor",
+                    "date": ext.get("date") or "N/A",
+                    "total": _fmt_currency(ext.get("total")),
+                    "items": item_names[:8],
+                })
+
+            context_dict["recent_receipts"] = {
+                "count": len(docs),
+                "vendor": parsed_intent.vendor,
+                "sort_order": "document_date_descending",
+                "receipts": doc_summaries,
+            }
+            metadata.update({
+                "type": AssistantResultType.RECENT_RECEIPTS.value if docs else AssistantResultType.NO_RESULTS.value,
+                "document_count": len(docs),
+                "vendor": parsed_intent.vendor,
+                "title": title,
+                "summary": summary,
+                "documents": [d.filename for d in docs],
+            })
+
+        # 7c. Recent Uploads (Sorted by Upload Timestamp Newest First, Top 5)
+        elif intent == AssistantIntent.RECENT_UPLOADS:
+            docs = retrieved_payload.get("uploaded_documents") or []
+            v_str = f" from {parsed_intent.vendor}" if parsed_intent.vendor else ""
+            for d in docs:
+                sources.append(_doc_to_source(d))
+
+            title = f"Recently Uploaded Receipts{v_str}"
+            if docs:
+                summary = f"Here are your {len(docs)} most recently uploaded receipts{v_str}."
+            else:
+                summary = f"No uploaded receipts{v_str} found in your library."
+
+            doc_summaries = []
+            for d in docs:
+                ext = d.extraction_result or {}
+                items = ext.get("line_items") or []
+                item_names = [it.get("description") for it in items if isinstance(it, dict) and it.get("description")]
+                upload_str = d.created_at.strftime("%d-%b-%Y %H:%M") if d.created_at else "N/A"
+                doc_summaries.append({
+                    "filename": d.filename,
+                    "vendor": ext.get("vendor_company") or "Unknown Vendor",
+                    "date": ext.get("date") or "N/A",
+                    "uploaded_at": upload_str,
+                    "total": _fmt_currency(ext.get("total")),
+                    "items": item_names[:8],
+                })
+
+            context_dict["recently_uploaded_receipts"] = {
+                "count": len(docs),
+                "vendor": parsed_intent.vendor,
+                "sort_order": "upload_timestamp_descending",
+                "receipts": doc_summaries,
+            }
+            metadata.update({
+                "type": AssistantResultType.RECENT_UPLOADS.value if docs else AssistantResultType.NO_RESULTS.value,
+                "document_count": len(docs),
+                "vendor": parsed_intent.vendor,
+                "title": title,
+                "summary": summary,
+                "documents": [d.filename for d in docs],
+            })
+
         # 8. Latest Receipt (Single Overview)
         elif intent == AssistantIntent.LATEST_RECEIPT:
             doc = retrieved_payload.get("document")
@@ -718,32 +802,42 @@ class AssistantContextBuilder:
                     sources.append(
                         AssistantSource(
                             document_id=doc_id,
-                            filename=exp_it.get("name", "Document"),
+                            filename=exp_it.get("filename") or "Document",
                             vendor=exp_it.get("vendor"),
+                            document_date=exp_it.get("date"),
                             total=exp_it.get("amount"),
                         )
                     )
-                title = "Most Expensive Item"
+                time_tag = f" ({parsed_intent.temporal_label})" if parsed_intent.temporal_label else ""
+                title = f"Most Expensive Item{time_tag}"
                 v_str = f" from {exp_it['vendor']}" if exp_it.get("vendor") else ""
-                summary = f"Your most expensive purchased item is '{exp_it['name']}' costing {_fmt_currency(exp_it['amount'])}{v_str}."
+                d_str = f" on {exp_it['date']}" if exp_it.get("date") else ""
+                time_phrase = f"in {parsed_intent.temporal_label} " if parsed_intent.temporal_label else ""
+                summary = f"Your most expensive purchased item {time_phrase}is '{exp_it['name']}' costing {_fmt_currency(exp_it['amount'])}{v_str}{d_str}."
 
                 context_dict["most_expensive_item"] = {
                     "name": exp_it["name"],
                     "amount": _fmt_currency(exp_it["amount"]),
+                    "unit_price": _fmt_currency(exp_it.get("unit_price")) if exp_it.get("unit_price") is not None else None,
                     "quantity": exp_it.get("quantity", 1),
                     "vendor": exp_it.get("vendor"),
+                    "date": exp_it.get("date"),
+                    "receipt": exp_it.get("filename"),
+                    "temporal_filter": parsed_intent.temporal_label,
                 }
                 metadata.update({
                     "type": AssistantResultType.MOST_EXPENSIVE_ITEM.value,
                     "item_name": exp_it["name"],
                     "amount": exp_it["amount"],
+                    "unit_price": exp_it.get("unit_price"),
                     "vendor": exp_it.get("vendor"),
+                    "document_date": exp_it.get("date"),
                     "title": title,
                     "summary": summary,
                 })
             else:
                 title = "No Items Found"
-                summary = "No line items found in your library."
+                summary = f"No line items or purchases found{' for ' + parsed_intent.temporal_label if parsed_intent.temporal_label else ' in your library'}."
                 context_dict["error"] = summary
                 metadata.update({
                     "type": AssistantResultType.NO_RESULTS.value,
@@ -764,17 +858,20 @@ class AssistantContextBuilder:
                         total=exp_rec.get("total_amount"),
                     )
                 )
-                title = "Most Expensive Receipt"
+                time_tag = f" ({parsed_intent.temporal_label})" if parsed_intent.temporal_label else ""
+                title = f"Most Expensive Receipt{time_tag}"
                 v_name = exp_rec.get("vendor") or "Unknown Vendor"
                 tot_str = _fmt_currency(exp_rec.get("total_amount"))
                 d_str = f" on {exp_rec['document_date']}" if exp_rec.get("document_date") else ""
-                summary = f"Your most expensive receipt is from {v_name}{d_str} totaling {tot_str}."
+                time_phrase = f"in {parsed_intent.temporal_label} " if parsed_intent.temporal_label else ""
+                summary = f"Your most expensive receipt {time_phrase}is from {v_name}{d_str} totaling {tot_str}."
 
                 context_dict["most_expensive_receipt"] = {
                     "filename": exp_rec.get("filename"),
                     "vendor": v_name,
                     "date": exp_rec.get("document_date"),
                     "total": tot_str,
+                    "temporal_filter": parsed_intent.temporal_label,
                 }
                 metadata.update({
                     "type": AssistantResultType.MOST_EXPENSIVE_RECEIPT.value,
@@ -786,7 +883,7 @@ class AssistantContextBuilder:
                 })
             else:
                 title = "No Receipts Found"
-                summary = "No receipts found in your library."
+                summary = f"No receipts found{' for ' + parsed_intent.temporal_label if parsed_intent.temporal_label else ' in your library'}."
                 context_dict["error"] = summary
                 metadata.update({
                     "type": AssistantResultType.NO_RESULTS.value,
@@ -809,10 +906,12 @@ class AssistantContextBuilder:
                             total=cheap_it.get("amount"),
                         )
                     )
-                title = "Cheapest Item"
+                time_tag = f" ({parsed_intent.temporal_label})" if parsed_intent.temporal_label else ""
+                title = f"Cheapest Item{time_tag}"
                 v_str = f" from {cheap_it['vendor']}" if cheap_it.get("vendor") else ""
                 d_str = f" on {cheap_it['date']}" if cheap_it.get("date") else ""
-                summary = f"Your cheapest purchased item is '{cheap_it['name']}' costing {_fmt_currency(cheap_it['amount'])}{v_str}{d_str}."
+                time_phrase = f"in {parsed_intent.temporal_label} " if parsed_intent.temporal_label else ""
+                summary = f"Your cheapest purchased item {time_phrase}is '{cheap_it['name']}' costing {_fmt_currency(cheap_it['amount'])}{v_str}{d_str}."
 
                 context_dict["cheapest_item"] = {
                     "name": cheap_it["name"],
@@ -822,6 +921,7 @@ class AssistantContextBuilder:
                     "vendor": cheap_it.get("vendor"),
                     "date": cheap_it.get("date"),
                     "receipt": cheap_it.get("filename"),
+                    "temporal_filter": parsed_intent.temporal_label,
                 }
                 metadata.update({
                     "type": AssistantResultType.CHEAPEST_ITEM.value,
@@ -835,7 +935,7 @@ class AssistantContextBuilder:
                 })
             else:
                 title = "No Items Found"
-                summary = "No line items found in your library."
+                summary = f"No line items or purchases found{' for ' + parsed_intent.temporal_label if parsed_intent.temporal_label else ' in your library'}."
                 context_dict["error"] = summary
                 metadata.update({
                     "type": AssistantResultType.NO_RESULTS.value,
@@ -856,17 +956,20 @@ class AssistantContextBuilder:
                         total=cheap_rec.get("total_amount"),
                     )
                 )
-                title = "Cheapest Receipt"
+                time_tag = f" ({parsed_intent.temporal_label})" if parsed_intent.temporal_label else ""
+                title = f"Cheapest Receipt{time_tag}"
                 v_name = cheap_rec.get("vendor") or "Unknown Vendor"
                 tot_str = _fmt_currency(cheap_rec.get("total_amount"))
                 d_str = f" on {cheap_rec['document_date']}" if cheap_rec.get("document_date") else ""
-                summary = f"Your cheapest receipt is from {v_name}{d_str} totaling {tot_str}."
+                time_phrase = f"in {parsed_intent.temporal_label} " if parsed_intent.temporal_label else ""
+                summary = f"Your cheapest receipt {time_phrase}is from {v_name}{d_str} totaling {tot_str}."
 
                 context_dict["cheapest_receipt"] = {
                     "filename": cheap_rec.get("filename"),
                     "vendor": v_name,
                     "date": cheap_rec.get("document_date"),
                     "total": tot_str,
+                    "temporal_filter": parsed_intent.temporal_label,
                 }
                 metadata.update({
                     "type": AssistantResultType.CHEAPEST_RECEIPT.value,
@@ -878,13 +981,14 @@ class AssistantContextBuilder:
                 })
             else:
                 title = "No Receipts Found"
-                summary = "No receipts found in your library."
+                summary = f"No receipts found{' for ' + parsed_intent.temporal_label if parsed_intent.temporal_label else ' in your library'}."
                 context_dict["error"] = summary
                 metadata.update({
                     "type": AssistantResultType.NO_RESULTS.value,
                     "title": title,
                     "summary": summary,
                 })
+
 
         # 13. Total Spending & Document Count
         elif intent in (AssistantIntent.TOTAL_SPENDING, AssistantIntent.DOCUMENT_COUNT):

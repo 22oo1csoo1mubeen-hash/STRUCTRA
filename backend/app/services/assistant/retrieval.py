@@ -173,23 +173,56 @@ class AssistantRetrievalService:
             return True, distinct_candidates
         return False, distinct_candidates
 
+    async def get_recent_receipts(
+        self,
+        limit: int = 5,
+        vendor: str | None = None,
+    ) -> list[CreatedDocumentMetadata]:
+        """Retrieve recent receipts sorted by document date (newest first), up to limit."""
+        docs = await self.get_filtered_documents(vendor=vendor)
+        if not docs:
+            return []
+
+        def sort_key(d: CreatedDocumentMetadata):
+            ext = d.extraction_result or {}
+            doc_date = parse_document_date(ext.get("date"), fallback_dt=d.created_at)
+            ts = doc_date.toordinal() if doc_date else 0
+            created_ts = d.created_at.timestamp() if d.created_at else 0
+            return (ts, created_ts)
+
+        sorted_docs = sorted(docs, key=sort_key, reverse=True)
+        return sorted_docs[:limit]
+
+    async def get_recent_uploads(
+        self,
+        limit: int = 5,
+        vendor: str | None = None,
+    ) -> list[CreatedDocumentMetadata]:
+        """Retrieve recent receipts sorted by upload date (created_at timestamp newest first), up to limit."""
+        docs = await self.get_filtered_documents(vendor=vendor)
+        if not docs:
+            return []
+
+        def sort_key(d: CreatedDocumentMetadata):
+            created_ts = d.created_at.timestamp() if d.created_at else 0
+            ext = d.extraction_result or {}
+            doc_date = parse_document_date(ext.get("date"), fallback_dt=d.created_at)
+            ts = doc_date.toordinal() if doc_date else 0
+            return (created_ts, ts)
+
+        sorted_docs = sorted(docs, key=sort_key, reverse=True)
+        return sorted_docs[:limit]
+
     async def get_latest_document(
         self,
         vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> CreatedDocumentMetadata | None:
-        """Retrieve the most recent document following STRUCTRA document date policy."""
-        docs = await self.get_all_documents()
+        """Retrieve the most recent document following STRUCTRA document date policy and filters."""
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
         if not docs:
             return None
-
-        if vendor:
-            filtered = [
-                d for d in docs
-                if _vendor_matches((d.extraction_result or {}).get("vendor_company"), vendor)
-            ]
-            if not filtered:
-                return None
-            docs = filtered
 
         def sort_key(d: CreatedDocumentMetadata):
             ext = d.extraction_result or {}
@@ -205,20 +238,13 @@ class AssistantRetrievalService:
     async def get_oldest_document(
         self,
         vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> CreatedDocumentMetadata | None:
-        """Retrieve the earliest document following STRUCTRA document date policy."""
-        docs = await self.get_all_documents()
+        """Retrieve the earliest document following STRUCTRA document date policy and filters."""
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
         if not docs:
             return None
-
-        if vendor:
-            filtered = [
-                d for d in docs
-                if _vendor_matches((d.extraction_result or {}).get("vendor_company"), vendor)
-            ]
-            if not filtered:
-                return None
-            docs = filtered
 
         def sort_key(d: CreatedDocumentMetadata):
             ext = d.extraction_result or {}
@@ -231,12 +257,14 @@ class AssistantRetrievalService:
         sorted_docs = sorted(docs, key=sort_key, reverse=False)
         return sorted_docs[0] if sorted_docs else None
 
-    async def get_oldest_item(self, vendor: str | None = None) -> dict[str, Any] | None:
+    async def get_oldest_item(
+        self,
+        vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[str, Any] | None:
         """Find line item from the earliest dated document across user's completed documents."""
-        if vendor:
-            docs = await self.get_documents_by_vendor(vendor)
-        else:
-            docs = await self.get_all_documents()
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
         if not docs:
             return None
 
@@ -326,13 +354,11 @@ class AssistantRetrievalService:
         self,
         vendor: str,
         limit: int = 20,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> list[CreatedDocumentMetadata]:
-        """Retrieve documents for a specific vendor, newest first."""
-        docs = await self.get_all_documents()
-        matched = [
-            d for d in docs
-            if _vendor_matches((d.extraction_result or {}).get("vendor_company"), vendor)
-        ]
+        """Retrieve documents for a specific vendor, optionally bounded by date, newest first."""
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
 
         def sort_key(d: CreatedDocumentMetadata):
             ext = d.extraction_result or {}
@@ -341,7 +367,7 @@ class AssistantRetrievalService:
             created_ts = d.created_at.timestamp() if d.created_at else 0
             return (ts, created_ts)
 
-        sorted_docs = sorted(matched, key=sort_key, reverse=True)
+        sorted_docs = sorted(docs, key=sort_key, reverse=True)
         return sorted_docs[:limit]
 
     async def get_documents_by_date_range(
@@ -371,17 +397,17 @@ class AssistantRetrievalService:
         self,
         item_query: str,
         vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
-        """Search line items across all documents matching item_query with safe boundary matching."""
-        docs = await self.get_all_documents()
+        """Search line items across documents matching item_query, vendor, and date range."""
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
         results: list[dict[str, Any]] = []
 
         for doc in docs:
             ext = doc.extraction_result or {}
             doc_vendor = ext.get("vendor_company")
-            if vendor and not _vendor_matches(doc_vendor, vendor):
-                continue
 
             raw_items = ext.get("line_items") or []
             if not isinstance(raw_items, list):
@@ -426,9 +452,14 @@ class AssistantRetrievalService:
 
         return results
 
-    async def calculate_vendor_spending(self, vendor: str) -> dict[str, Any]:
+    async def calculate_vendor_spending(
+        self,
+        vendor: str,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[str, Any]:
         """Calculate total spending, receipt count, and matching documents for a vendor deterministically."""
-        docs = await self.get_documents_by_vendor(vendor)
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
         total_dec = Decimal("0.00")
         display_vendor = vendor
 
@@ -450,9 +481,14 @@ class AssistantRetrievalService:
             "documents": docs,
         }
 
-    async def calculate_total_spending(self) -> dict[str, Any]:
+    async def calculate_total_spending(
+        self,
+        vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[str, Any]:
         """Calculate overall library spending and document counts deterministically."""
-        docs = await self.get_all_documents()
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
         total_dec = Decimal("0.00")
 
         for d in docs:
@@ -474,9 +510,11 @@ class AssistantRetrievalService:
         self,
         item_query: str,
         vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> dict[str, Any]:
         """Calculate total quantity purchased and total spend for an item deterministically."""
-        items = await self.search_line_items(item_query, vendor=vendor)
+        items = await self.search_line_items(item_query, vendor=vendor, start_date=start_date, end_date=end_date)
         total_qty = Decimal("0.0")
         total_spend = Decimal("0.00")
         doc_ids = set()
@@ -496,15 +534,30 @@ class AssistantRetrievalService:
             "items": items,
         }
 
-    async def get_most_expensive_item(self) -> dict[str, Any] | None:
-        """Find the single most expensive line item across user's completed documents."""
-        docs = await self.get_all_documents()
+    async def get_most_expensive_item(
+        self,
+        vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        min_amount: float | None = None,
+        max_amount: float | None = None,
+        item_query: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Find the single most expensive line item across user's completed documents matching filters."""
+        docs = await self.get_filtered_documents(
+            vendor=vendor,
+            start_date=start_date,
+            end_date=end_date,
+            min_amount=min_amount,
+            max_amount=max_amount,
+        )
         most_exp: dict[str, Any] | None = None
 
         for doc in docs:
             ext = doc.extraction_result or {}
             raw_vendor = ext.get("vendor_company")
             vendor_str = str(raw_vendor).strip() if (raw_vendor and isinstance(raw_vendor, str)) else None
+            doc_date = ext.get("date")
             raw_items = ext.get("line_items") or []
             if not isinstance(raw_items, list):
                 continue
@@ -512,8 +565,11 @@ class AssistantRetrievalService:
             for item in raw_items:
                 if not isinstance(item, dict):
                     continue
-                desc = item.get("description")
+                desc = item.get("description") or item.get("item")
                 if not desc or not isinstance(desc, str) or not desc.strip():
+                    continue
+
+                if item_query and not _item_matches(desc, item_query):
                     continue
 
                 raw_qty = item.get("quantity")
@@ -521,13 +577,20 @@ class AssistantRetrievalService:
 
                 raw_lt = item.get("line_total") or item.get("total")
                 amt_dec = parse_decimal_safe(raw_lt)
-                if amt_dec is None:
-                    raw_up = item.get("unit_price")
-                    up_dec = parse_decimal_safe(raw_up)
-                    if up_dec is not None:
-                        amt_dec = up_dec * qty_dec
+                raw_up = item.get("unit_price")
+                up_dec = parse_decimal_safe(raw_up)
+
+                if amt_dec is None and up_dec is not None:
+                    amt_dec = up_dec * qty_dec
+                elif up_dec is None and amt_dec is not None and qty_dec > Decimal("0"):
+                    up_dec = amt_dec / qty_dec
 
                 if amt_dec is not None and amt_dec > Decimal("0"):
+                    if min_amount is not None and amt_dec < Decimal(str(min_amount)):
+                        continue
+                    if max_amount is not None and amt_dec > Decimal(str(max_amount)):
+                        continue
+
                     if (
                         most_exp is None
                         or amt_dec > most_exp["amount_dec"]
@@ -537,16 +600,32 @@ class AssistantRetrievalService:
                             "name": desc.strip(),
                             "amount_dec": amt_dec,
                             "amount": float(amt_dec.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)),
+                            "unit_price": float(up_dec.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)) if up_dec is not None else None,
                             "quantity": float(qty_dec),
                             "vendor": vendor_str,
+                            "date": doc_date,
                             "document_id": str(doc.id),
+                            "filename": doc.filename,
                         }
 
         return most_exp
 
-    async def get_most_expensive_receipt(self) -> dict[str, Any] | None:
-        """Find the highest amount receipt across user's completed documents."""
-        docs = await self.get_all_documents()
+    async def get_most_expensive_receipt(
+        self,
+        vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        min_amount: float | None = None,
+        max_amount: float | None = None,
+    ) -> dict[str, Any] | None:
+        """Find the highest amount receipt across user's completed documents matching filters."""
+        docs = await self.get_filtered_documents(
+            vendor=vendor,
+            start_date=start_date,
+            end_date=end_date,
+            min_amount=min_amount,
+            max_amount=max_amount,
+        )
         most_exp_rec: dict[str, Any] | None = None
 
         for doc in docs:
@@ -572,13 +651,23 @@ class AssistantRetrievalService:
 
         return most_exp_rec
 
-    async def get_cheapest_item(self, vendor: str | None = None) -> dict[str, Any] | None:
-        """Find the single lowest price/amount line item across user's completed documents."""
-        if vendor:
-            docs = await self.get_documents_by_vendor(vendor)
-        else:
-            docs = await self.get_all_documents()
-
+    async def get_cheapest_item(
+        self,
+        vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        min_amount: float | None = None,
+        max_amount: float | None = None,
+        item_query: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Find the single lowest price/amount line item across user's completed documents matching filters."""
+        docs = await self.get_filtered_documents(
+            vendor=vendor,
+            start_date=start_date,
+            end_date=end_date,
+            min_amount=min_amount,
+            max_amount=max_amount,
+        )
         cheapest_it: dict[str, Any] | None = None
 
         for doc in docs:
@@ -597,6 +686,9 @@ class AssistantRetrievalService:
                 if not desc or not isinstance(desc, str) or not desc.strip():
                     continue
 
+                if item_query and not _item_matches(desc, item_query):
+                    continue
+
                 raw_qty = item.get("quantity")
                 qty_dec = parse_decimal_safe(raw_qty) or Decimal("1.0")
 
@@ -613,6 +705,11 @@ class AssistantRetrievalService:
                 eval_dec = up_dec if up_dec is not None and up_dec > Decimal("0") else amt_dec
 
                 if eval_dec is not None and eval_dec > Decimal("0"):
+                    if min_amount is not None and eval_dec < Decimal(str(min_amount)):
+                        continue
+                    if max_amount is not None and eval_dec > Decimal(str(max_amount)):
+                        continue
+
                     if (
                         cheapest_it is None
                         or eval_dec < cheapest_it["amount_dec"]
@@ -633,13 +730,22 @@ class AssistantRetrievalService:
 
         return cheapest_it
 
-    async def get_cheapest_receipt(self, vendor: str | None = None) -> dict[str, Any] | None:
-        """Find the lowest amount receipt across user's completed documents."""
-        if vendor:
-            docs = await self.get_documents_by_vendor(vendor)
-        else:
-            docs = await self.get_all_documents()
-
+    async def get_cheapest_receipt(
+        self,
+        vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        min_amount: float | None = None,
+        max_amount: float | None = None,
+    ) -> dict[str, Any] | None:
+        """Find the lowest amount receipt across user's completed documents matching filters."""
+        docs = await self.get_filtered_documents(
+            vendor=vendor,
+            start_date=start_date,
+            end_date=end_date,
+            min_amount=min_amount,
+            max_amount=max_amount,
+        )
         cheapest_rec: dict[str, Any] | None = None
 
         for doc in docs:
@@ -665,38 +771,113 @@ class AssistantRetrievalService:
 
         return cheapest_rec
 
-    async def get_document_count(self, vendor: str | None = None) -> int:
-        """Return count of completed documents, optionally filtered by vendor."""
-        if vendor:
-            docs = await self.get_documents_by_vendor(vendor)
-            return len(docs)
-        docs = await self.get_all_documents()
+    async def get_document_count(
+        self,
+        vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> int:
+        """Return count of completed documents, optionally filtered by vendor and date."""
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
         return len(docs)
 
-    async def get_top_vendors(self, limit: int = 5) -> list[dict[str, Any]]:
-        """Retrieve ranked top vendors by spending."""
-        v_analytics = await get_user_vendor_analytics(user_id=self.user_id, limit=limit, settings=self.settings)
+    async def get_top_vendors(
+        self,
+        limit: int = 5,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Retrieve ranked top vendors by spending, optionally bounded by date."""
+        if not start_date and not end_date:
+            v_analytics = await get_user_vendor_analytics(user_id=self.user_id, limit=limit, settings=self.settings)
+            return [
+                {
+                    "vendor": v.vendor,
+                    "total_spent": v.total_spent,
+                    "document_count": v.document_count,
+                    "percentage": v.percentage_of_total,
+                }
+                for v in v_analytics.vendors
+            ]
+
+        docs = await self.get_filtered_documents(start_date=start_date, end_date=end_date)
+        vendor_totals: dict[str, Decimal] = {}
+        vendor_counts: dict[str, int] = {}
+        total_spent_all = Decimal("0.00")
+
+        for d in docs:
+            ext = d.extraction_result or {}
+            v_name = ext.get("vendor_company") or "Unknown Vendor"
+            tot = parse_decimal_safe(ext.get("total")) or Decimal("0.00")
+            vendor_totals[v_name] = vendor_totals.get(v_name, Decimal("0.00")) + tot
+            vendor_counts[v_name] = vendor_counts.get(v_name, 0) + 1
+            total_spent_all += tot
+
+        sorted_vendors = sorted(vendor_totals.items(), key=lambda x: x[1], reverse=True)[:limit]
         return [
             {
-                "vendor": v.vendor,
-                "total_spent": v.total_spent,
-                "document_count": v.document_count,
-                "percentage": v.percentage_of_total,
+                "vendor": v,
+                "total_spent": float(tot.quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)),
+                "document_count": vendor_counts[v],
+                "percentage": float((tot / total_spent_all * Decimal("100")).quantize(Decimal("0.1"))) if total_spent_all > Decimal("0") else 0.0,
             }
-            for v in v_analytics.vendors
+            for v, tot in sorted_vendors
         ]
 
-    async def get_most_bought_items(self, limit: int = 5) -> list[dict[str, Any]]:
-        """Retrieve top purchased items by quantity."""
-        i_analytics = await get_user_item_analytics(user_id=self.user_id, limit=limit, settings=self.settings)
+    async def get_most_bought_items(
+        self,
+        limit: int = 5,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        vendor: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Retrieve top purchased items by quantity, optionally bounded by date/vendor."""
+        if not start_date and not end_date and not vendor:
+            i_analytics = await get_user_item_analytics(user_id=self.user_id, limit=limit, settings=self.settings)
+            return [
+                {
+                    "name": i.name,
+                    "quantity": i.quantity,
+                    "document_count": i.document_count,
+                    "total_spent": i.total_spent,
+                }
+                for i in i_analytics.items
+            ]
+
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
+        item_map: dict[str, dict[str, Any]] = {}
+
+        for d in docs:
+            ext = d.extraction_result or {}
+            items = ext.get("line_items") or []
+            if not isinstance(items, list):
+                continue
+            doc_id_str = str(d.id)
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                desc = it.get("description") or it.get("item")
+                if not desc or not isinstance(desc, str) or not desc.strip():
+                    continue
+                name = desc.strip()
+                qty = parse_decimal_safe(it.get("quantity")) or Decimal("1.0")
+                lt = parse_decimal_safe(it.get("line_total") or it.get("total")) or (parse_decimal_safe(it.get("unit_price")) or Decimal("0.0")) * qty
+
+                if name not in item_map:
+                    item_map[name] = {"quantity": Decimal("0.0"), "total_spent": Decimal("0.00"), "doc_ids": set()}
+                item_map[name]["quantity"] += qty
+                item_map[name]["total_spent"] += lt
+                item_map[name]["doc_ids"].add(doc_id_str)
+
+        sorted_items = sorted(item_map.items(), key=lambda x: x[1]["quantity"], reverse=True)[:limit]
         return [
             {
-                "name": i.name,
-                "quantity": i.quantity,
-                "document_count": i.document_count,
-                "total_spent": i.total_spent,
+                "name": name,
+                "quantity": float(data["quantity"]),
+                "document_count": len(data["doc_ids"]),
+                "total_spent": float(data["total_spent"].quantize(_CURRENCY_QUANTUM, rounding=ROUND_HALF_UP)),
             }
-            for i in i_analytics.items
+            for name, data in sorted_items
         ]
 
     async def compare_vendors(self, vendor_a: str, vendor_b: str) -> dict[str, Any]:
@@ -736,14 +917,15 @@ class AssistantRetrievalService:
         max_amount: float | None = None,
     ) -> list[CreatedDocumentMetadata]:
         """Retrieve completed documents filtered deterministically by vendor, date bounds, and amount bounds."""
-        if vendor:
-            docs = await self.get_documents_by_vendor(vendor)
-        else:
-            docs = await self.get_all_documents()
+        docs = await self.get_all_documents()
 
         filtered: list[CreatedDocumentMetadata] = []
         for doc in docs:
             ext = doc.extraction_result or {}
+
+            # Vendor filter
+            if vendor and not _vendor_matches(ext.get("vendor_company"), vendor):
+                continue
 
             # Amount filter
             if min_amount is not None or max_amount is not None:
@@ -782,10 +964,7 @@ class AssistantRetrievalService:
         limit: int = 500,
     ) -> list[dict[str, Any]]:
         """Retrieve completed line items filtered deterministically by price/amount bounds, item query, vendor, and date."""
-        if vendor:
-            docs = await self.get_documents_by_vendor(vendor)
-        else:
-            docs = await self.get_all_documents()
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
 
         matched_items: list[dict[str, Any]] = []
 
@@ -880,12 +1059,11 @@ class AssistantRetrievalService:
         self,
         item_query: str,
         vendor: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> dict[str, Any]:
-        """Retrieve detailed purchase history for a specific line item."""
-        if vendor:
-            docs = await self.get_documents_by_vendor(vendor)
-        else:
-            docs = await self.get_all_documents()
+        """Retrieve detailed purchase history for a specific line item, optionally bounded by date."""
+        docs = await self.get_filtered_documents(vendor=vendor, start_date=start_date, end_date=end_date)
 
         total_qty_dec = Decimal("0.0")
         total_spend_dec = Decimal("0.0")

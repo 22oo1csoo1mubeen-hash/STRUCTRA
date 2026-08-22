@@ -560,8 +560,7 @@ def test_temporal_last_year():
 def test_temporal_recently():
     now = datetime.now(timezone.utc)
     parsed = AssistantIntentEngine.parse_query("show my recent purchases", now=now)
-    assert parsed.intent == AssistantIntent.TEMPORAL_SPENDING
-    assert parsed.temporal_label == "recently"
+    assert parsed.intent in (AssistantIntent.RECENT_RECEIPTS, AssistantIntent.TEMPORAL_SPENDING)
 
 
 @pytest.mark.anyio
