@@ -352,6 +352,40 @@ export default function TopBar({
                 </p>
               </div>
 
+              {/* Profile */}
+              <button
+                id="account-menu-profile"
+                className="account-popover-item"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  navigate('/app/profile');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 9,
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: 9,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'rgba(255, 255, 255, 0.85)',
+                  fontFamily: "'Inter', system-ui, sans-serif",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease',
+                  marginBottom: 2,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <User size={14} strokeWidth={2} />
+                Profile
+              </button>
+
               {/* Logout */}
               <button
                 id="account-menu-logout"

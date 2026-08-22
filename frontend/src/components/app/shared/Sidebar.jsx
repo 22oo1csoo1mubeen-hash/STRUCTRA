@@ -1,11 +1,9 @@
-import { motion } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logo from '../../../assets/structra-logo.png';
 import { useAuth } from '../../../hooks/useAuth';
 
 /* ─────────────────────────────────────────────────────────
    SVG Icons — hand-crafted to match the reference exactly.
-   Lucide icons were rendering too small/different from ref.
 ───────────────────────────────────────────────────────── */
 function UploadIcon({ active }) {
   const c = active ? '#f97316' : 'rgba(255,255,255,0.65)';
@@ -53,7 +51,7 @@ function SettingsIcon({ active }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   );
 }
@@ -82,83 +80,78 @@ const secondaryNavItems = [
 ];
 
 /* ─── Single nav item ────────────────────────────────── */
-function NavItem({ item, isActive }) {
+function NavItem({ item, isActive, onNavigate }) {
   const { Icon } = item;
   return (
-    <Link to={item.path} style={{ textDecoration: 'none' }}>
-      <motion.div
-        whileHover={
-          !isActive
-            ? { backgroundColor: 'rgba(255,255,255,0.07)', x: 1 }
-            : {}
-        }
-        transition={{ duration: 0.15, ease: 'easeOut' }}
+    <div
+      onClick={() => onNavigate(item.path)}
+      className={`structra-sidebar-item ${isActive ? 'active' : ''}`}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 11,
+        padding: '9px 12px',
+        borderRadius: 10,
+        cursor: 'pointer',
+        background: isActive
+          ? 'rgba(249, 115, 22, 0.20)'
+          : 'transparent',
+        border: isActive
+          ? '1px solid rgba(249, 115, 22, 0.30)'
+          : '1px solid transparent',
+        position: 'relative',
+        overflow: 'hidden',
+        userSelect: 'none',
+      }}
+    >
+      {/* Active left accent bar */}
+      {isActive && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: '18%',
+            height: '64%',
+            width: 3,
+            borderRadius: '0 3px 3px 0',
+            background: 'linear-gradient(180deg, #ffb347 0%, #f97316 100%)',
+            boxShadow: '0 0 8px rgba(249,115,22,0.60)',
+          }}
+        />
+      )}
+
+      {/* Icon */}
+      <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 11,
-          padding: '9px 12px',
-          borderRadius: 10,
-          cursor: 'pointer',
+          justifyContent: 'center',
+          width: 34,
+          height: 34,
+          borderRadius: 8,
           background: isActive
-            ? 'rgba(249, 115, 22, 0.20)'
-            : 'transparent',
-          border: isActive
-            ? '1px solid rgba(249, 115, 22, 0.30)'
-            : '1px solid transparent',
-          position: 'relative',
-          overflow: 'hidden',
+            ? 'rgba(249, 115, 22, 0.22)'
+            : 'rgba(255,255,255,0.07)',
+          flexShrink: 0,
         }}
       >
-        {/* Active left accent bar */}
-        {isActive && (
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: '18%',
-              height: '64%',
-              width: 3,
-              borderRadius: '0 3px 3px 0',
-              background: 'linear-gradient(180deg, #ffb347 0%, #f97316 100%)',
-              boxShadow: '0 0 8px rgba(249,115,22,0.60)',
-            }}
-          />
-        )}
+        <Icon active={isActive} />
+      </div>
 
-        {/* Icon */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 34,
-            height: 34,
-            borderRadius: 8,
-            background: isActive
-              ? 'rgba(249, 115, 22, 0.22)'
-              : 'rgba(255,255,255,0.07)',
-            flexShrink: 0,
-          }}
-        >
-          <Icon active={isActive} />
-        </div>
-
-        {/* Label */}
-        <span
-          style={{
-            fontSize: 13.5,
-            fontWeight: isActive ? 600 : 400,
-            color: isActive ? '#ffffff' : 'rgba(255,255,255,0.62)',
-            fontFamily: "'Inter', system-ui, sans-serif",
-            letterSpacing: '0.005em',
-            userSelect: 'none',
-          }}
-        >
-          {item.label}
-        </span>
-      </motion.div>
-    </Link>
+      {/* Label */}
+      <span
+        style={{
+          fontSize: 13.5,
+          fontWeight: isActive ? 600 : 400,
+          color: isActive ? '#ffffff' : 'rgba(255,255,255,0.62)',
+          fontFamily: "'Inter', system-ui, sans-serif",
+          letterSpacing: '0.005em',
+          userSelect: 'none',
+        }}
+      >
+        {item.label}
+      </span>
+    </div>
   );
 }
 
@@ -205,8 +198,26 @@ export default function Sidebar() {
         zIndex: 10,
         flexShrink: 0,
         position: 'relative',
+        isolation: 'isolate',
+        transform: 'translateZ(0)',
+        backfaceVisibility: 'hidden',
       }}
     >
+      <style>{`
+        .structra-sidebar-item {
+          transition: background-color 0.12s ease;
+        }
+        .structra-sidebar-item:hover:not(.active) {
+          background-color: rgba(255, 255, 255, 0.07) !important;
+        }
+        .structra-logout-item {
+          transition: background-color 0.12s ease;
+        }
+        .structra-logout-item:hover {
+          background-color: rgba(220, 60, 60, 0.10) !important;
+        }
+      `}</style>
+
       {/* Logo row */}
       <Link
         to="/"
@@ -246,6 +257,7 @@ export default function Sidebar() {
           <NavItem
             key={item.id}
             item={item}
+            onNavigate={navigate}
             isActive={
               location.pathname === item.path ||
               location.pathname.startsWith(item.path + '/')
@@ -262,6 +274,7 @@ export default function Sidebar() {
           <NavItem
             key={item.id}
             item={item}
+            onNavigate={navigate}
             isActive={location.pathname === item.path}
           />
         ))}
@@ -271,12 +284,11 @@ export default function Sidebar() {
 
       {/* ── Logout button ─────────────────────────────── */}
       <Divider />
-      <motion.button
+      <button
         id="sidebar-logout-btn"
         type="button"
         onClick={handleLogout}
-        whileHover={{ backgroundColor: 'rgba(220, 60, 60, 0.10)', x: 1 }}
-        transition={{ duration: 0.15, ease: 'easeOut' }}
+        className="structra-logout-item"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -288,6 +300,7 @@ export default function Sidebar() {
           border: '1px solid transparent',
           width: '100%',
           textAlign: 'left',
+          userSelect: 'none',
         }}
       >
         {/* Logout icon */}
@@ -330,8 +343,7 @@ export default function Sidebar() {
         >
           Logout
         </span>
-      </motion.button>
+      </button>
     </aside>
   );
 }
-

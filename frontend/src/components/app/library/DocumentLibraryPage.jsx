@@ -577,10 +577,18 @@ export default function DocumentLibraryPage() {
     }
   };
 
-  // Auto-open result view if navigated with selectedDocId state or URL query
+  // Auto-open result view if navigated with selectedDocId state or URL query or preserved in session
   useEffect(() => {
-    const selectedDocId = location.state?.selectedDocId || new URLSearchParams(location.search).get('document_id');
-    if (selectedDocId) {
+    let selectedDocId = location.state?.selectedDocId || new URLSearchParams(location.search).get('document_id');
+    if (!selectedDocId) {
+      try {
+        selectedDocId = sessionStorage.getItem('structra_library_active_doc_id');
+      } catch {
+        /* silent */
+      }
+    }
+
+    if (selectedDocId && !detailDoc) {
       const docObj = {
         document_id: selectedDocId,
         id: selectedDocId,
@@ -648,6 +656,12 @@ export default function DocumentLibraryPage() {
   const handleView = async (doc, initialData = null) => {
     const docId = doc?.document_id || doc?.id;
     if (!docId) return;
+
+    try {
+      sessionStorage.setItem('structra_library_active_doc_id', docId);
+    } catch {
+      /* silent */
+    }
 
     setDetailDoc(doc);
     if (initialData) {
@@ -717,6 +731,11 @@ export default function DocumentLibraryPage() {
   };
 
   const handleBackToLibrary = () => {
+    try {
+      sessionStorage.removeItem('structra_library_active_doc_id');
+    } catch {
+      /* silent */
+    }
     setDetailDoc(null);
     setDetailData(null);
     setDetailError(null);
@@ -729,6 +748,12 @@ export default function DocumentLibraryPage() {
 
   const handleSaveLibraryDocument = async (updatedDisplayData) => {
     const targetDocId = detailDoc?.document_id || detailDoc?.id || detailData?.document?.document_id;
+
+    try {
+      sessionStorage.removeItem('structra_library_active_doc_id');
+    } catch {
+      /* silent */
+    }
 
     const parseNum = (str) => {
       if (typeof str === 'number') return str;

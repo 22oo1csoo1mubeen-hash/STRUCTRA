@@ -34,11 +34,6 @@ export default function MainLayout() {
     >
       {/* ── Scrollbar styles ── */}
       <style>{`
-        /* Full-height scrollbar — no gap at the top */
-        #app-scroll-area {
-          scrollbar-gutter: stable;
-        }
-
         /* Webkit (Chrome, Edge, Safari) */
         #app-scroll-area::-webkit-scrollbar {
           width: 5px;
@@ -57,14 +52,10 @@ export default function MainLayout() {
             #ea580c 100%
           );
           border-radius: 9999px;
-          box-shadow: 0 0 6px rgba(249, 115, 22, 0.55);
-          transition: background 0.2s ease, opacity 0.3s ease;
-          opacity: 0;
+          box-shadow: 0 0 6px rgba(249, 115, 22, 0.40);
         }
         
         #app-scroll-area::-webkit-scrollbar-thumb:hover {
-          /* Note: standard cursor property doesn't always work on scrollbars, but supported in some browsers */
-          cursor: pointer;
           background: linear-gradient(
             180deg,
             #f97316 0%,
@@ -73,21 +64,10 @@ export default function MainLayout() {
           );
         }
 
-        /* Only visible when hovering the scroll container */
-        #app-scroll-area:hover::-webkit-scrollbar-thumb {
-          opacity: 1;
-        }
-
         /* Firefox */
         #app-scroll-area {
           scrollbar-width: thin;
           scrollbar-color: rgba(249, 115, 22, 0.65) transparent;
-        }
-
-        /* Smooth fade-in animation for the scrollbar thumb */
-        @keyframes scrollbarFadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
         }
       `}</style>
 
@@ -138,6 +118,8 @@ export default function MainLayout() {
           overflowX: 'hidden',
           position: 'relative',
           zIndex: 1,
+          isolation: 'isolate',
+          transform: 'translateZ(0)',
         }}
       >
         {/* Top bar (Sticky) */}
