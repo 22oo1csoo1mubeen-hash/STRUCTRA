@@ -17,7 +17,15 @@ class SignupResponse(BaseModel):
     message: str
 
 
+from typing import Any
+
+
 class CurrentUser(BaseModel):
     """Authenticated Supabase user identity available to protected endpoints."""
 
     user_id: str = Field(min_length=1)
+    email: str | None = None
+    user_metadata: dict[str, Any] = Field(default_factory=dict)
+    app_metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: str | None = None
+    last_sign_in_at: str | None = None

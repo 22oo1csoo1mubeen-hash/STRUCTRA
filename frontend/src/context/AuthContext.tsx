@@ -24,6 +24,8 @@ interface AuthContextValue {
   resendConfirmation: (email: string) => Promise<{ error: AuthError | null }>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   updatePassword: (password: string) => Promise<{ error: AuthError | null }>;
+  refreshUser: () => Promise<void>;
+  setUser: (user: User | null | ((prev: User | null) => User | null)) => void;
   logout: () => Promise<void>;
 }
 
@@ -47,13 +49,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (event === 'INITIAL_SESSION') {
         // SDK has finished checking persisted storage. This fires exactly once
         // on mount — even when there is no stored session (newSession = null).
         setSession(newSession);
         setUser(newSession?.user ?? null);
         setLoading(false);
+
+        // Fetch fresh user record from Supabase Auth to ensure latest user_metadata
+        if (newSession?.user) {
+          try {
+            const { data: { user: latestUser } } = await supabase.auth.getUser();
+            if (latestUser) {
+              setUser(latestUser);
+            }
+          } catch {
+            /* silent */
+          }
+        }
         return;
       }
 
@@ -217,13 +231,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   }, []);
 
+  /* ── Refresh User State ──────────────────────────────── */
+  const refreshUser = useCallback(async () => {
+    try {
+      // 1. Refresh Supabase session so that updated user_metadata is persisted into the active JWT
+      const { data: refreshData, error: refreshErr } = await supabase.auth.refreshSession();
+      if (!refreshErr && refreshData?.user) {
+        setUser(refreshData.user);
+        setSession(refreshData.session);
+        return;
+      }
+    } catch {
+      /* fallback to getUser() */
+    }
+
+    try {
+      // 2. Direct fetch from Supabase Auth server
+      const { data: { user: updatedUser } } = await supabase.auth.getUser();
+      if (updatedUser) {
+        setUser(updatedUser);
+      }
+    } catch {
+      /* silent */
+    }
+  }, []);
+
   /* ── Logout ─────────────────────────────────────────── */
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, login, loginWithGoogle, register, resendConfirmation, resetPassword, updatePassword, logout }}>
+    <AuthContext.Provider value={{ user, session, loading, login, loginWithGoogle, register, resendConfirmation, resetPassword, updatePassword, refreshUser, setUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

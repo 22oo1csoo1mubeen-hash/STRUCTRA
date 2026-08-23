@@ -302,16 +302,26 @@ export default function RegisterPage() {
               {/* Full Name */}
               <div style={{ marginBottom: 12 }}>
                 <AuthInput
-                  id="register-fullname" type="text" placeholder="Full Name" icon={User}
-                  value={fullName} onChange={(e) => setFullName(e.target.value)}
+                  id="register-fullname"
+                  type="text"
+                  placeholder="Full Name"
+                  icon={User}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
                 />
               </div>
 
               {/* Email */}
               <div style={{ marginBottom: 12 }}>
                 <AuthInput
-                  id="register-email" type="email" placeholder="Email" icon={Mail}
-                  value={email} onChange={(e) => setEmail(e.target.value)}
+                  id="register-email"
+                  type="email"
+                  placeholder="Email"
+                  icon={Mail}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
                 />
               </div>
 
@@ -320,9 +330,12 @@ export default function RegisterPage() {
                 <AuthInput
                   id="register-password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Password" icon={Lock}
-                  value={password} onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  icon={Lock}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   rightElement={togglePassword}
+                  autoComplete="new-password"
                 />
               </div>
 
@@ -331,9 +344,12 @@ export default function RegisterPage() {
                 <AuthInput
                   id="register-confirm-password"
                   type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Confirm Password" icon={Lock}
-                  value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm Password"
+                  icon={Lock}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   rightElement={toggleConfirmPassword}
+                  autoComplete="new-password"
                 />
               </div>
 

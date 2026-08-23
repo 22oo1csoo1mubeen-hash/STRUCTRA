@@ -340,6 +340,7 @@ export default function LoginPage() {
               icon={User}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
             />
           </div>
           <div style={{ marginBottom: 16 }}>
@@ -351,6 +352,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               rightElement={eyeToggle}
+              autoComplete="current-password"
             />
           </div>
           <div

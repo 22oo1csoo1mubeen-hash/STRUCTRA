@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, Mic, ChevronDown, User, Settings, LogOut } from 'lucide-react';
+import { Bell, ChevronDown, User, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
  * userName is derived from the authenticated user's metadata.
  */
 export default function TopBar({
-  userPlan = 'Premium Plan',
+  userPlan = 'Free Plan',
   notificationCount = 3,
   isScrolled = false,
 }) {
@@ -19,10 +19,17 @@ export default function TopBar({
 
   const userName =
     user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    user?.name ||
     user?.email?.split('@')[0] ||
     'User';
 
   const userEmail = user?.email || '';
+
+  const userPlanDisplay =
+    user?.user_metadata?.plan
+      ? (user.user_metadata.plan.toLowerCase().includes('plan') ? user.user_metadata.plan : `${user.user_metadata.plan} Plan`)
+      : userPlan;
 
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -46,12 +53,19 @@ export default function TopBar({
     navigate('/');
   };
 
+  const avatarUrl = user?.user_metadata?.avatar_url || user?.avatar_url || null;
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
+
+  useEffect(() => {
+    setAvatarLoadError(false);
+  }, [avatarUrl]);
+
   const initials = userName
     .split(' ')
     .map((n) => n[0])
     .join('')
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || (userEmail.charAt(0) || 'U').toUpperCase();
 
   /* ─── Shared glass button style ─────────────────────────── */
   const glassStyle = {
@@ -155,27 +169,41 @@ export default function TopBar({
           borderBottom: isScrolled ? '1px solid rgba(249,115,22,0.15)' : '1px solid transparent',
         }}
       >
-        {/* ── Mic / Voice Action Button ─────────────────────── */}
-        <button
-          id="topbar-mic-btn"
-          aria-label="Voice command"
-          title="Voice command (Coming soon)"
-          className="topbar-icon-btn"
+        {/* ── Workspace / System Status Badge ────────────────── */}
+        <div
+          id="topbar-workspace-badge"
           style={{
-            position: 'relative',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            width: 44,
-            height: 44,
-            borderRadius: '50%',
-            cursor: 'pointer',
-            flexShrink: 0,
+            gap: 8,
+            padding: '7px 16px',
+            borderRadius: 50,
+            cursor: 'default',
+            userSelect: 'none',
             ...glassStyle,
           }}
         >
-          <Mic size={18} strokeWidth={1.8} color="rgba(255,240,220,0.85)" />
-        </button>
+          <div
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: '#4ade80',
+              boxShadow: '0 0 8px rgba(74, 222, 128, 0.8)',
+            }}
+          />
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'rgba(255, 248, 238, 0.90)',
+              fontFamily: "'Inter', system-ui, sans-serif",
+              letterSpacing: '0.01em',
+            }}
+          >
+            STRUCTRA Workspace
+          </span>
+        </div>
 
         <div style={{ flex: 1 }} />
 
@@ -265,9 +293,19 @@ export default function TopBar({
                 flexShrink: 0,
                 letterSpacing: '0.03em',
                 boxShadow: '0 2px 8px rgba(249,115,22,0.4)',
+                overflow: 'hidden',
               }}
             >
-              {initials}
+              {avatarUrl && !avatarLoadError ? (
+                <img
+                  src={avatarUrl.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${avatarUrl}` : avatarUrl}
+                  alt={userName}
+                  onError={() => setAvatarLoadError(true)}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                initials
+              )}
             </div>
 
             {/* Name + plan */}
@@ -292,7 +330,7 @@ export default function TopBar({
                   lineHeight: 1.25,
                 }}
               >
-                {userPlan}
+                {userPlanDisplay}
               </span>
             </div>
 

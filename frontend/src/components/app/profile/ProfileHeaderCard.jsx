@@ -1,21 +1,22 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Pencil, Check, Calendar, Mail, Shield, FileText } from 'lucide-react';
+import { Pencil, Check, Calendar, Mail } from 'lucide-react';
 
 /* ─────────────────────────────────────────────────────────────
-   Format date utility (e.g. "21 Aug 2026")
+   Format date utility (e.g. "18 Aug 2026")
 ───────────────────────────────────────────────────────────── */
 function formatMemberDate(rawDate) {
-  if (!rawDate) return '21 Aug 2026';
+  if (!rawDate) return 'N/A';
   try {
     const d = new Date(rawDate);
-    if (isNaN(d.getTime())) return '21 Aug 2026';
+    if (isNaN(d.getTime())) return 'N/A';
     const day = d.getDate();
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const month = months[d.getMonth()];
     const year = d.getFullYear();
     return `${day} ${month} ${year}`;
   } catch {
-    return '21 Aug 2026';
+    return 'N/A';
   }
 }
 
@@ -154,18 +155,29 @@ function FacetedMeshGraphic() {
 
 export default function ProfileHeaderCard({
   user = null,
-  totalDocuments = 24,
+  account = null,
   onEditProfile = () => {},
 }) {
   const displayName =
+    user?.name ||
     user?.user_metadata?.full_name ||
     user?.user_metadata?.name ||
     user?.email?.split('@')[0] ||
-    'Ram';
+    'User';
 
-  const userEmail = user?.email || 'mubeen@email.com';
-  const memberSinceFormatted = formatMemberDate(user?.created_at);
-  const initial = (displayName.charAt(0) || 'R').toUpperCase();
+  const userEmail = user?.email || '';
+  const memberSinceFormatted = formatMemberDate(account?.member_since || user?.created_at);
+  const initial = (displayName.charAt(0) || userEmail.charAt(0) || 'U').toUpperCase();
+
+  const avatarUrl = user?.avatar_url || user?.user_metadata?.avatar_url || null;
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
+
+  useEffect(() => {
+    setAvatarLoadError(false);
+  }, [avatarUrl]);
+
+  const planLabel = account?.plan ? (account.plan.toLowerCase().includes('plan') ? account.plan : `${account.plan} Plan`) : 'Free Plan';
+  const isPremium = planLabel.toLowerCase().includes('premium');
 
   return (
     <motion.div
@@ -201,7 +213,7 @@ export default function ProfileHeaderCard({
       >
         {/* Left: Avatar + Identity Info */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 24, minWidth: 0 }}>
-          {/* Avatar with Edit Badge */}
+          {/* Avatar (clean profile avatar without pencil overlay) */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <div
               style={{
@@ -215,46 +227,30 @@ export default function ProfileHeaderCard({
                 alignItems: 'center',
                 justifyContent: 'center',
                 userSelect: 'none',
+                overflow: 'hidden',
               }}
             >
-              <span
-                style={{
-                  fontSize: 40,
-                  fontWeight: 700,
-                  color: '#ffffff',
-                  fontFamily: "'Inter', system-ui, sans-serif",
-                  lineHeight: 1,
-                }}
-              >
-                {initial}
-              </span>
+              {avatarUrl && !avatarLoadError ? (
+                <img
+                  src={avatarUrl.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${avatarUrl}` : avatarUrl}
+                  alt={displayName}
+                  onError={() => setAvatarLoadError(true)}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <span
+                  style={{
+                    fontSize: 40,
+                    fontWeight: 700,
+                    color: '#ffffff',
+                    fontFamily: "'Inter', system-ui, sans-serif",
+                    lineHeight: 1,
+                  }}
+                >
+                  {initial}
+                </span>
+              )}
             </div>
-
-            {/* Edit Avatar Button */}
-            <motion.button
-              onClick={onEditProfile}
-              title="Change Avatar"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.92 }}
-              style={{
-                position: 'absolute',
-                bottom: 2,
-                right: 2,
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: '#1c1c22',
-                border: '1px solid rgba(255,255,255,0.22)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-                padding: 0,
-              }}
-            >
-              <Pencil size={13} color="rgba(255,255,255,0.85)" />
-            </motion.button>
           </div>
 
           {/* User Details */}
@@ -282,7 +278,7 @@ export default function ProfileHeaderCard({
               {userEmail}
             </span>
 
-            {/* Plan Badge */}
+            {/* Dynamic Plan Badge */}
             <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
               <div
                 style={{
@@ -291,8 +287,8 @@ export default function ProfileHeaderCard({
                   gap: 5,
                   padding: '3px 10px',
                   borderRadius: 9999,
-                  background: 'rgba(74,222,128,0.12)',
-                  border: '1px solid rgba(74,222,128,0.30)',
+                  background: isPremium ? 'rgba(74,222,128,0.12)' : 'rgba(249,115,22,0.12)',
+                  border: isPremium ? '1px solid rgba(74,222,128,0.30)' : '1px solid rgba(249,115,22,0.30)',
                 }}
               >
                 <div
@@ -300,24 +296,24 @@ export default function ProfileHeaderCard({
                     width: 12,
                     height: 12,
                     borderRadius: '50%',
-                    background: 'rgba(74,222,128,0.25)',
+                    background: isPremium ? 'rgba(74,222,128,0.25)' : 'rgba(249,115,22,0.25)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <Check size={9} strokeWidth={3} color="#4ade80" />
+                  <Check size={9} strokeWidth={3} color={isPremium ? '#4ade80' : '#f97316'} />
                 </div>
                 <span
                   style={{
                     fontSize: 11.5,
                     fontWeight: 600,
-                    color: '#4ade80',
+                    color: isPremium ? '#4ade80' : '#f97316',
                     fontFamily: "'Inter', system-ui, sans-serif",
                     letterSpacing: '0.01em',
                   }}
                 >
-                  Premium Plan
+                  {planLabel}
                 </span>
               </div>
             </div>
@@ -383,7 +379,7 @@ export default function ProfileHeaderCard({
           gap: 24,
         }}
       >
-        {/* 1. Email Box (Full email accommodated) */}
+        {/* 1. Email Box */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
           <div
             style={{
@@ -414,7 +410,7 @@ export default function ProfileHeaderCard({
               }}
               title={userEmail}
             >
-              {userEmail}
+              {userEmail || '—'}
             </span>
           </div>
         </div>

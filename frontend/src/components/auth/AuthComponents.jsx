@@ -94,7 +94,16 @@ export function AuthCheckbox({ id, checked, onChange, children }) {
 }
 
 /* ─── Input Field ─────────────────────────────────────── */
-export function AuthInput({ id, type = 'text', placeholder, icon: Icon, value, onChange, rightElement }) {
+export function AuthInput({
+  id,
+  type = 'text',
+  placeholder,
+  icon: Icon,
+  value,
+  onChange,
+  rightElement,
+  autoComplete,
+}) {
   const [focused, setFocused] = useState(false);
   const [hovered, setHovered] = useState(false);
 
@@ -141,7 +150,15 @@ export function AuthInput({ id, type = 'text', placeholder, icon: Icon, value, o
         onChange={onChange}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        autoComplete={type === 'password' ? 'new-password' : type === 'email' ? 'username' : 'off'}
+        autoComplete={
+          autoComplete !== undefined
+            ? autoComplete
+            : type === 'password'
+            ? 'current-password'
+            : type === 'email'
+            ? 'username'
+            : 'off'
+        }
         style={{
           width: '100%',
           padding: '10px 38px 10px 38px',

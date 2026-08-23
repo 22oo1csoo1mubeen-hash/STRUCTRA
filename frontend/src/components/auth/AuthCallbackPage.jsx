@@ -107,6 +107,18 @@ export default function AuthCallbackPage() {
       if ((event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'PASSWORD_RECOVERY') && session) {
         settled = true;
 
+        // Check if user was linking Google identity from Account & Security
+        const isLinking = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('structra_linking_google') === 'true';
+        if (isLinking) {
+          try {
+            sessionStorage.removeItem('structra_linking_google');
+          } catch {
+            /* silent */
+          }
+          navigate('/app/profile', { replace: true });
+          return;
+        }
+
         if (event === 'PASSWORD_RECOVERY' || tokenType === 'recovery') {
           /**
            * Password recovery flow:

@@ -129,6 +129,16 @@ class AssistantSessionManager:
             self._sessions.pop(session_id, None)
             return True
 
+    async def clear_user_sessions(self, user_id: str) -> int:
+        """Remove all active ephemeral sessions belonging to the specified user."""
+        async with self._lock:
+            user_session_ids = [
+                sid for sid, s in self._sessions.items() if s.user_id == str(user_id)
+            ]
+            for sid in user_session_ids:
+                self._sessions.pop(sid, None)
+            return len(user_session_ids)
+
     async def cleanup_expired_sessions(self) -> int:
         """Remove all expired sessions from memory."""
         now = datetime.now(UTC)

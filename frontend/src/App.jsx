@@ -61,6 +61,10 @@ function App() {
                     <Route path="assistant" element={<AssistantPage />} />
                     <Route path="profile" element={<ProfilePage />} />
                   </Route>
+
+                  {/* Fallback & legacy auth redirects */}
+                  <Route path="/auth" element={<Navigate to="/login" replace />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </BrowserRouter>
             </AssistantProvider>

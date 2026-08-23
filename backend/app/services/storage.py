@@ -324,5 +324,74 @@ async def cleanup_unsaved_temporary_storage(
     return orphaned_paths
 
 
+async def delete_all_user_storage_objects(
+    user_id: str, settings: Settings
+) -> int:
+    """Recursively find and delete all storage objects belonging to user_id across documents and avatars."""
+    supabase_url = getattr(settings, "supabase_url", "https://example.supabase.co")
+    bucket = getattr(settings, "supabase_storage_bucket", "documents")
+    secret_key_attr = getattr(settings, "supabase_secret_key", None)
+    if not secret_key_attr:
+        return 0
+
+    secret_key = (
+        secret_key_attr.get_secret_value()
+        if hasattr(secret_key_attr, "get_secret_value")
+        else str(secret_key_attr)
+    )
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": "application/json",
+    }
+    list_url = f"{str(supabase_url).rstrip('/')}/storage/v1/object/list/{quote(str(bucket), safe='')}"
+
+    prefixes_to_check = [f"{user_id}", f"avatars/{user_id}"]
+    objects_to_delete: list[str] = []
+
+    for prefix in prefixes_to_check:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                r = await client.post(list_url, headers=headers, json={"prefix": prefix, "limit": 1000})
+                if r.is_success:
+                    items = r.json()
+                    if isinstance(items, list):
+                        for item in items:
+                            name = item.get("name", "")
+                            if name:
+                                if "." in name:
+                                    objects_to_delete.append(f"{prefix}/{name}")
+                                else:
+                                    sub_prefix = f"{prefix}/{name}"
+                                    r_sub = await client.post(list_url, headers=headers, json={"prefix": sub_prefix, "limit": 100})
+                                    if r_sub.is_success and isinstance(r_sub.json(), list):
+                                        for sub_item in r_sub.json():
+                                            sub_name = sub_item.get("name", "")
+                                            if sub_name:
+                                                objects_to_delete.append(f"{sub_prefix}/{sub_name}")
+        except Exception:
+            pass
+
+    deleted_count = 0
+    if objects_to_delete:
+        delete_url = f"{str(supabase_url).rstrip('/')}/storage/v1/object/{quote(str(bucket), safe='')}"
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.request(
+                    "DELETE", delete_url, headers=headers, json={"prefixes": objects_to_delete}
+                )
+                if response.is_success:
+                    deleted_count = len(objects_to_delete)
+        except Exception:
+            for obj_path in objects_to_delete:
+                try:
+                    await delete_document_from_storage(obj_path, settings, ignore_missing=True)
+                    deleted_count += 1
+                except Exception:
+                    pass
+
+    return deleted_count
+
+
 
 

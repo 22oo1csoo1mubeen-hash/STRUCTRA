@@ -7,15 +7,15 @@ import { FileText, ShieldCheck, Clock, HardDrive, Lock, ExternalLink } from 'luc
 function formatLastLogin(rawTimestamp) {
   if (!rawTimestamp) {
     return {
-      primary: 'Today, 04:32 PM',
-      secondary: '21 Aug 2026',
+      primary: 'Active now',
+      secondary: 'Current session',
     };
   }
 
   try {
     const d = new Date(rawTimestamp);
     if (isNaN(d.getTime())) {
-      return { primary: 'Today, 04:32 PM', secondary: '21 Aug 2026' };
+      return { primary: 'Active now', secondary: 'Current session' };
     }
 
     const isToday = new Date().toDateString() === d.toDateString();
@@ -33,25 +33,39 @@ function formatLastLogin(rawTimestamp) {
       secondary: dateStr,
     };
   } catch {
-    return { primary: 'Today, 04:32 PM', secondary: '21 Aug 2026' };
+    return { primary: 'Active now', secondary: 'Current session' };
   }
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Format Storage Bytes
+───────────────────────────────────────────────────────────── */
+function formatBytes(bytes) {
+  if (bytes === null || bytes === undefined || isNaN(bytes) || bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const val = (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1);
+  return `${val.endsWith('.0') ? val.slice(0, -2) : val} ${units[i]}`;
+}
+
 export default function QuickOverviewGrid({
-  totalDocuments = 24,
+  totalDocuments = 0,
+  accountStatus = 'Active',
   lastSignInAt = null,
-  storageUsed = '186 MB',
-  storageTotal = '1 GB',
+  storageUsedBytes = 0,
+  storageLimitBytes = 1073741824,
   onLearnMore = () => {},
 }) {
   const lastLogin = formatLastLogin(lastSignInAt);
+  const storageUsed = formatBytes(storageUsedBytes);
+  const storageTotal = formatBytes(storageLimitBytes);
 
   const CARDS = [
     {
       id: 'docs',
       label: 'Documents',
       value: String(totalDocuments),
-      subtext: 'Total uploaded',
+      subtext: totalDocuments === 1 ? '1 document uploaded' : 'Total uploaded',
       valueColor: '#ffffff',
       Icon: FileText,
       iconColor: '#4ade80',
@@ -61,13 +75,13 @@ export default function QuickOverviewGrid({
     {
       id: 'status',
       label: 'Account Status',
-      value: 'Active',
-      subtext: 'All systems operational',
-      valueColor: '#4ade80',
+      value: accountStatus,
+      subtext: accountStatus === 'Active' ? 'All systems operational' : 'Account restricted',
+      valueColor: accountStatus === 'Active' ? '#4ade80' : '#f87171',
       Icon: ShieldCheck,
-      iconColor: '#60a5fa',
-      iconBg: 'rgba(96,165,250,0.12)',
-      iconBorder: 'rgba(96,165,250,0.25)',
+      iconColor: accountStatus === 'Active' ? '#60a5fa' : '#f87171',
+      iconBg: accountStatus === 'Active' ? 'rgba(96,165,250,0.12)' : 'rgba(239,68,68,0.12)',
+      iconBorder: accountStatus === 'Active' ? 'rgba(96,165,250,0.25)' : 'rgba(239,68,68,0.25)',
     },
     {
       id: 'login',

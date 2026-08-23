@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trash2,
@@ -9,9 +10,11 @@ import {
   History,
   Info,
   AlertTriangle,
+  Loader2,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
+import { deleteAccount } from '../../../api/profile';
 
 // Unified STRUCTRA glassmorphism card style
 const glassCardStyle = {
@@ -24,18 +27,84 @@ const glassCardStyle = {
 };
 
 export default function DangerZoneCard() {
-  const { signOut } = useAuth();
+  const { logout } = useAuth();
 
   // Controlled confirmation input state
   const [deleteInput, setDeleteInput] = useState('');
   const isDeleteReady = deleteInput.trim() === 'DELETE';
 
-  // Safe local confirmation modal
+  // Deletion operation state
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  // Safe confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const handleDeleteClick = () => {
-    if (!isDeleteReady) return;
-    setShowConfirmModal(true);
+  // Auto-scroll to top and lock scroll when modal is open
+  useEffect(() => {
+    if (showConfirmModal) {
+      const scrollEl = document.getElementById('app-scroll-area');
+      if (scrollEl) {
+        scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
+        const prevOverflow = scrollEl.style.overflowY;
+        scrollEl.style.overflowY = 'hidden';
+        return () => {
+          scrollEl.style.overflowY = prevOverflow;
+        };
+      }
+    }
+  }, [showConfirmModal]);
+
+  /**
+   * Execute permanent account deletion across DB, Storage, and Auth.
+   */
+  const handlePermanentDeletion = async () => {
+    if (!isDeleteReady || isDeleting) return;
+
+    setIsDeleting(true);
+    setErrorMessage('');
+
+    try {
+      // 1. Call secure backend endpoint to cascade-delete all user data and auth user
+      await deleteAccount('DELETE');
+
+      // 2. Clear local auth context and Supabase sessions
+      try {
+        await logout?.();
+      } catch {
+        /* Ignore signout errors if auth user was already dropped */
+      }
+
+      // 3. Clear local & session cache
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch {
+        /* ignore */
+      }
+
+      // 4. Redirect to landing page
+      window.location.href = '/';
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to delete account. Please try again.');
+      setIsDeleting(false);
+      setShowConfirmModal(false);
+    }
+  };
+
+  /**
+   * Standard sign out without deleting any user data.
+   */
+  const handleSignOutInstead = async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await logout?.();
+      window.location.href = '/login';
+    } catch {
+      setIsSigningOut(false);
+    }
   };
 
   const DATA_PILLS = [
@@ -46,6 +115,27 @@ export default function DangerZoneCard() {
     { id: 'history', line1: 'Usage', line2: 'History', Icon: History },
   ];
 
+  // Translucent glowing backdrop touching the left sidebar
+  const modalBackdropStyle = {
+    position: 'fixed',
+    top: 0,
+    left: typeof window !== 'undefined' && window.innerWidth > 768 ? 215 : 0,
+    right: 0,
+    bottom: 0,
+    width: typeof window !== 'undefined' && window.innerWidth > 768 ? 'calc(100vw - 215px)' : '100vw',
+    height: '100vh',
+    background:
+      'radial-gradient(ellipse at 50% 45%, rgba(239, 68, 68, 0.10) 0%, rgba(6, 4, 10, 0.45) 60%, rgba(4, 2, 8, 0.58) 100%)',
+    backdropFilter: 'blur(16px) saturate(1.2)',
+    WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    boxSizing: 'border-box',
+  };
+
   return (
     <div
       style={{
@@ -53,6 +143,7 @@ export default function DangerZoneCard() {
         flexDirection: 'column',
         gap: 18,
         width: '100%',
+        position: 'relative',
       }}
     >
       {/* ── CARD 1: Delete Your Account Hero Card ── */}
@@ -188,6 +279,32 @@ export default function DangerZoneCard() {
         </div>
       </motion.div>
 
+      {/* ── Error Banner ── */}
+      <AnimatePresence>
+        {errorMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            style={{
+              padding: '12px 16px',
+              borderRadius: 12,
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              color: '#fca5a5',
+              fontSize: 13,
+              fontFamily: "'Inter', system-ui, sans-serif",
+            }}
+          >
+            <AlertTriangle size={16} color="#ef4444" style={{ flexShrink: 0 }} />
+            <span>{errorMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── CARD 2: Delete Account Confirmation & Action ── */}
       <motion.div
         initial={{ opacity: 0, y: 14 }}
@@ -232,6 +349,7 @@ export default function DangerZoneCard() {
             type="text"
             value={deleteInput}
             onChange={(e) => setDeleteInput(e.target.value)}
+            disabled={isDeleting}
             placeholder="Type DELETE to confirm"
             style={{
               flex: 1,
@@ -249,14 +367,15 @@ export default function DangerZoneCard() {
               outline: 'none',
               transition: 'border-color 0.15s ease',
               boxSizing: 'border-box',
+              opacity: isDeleting ? 0.6 : 1,
             }}
           />
 
           <motion.button
-            onClick={handleDeleteClick}
-            disabled={!isDeleteReady}
-            whileHover={isDeleteReady ? { scale: 1.02, boxShadow: '0 6px 20px rgba(239,68,68,0.45)' } : {}}
-            whileTap={isDeleteReady ? { scale: 0.98 } : {}}
+            onClick={() => setShowConfirmModal(true)}
+            disabled={!isDeleteReady || isDeleting}
+            whileHover={isDeleteReady && !isDeleting ? { scale: 1.02, boxShadow: '0 6px 20px rgba(239,68,68,0.45)' } : {}}
+            whileTap={isDeleteReady && !isDeleting ? { scale: 0.98 } : {}}
             style={{
               height: 44,
               padding: '0 24px',
@@ -269,17 +388,27 @@ export default function DangerZoneCard() {
               fontSize: 13.5,
               fontWeight: 600,
               fontFamily: "'Inter', system-ui, sans-serif",
-              cursor: isDeleteReady ? 'pointer' : 'not-allowed',
+              cursor: isDeleteReady && !isDeleting ? 'pointer' : 'not-allowed',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
               whiteSpace: 'nowrap',
               transition: 'all 0.15s ease',
               boxShadow: isDeleteReady ? '0 4px 16px rgba(239,68,68,0.35)' : 'none',
+              opacity: isDeleting ? 0.7 : 1,
             }}
           >
-            <Trash2 size={14} color={isDeleteReady ? '#ffffff' : 'rgba(255,255,255,0.35)'} />
-            <span>Delete Account</span>
+            {isDeleting ? (
+              <>
+                <Loader2 size={15} className="animate-spin" />
+                <span>Deleting Account...</span>
+              </>
+            ) : (
+              <>
+                <Trash2 size={14} color={isDeleteReady ? '#ffffff' : 'rgba(255,255,255,0.35)'} />
+                <span>Delete Account</span>
+              </>
+            )}
           </motion.button>
         </div>
       </motion.div>
@@ -343,9 +472,10 @@ export default function DangerZoneCard() {
         </div>
 
         <motion.button
-          onClick={() => signOut?.()}
-          whileHover={{ scale: 1.03, backgroundColor: 'rgba(255,255,255,0.08)' }}
-          whileTap={{ scale: 0.97 }}
+          onClick={handleSignOutInstead}
+          disabled={isSigningOut}
+          whileHover={!isSigningOut ? { scale: 1.03, backgroundColor: 'rgba(255,255,255,0.08)' } : {}}
+          whileTap={!isSigningOut ? { scale: 0.97 } : {}}
           style={{
             padding: '9px 18px',
             borderRadius: 8,
@@ -354,120 +484,140 @@ export default function DangerZoneCard() {
             color: '#ffffff',
             fontSize: 13,
             fontWeight: 500,
-            cursor: 'pointer',
+            cursor: isSigningOut ? 'not-allowed' : 'pointer',
             fontFamily: "'Inter', system-ui, sans-serif",
             whiteSpace: 'nowrap',
             transition: 'all 0.15s ease',
+            opacity: isSigningOut ? 0.7 : 1,
           }}
         >
-          Sign Out Instead
+          {isSigningOut ? 'Signing out...' : 'Sign Out Instead'}
         </motion.button>
       </motion.div>
 
-      {/* ── Safe Local Confirmation Dialog (UI-Only) ── */}
-      <AnimatePresence>
-        {showConfirmModal && (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.70)',
-              backdropFilter: 'blur(8px)',
-              zIndex: 1000,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 20,
-            }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.94 }}
-              style={{
-                width: '100%',
-                maxWidth: 440,
-                borderRadius: 18,
-                background: '#14141c',
-                border: '1px solid rgba(239,68,68,0.30)',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
-                padding: '24px 28px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 16,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
-                      background: 'rgba(239,68,68,0.15)',
-                      border: '1px solid rgba(239,68,68,0.35)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <AlertTriangle size={18} color="#ef4444" />
+      {/* ── Confirmation Modal (Portal onto body) ── */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {showConfirmModal && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={modalBackdropStyle}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.94, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.94, y: 10 }}
+                  transition={{ duration: 0.22, ease: 'easeOut' }}
+                  style={{
+                    width: '100%',
+                    maxWidth: 460,
+                    borderRadius: 18,
+                    background: 'rgba(18, 15, 24, 0.92)',
+                    border: '1px solid rgba(239,68,68,0.35)',
+                    boxShadow: '0 24px 60px rgba(0,0,0,0.70), 0 0 35px rgba(239,68,68,0.18)',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
+                    padding: '24px 28px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 16,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 10,
+                          background: 'rgba(239,68,68,0.15)',
+                          border: '1px solid rgba(239,68,68,0.35)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <AlertTriangle size={18} color="#ef4444" />
+                      </div>
+                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#ffffff' }}>
+                        Confirm Account Deletion
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => !isDeleting && setShowConfirmModal(false)}
+                      disabled={isDeleting}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'rgba(255,255,255,0.5)',
+                        cursor: isDeleting ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      <X size={18} />
+                    </button>
                   </div>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#ffffff' }}>
-                    Confirm Account Deletion
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setShowConfirmModal(false)}
-                  style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}
-                >
-                  <X size={18} />
-                </button>
-              </div>
 
-              <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>
-                This is a UI preview. In production, this will initiate the permanent deletion of your account and all associated documents.
-              </p>
+                  <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.70)', lineHeight: 1.5 }}>
+                    Are you sure you want to permanently delete your account? All documents, extracted metadata, custom avatar, and activity logs will be permanently purged.
+                  </p>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
-                <button
-                  onClick={() => setShowConfirmModal(false)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 8,
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    color: '#ffffff',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    setShowConfirmModal(false);
-                    setDeleteInput('');
-                  }}
-                  style={{
-                    padding: '8px 18px',
-                    borderRadius: 8,
-                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                    border: 'none',
-                    color: '#ffffff',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Understood (Preview)
-                </button>
-              </div>
-            </motion.div>
-          </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
+                    <button
+                      onClick={() => setShowConfirmModal(false)}
+                      disabled={isDeleting}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        color: '#ffffff',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: isDeleting ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handlePermanentDeletion}
+                      disabled={isDeleting}
+                      style={{
+                        padding: '8px 18px',
+                        borderRadius: 8,
+                        background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                        border: 'none',
+                        color: '#ffffff',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: isDeleting ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        boxShadow: '0 4px 16px rgba(239,68,68,0.35)',
+                        opacity: isDeleting ? 0.7 : 1,
+                      }}
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          <span>Deleting...</span>
+                        </>
+                      ) : (
+                        <span>Permanently Delete</span>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </div>
   );
 }

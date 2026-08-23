@@ -201,9 +201,12 @@ export default function ResetPasswordPage() {
                 <AuthInput
                   id="reset-password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="New Password" icon={Lock}
-                  value={password} onChange={(e) => setPassword(e.target.value)}
+                  placeholder="New Password"
+                  icon={Lock}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   rightElement={togglePassword}
+                  autoComplete="new-password"
                 />
               </div>
 
@@ -212,9 +215,12 @@ export default function ResetPasswordPage() {
                 <AuthInput
                   id="reset-confirm-password"
                   type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Confirm New Password" icon={Lock}
-                  value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm New Password"
+                  icon={Lock}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   rightElement={toggleConfirmPassword}
+                  autoComplete="new-password"
                 />
               </div>
 

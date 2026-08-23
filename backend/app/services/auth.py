@@ -16,7 +16,7 @@ from app.core.config import get_settings
 from app.schemas.auth import CurrentUser, SignupRequest
 
 _SHARED_AUTH_CLIENT: httpx.AsyncClient | None = None
-_TOKEN_CACHE: dict[str, tuple[str, float]] = {}
+_TOKEN_CACHE: dict[str, tuple[CurrentUser, float]] = {}
 _JWKS_KEYS: dict[str, Any] = {}
 _JWKS_LAST_FETCH: float = 0.0
 
@@ -63,7 +63,7 @@ async def _fetch_jwks_keys(base_url: str) -> None:
         pass
 
 
-def _verify_jwt_signature_locally(token: str) -> tuple[str, float] | None:
+def _verify_jwt_signature_locally(token: str) -> tuple[dict[str, Any], float] | None:
     """Attempt fast local cryptographic verification of a Supabase JWT."""
     parts = token.split(".")
     if len(parts) != 3:
@@ -99,7 +99,7 @@ def _verify_jwt_signature_locally(token: str) -> tuple[str, float] | None:
                 s_val = int.from_bytes(raw_sig[32:], "big")
                 dss_sig = encode_dss_signature(r_val, s_val)
                 pub_key.verify(dss_sig, signing_input, ec.ECDSA(hashes.SHA256()))
-                return sub, exp
+                return payload, exp
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -158,15 +158,15 @@ async def signup_user(signup_request: SignupRequest) -> None:
 
 
 async def get_authenticated_user(access_token: str) -> CurrentUser:
-    """Verify a Supabase access token and return its authenticated user ID."""
+    """Verify a Supabase access token and return its authenticated user identity."""
     now = time.time()
 
     # 1. Check in-memory fast token cache
     cached = _TOKEN_CACHE.get(access_token)
     if cached is not None:
-        user_id, expires_at = cached
+        user_obj, expires_at = cached
         if expires_at > now:
-            return CurrentUser(user_id=user_id)
+            return user_obj
         _TOKEN_CACHE.pop(access_token, None)
 
     settings = get_settings()
@@ -178,9 +178,17 @@ async def get_authenticated_user(access_token: str) -> CurrentUser:
 
     local_result = _verify_jwt_signature_locally(access_token)
     if local_result is not None:
-        user_id, exp = local_result
-        _TOKEN_CACHE[access_token] = (user_id, min(exp, now + 300.0))
-        return CurrentUser(user_id=user_id)
+        payload, exp = local_result
+        current_user = CurrentUser(
+            user_id=payload.get("sub", ""),
+            email=payload.get("email"),
+            user_metadata=payload.get("user_metadata") or {},
+            app_metadata=payload.get("app_metadata") or {},
+            created_at=payload.get("created_at"),
+            last_sign_in_at=payload.get("last_sign_in_at"),
+        )
+        _TOKEN_CACHE[access_token] = (current_user, min(exp, now + 300.0))
+        return current_user
 
     # 3. Fallback to Supabase REST /auth/v1/user verification
     user_url = f"{base_url}/auth/v1/user"
@@ -223,9 +231,17 @@ async def get_authenticated_user(access_token: str) -> CurrentUser:
         )
 
     try:
-        user_id = response.json()["id"]
-        _TOKEN_CACHE[access_token] = (user_id, now + 300.0)
-        return CurrentUser(user_id=user_id)
+        user_json = response.json()
+        current_user = CurrentUser(
+            user_id=user_json["id"],
+            email=user_json.get("email"),
+            user_metadata=user_json.get("user_metadata") or {},
+            app_metadata=user_json.get("app_metadata") or {},
+            created_at=user_json.get("created_at"),
+            last_sign_in_at=user_json.get("last_sign_in_at"),
+        )
+        _TOKEN_CACHE[access_token] = (current_user, now + 300.0)
+        return current_user
     except (KeyError, TypeError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
