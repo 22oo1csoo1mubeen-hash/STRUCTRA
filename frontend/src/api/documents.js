@@ -345,7 +345,14 @@ export async function deleteDocument(documentId) {
     throw new Error(errorMessage);
   }
 
-  return await response.json();
+  const data = await response.json();
+  try {
+    window.dispatchEvent(new CustomEvent('structra:recent-documents-updated'));
+    window.dispatchEvent(new CustomEvent('structra:notifications-updated'));
+  } catch {
+    /* silent */
+  }
+  return data;
 }
 
 /**
@@ -418,7 +425,14 @@ export async function updateDocument(documentId, extraction) {
     throw new Error(errorMessage);
   }
 
-  return await response.json();
+  const data = await response.json();
+  try {
+    window.dispatchEvent(new CustomEvent('structra:recent-documents-updated'));
+    window.dispatchEvent(new CustomEvent('structra:notifications-updated'));
+  } catch {
+    /* silent */
+  }
+  return data;
 }
 
 /**
@@ -472,6 +486,59 @@ export async function saveDocument(documentId, forceSaveDuplicate = false, extra
     throw new Error(errorMessage);
   }
 
+  const data = await response.json();
+  try {
+    window.dispatchEvent(new CustomEvent('structra:recent-documents-updated'));
+    window.dispatchEvent(new CustomEvent('structra:notifications-updated'));
+  } catch {
+    /* silent */
+  }
+  return data;
+}
+
+/**
+ * Fetches the authenticated user's most recent processed documents (up to 5).
+ * Used to populate the "Recently Processed" section on the Upload page.
+ *
+ * @returns {Promise<Object>} DocumentListResponse with items array.
+ */
+export async function getRecentDocuments() {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError || !session) {
+    throw new Error('Authentication required. Please sign in again.');
+  }
+
+  const response = await fetch(`${API_URL}/documents/recent`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { detail: response.statusText };
+    }
+    const errorMessage = typeof errorData.detail === 'string'
+      ? errorData.detail
+      : (errorData.detail?.[0]?.msg || 'Failed to load recent documents.');
+    throw new Error(errorMessage);
+  }
+
   return await response.json();
 }
 
+/**
+ * Triggers a global event telling the UI that recent documents have been updated.
+ */
+export function notifyRecentDocumentsUpdated() {
+  try {
+    window.dispatchEvent(new CustomEvent('structra:recent-documents-updated'));
+  } catch {
+    /* silent */
+  }
+}

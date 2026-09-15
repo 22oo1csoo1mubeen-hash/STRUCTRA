@@ -78,6 +78,7 @@ from app.services.export import (
     generate_export_filename,
     map_document_to_export_data,
 )
+from app.services.notifications import create_notification
 
 
 class TempUploadSession(BaseModel):
@@ -128,6 +129,81 @@ def _remove_temp_upload_session(document_id: UUID) -> None:
 
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+# ─── Recent Documents ─────────────────────────────────────────────────────────
+
+@router.get(
+    "/recent",
+    response_model=DocumentListResponse,
+    summary="Get the authenticated user's 5 most-recently processed documents",
+    description=(
+        "Returns up to 5 completed documents owned by the current user, sorted by "
+        "created_at descending.  Used to populate the 'Recently Processed' section "
+        "on the Upload page.  Strictly user-isolated."
+    ),
+)
+async def list_recent_documents(
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> DocumentListResponse:
+    """Return up to 5 most-recent completed documents for the authenticated user."""
+    records, total = await list_document_metadata(
+        user_id=current_user.user_id,
+        page=1,
+        page_size=5,
+        settings=settings,
+        # status defaults to 'completed' inside list_document_metadata
+    )
+
+    items: list[DocumentListItem] = []
+    for doc in records:
+        ext_data = doc.extraction_result or {}
+        qual_data = doc.quality_result or {}
+        has_ext = doc.extraction_result is not None or doc.status == "completed"
+
+        override_level = qual_data.get("confidence_override")
+        system_level = qual_data.get("system_confidence_level")
+        effective_conf_level = override_level or system_level or qual_data.get("confidence_level")
+        if not effective_conf_level and qual_data.get("overall_confidence") is not None:
+            score = qual_data.get("overall_confidence", 0.0)
+            effective_conf_level = "HIGH" if score >= 0.80 else "MEDIUM" if score >= 0.55 else "LOW"
+
+        effective_needs_review = False if effective_conf_level == "HIGH" else True
+
+        items.append(
+            DocumentListItem(
+                document_id=doc.id,
+                filename=doc.filename,
+                storage_path=doc.storage_path,
+                content_type=doc.content_type,
+                size=doc.size,
+                status=doc.status,
+                created_at=doc.created_at,
+                processed_at=doc.processed_at,
+                content_hash=doc.content_hash,
+                has_extraction=has_ext,
+                vendor_name=ext_data.get("vendor_company"),
+                total_amount=ext_data.get("total"),
+                document_date=ext_data.get("date"),
+                confidence_level=effective_conf_level,
+                confidence_score=qual_data.get("overall_confidence"),
+                system_confidence_level=system_level or qual_data.get("confidence_level"),
+                confidence_override=override_level,
+                needs_review=effective_needs_review,
+            )
+        )
+
+    # Re-use zero stats for this lightweight endpoint
+    stats = DocumentLibraryStats(total=total, processed=0, needs_review=0)
+    return DocumentListResponse(
+        items=items,
+        page=1,
+        page_size=5,
+        total=total,
+        has_next=False,
+        stats=stats,
+    )
 
 
 @router.get(
@@ -464,6 +540,18 @@ async def export_document(
     filename = generate_export_filename(export_data)
     download_name = quote(filename, safe="")
 
+    # Fire-and-forget notification: document exported
+    _export_doc_name = export_data.get("filename") if isinstance(export_data, dict) else str(document_id)
+    asyncio.create_task(
+        create_notification(
+            user_id=current_user.user_id,
+            event_type="document_exported",
+            document_name=_export_doc_name,
+            document_id=str(document_id),
+            settings=settings,
+        )
+    )
+
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -521,6 +609,19 @@ async def delete_document(
         )
 
     _remove_temp_upload_session(document_id)
+
+    # Fire-and-forget notification: document deleted
+    # Use filename from metadata if available, otherwise we won't have it
+    _doc_name = metadata.filename if metadata is not None else str(document_id)
+    asyncio.create_task(
+        create_notification(
+            user_id=current_user.user_id,
+            event_type="document_deleted",
+            document_name=_doc_name,
+            settings=settings,
+        )
+    )
+
     return DocumentDeleteResponse()
 
 
@@ -931,6 +1032,17 @@ async def update_document(
     if doc.content_hash:
         await default_extraction_cache.set(doc.content_hash, extraction, settings=settings)
 
+    # Fire-and-forget notification: document edited
+    asyncio.create_task(
+        create_notification(
+            user_id=current_user.user_id,
+            event_type="document_edited",
+            document_name=doc.filename,
+            document_id=str(document_id),
+            settings=settings,
+        )
+    )
+
     return await _build_detail_response(doc, settings)
 
 
@@ -995,6 +1107,17 @@ async def save_document(
                     if doc.content_hash:
                         await default_extraction_cache.set(doc.content_hash, updated_ext, settings=settings)
 
+                    # Fire-and-forget notification: document edited
+                    asyncio.create_task(
+                        create_notification(
+                            user_id=current_user.user_id,
+                            event_type="document_edited",
+                            document_name=doc.filename,
+                            document_id=str(document_id),
+                            settings=settings,
+                        )
+                    )
+
             # Idempotent response for already-completed document (zero new rows created)
             return await _build_detail_response(doc, settings)
 
@@ -1055,6 +1178,17 @@ async def save_document(
         doc.processed_at = datetime.now(timezone.utc)
         if not force_save_duplicate and content_hash_to_commit:
             doc.content_hash = content_hash_to_commit
+
+        # Fire-and-forget notification: document saved to library
+        asyncio.create_task(
+            create_notification(
+                user_id=current_user.user_id,
+                event_type="document_saved",
+                document_name=filename,
+                document_id=str(document_id),
+                settings=settings,
+            )
+        )
 
         return await _build_detail_response(doc, settings)
 
@@ -1143,6 +1277,18 @@ async def save_document(
         raise
 
     _remove_temp_upload_session(document_id)
+
+    # Fire-and-forget notification: document saved to library
+    asyncio.create_task(
+        create_notification(
+            user_id=current_user.user_id,
+            event_type="document_saved",
+            document_name=filename,
+            document_id=str(document_id),
+            settings=settings,
+        )
+    )
+
     return await _build_detail_response(created_record, settings)
 
 

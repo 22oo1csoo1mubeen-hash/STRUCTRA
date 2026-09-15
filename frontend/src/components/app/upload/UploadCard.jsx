@@ -59,24 +59,24 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
         onDrop={handleDrop}
         animate={{
           background: isDragOver
-            ? 'rgba(249,115,22,0.07)'
-            : 'rgba(255,255,255,0.07)',
+            ? 'linear-gradient(135deg, rgba(249, 115, 22, 0.10) 0%, rgba(249, 115, 22, 0.03) 100%)'
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.022) 100%)',
+          borderColor: isDragOver
+            ? 'rgba(249, 115, 22, 0.50)'
+            : 'rgba(255, 255, 255, 0.11)',
+          boxShadow: isDragOver
+            ? '0 8px 32px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 30px rgba(249, 115, 22, 0.20)'
+            : '0 8px 32px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.16)',
         }}
         transition={{ duration: 0.18 }}
         style={{
           width: '100%',
           borderRadius: 18,
-          /* True glassmorphism — instant loading, no opacity animation delay */
-          background: 'rgba(255,255,255,0.07)',
-          backdropFilter: 'blur(28px) saturate(1.6)',
-          WebkitBackdropFilter: 'blur(28px) saturate(1.6)',
-          /* Intense orange top + bottom borders + stronger glow */
-          borderTop: '1.5px solid rgba(249,115,22,0.65)',
-          borderBottom: '1.5px solid rgba(249,115,22,0.65)',
-          borderLeft: '1px solid rgba(255,255,255,0.10)',
-          borderRight: '1px solid rgba(255,255,255,0.10)',
-          boxShadow:
-            '0 4px 50px rgba(0,0,0,0.40), inset 0 0 80px rgba(249,115,22,0.12), inset 0 1px 0 rgba(255,255,255,0.20), 0 0 30px rgba(249,115,22,0.15)',
+          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.022) 100%)',
+          backdropFilter: 'blur(28px) saturate(1.8)',
+          WebkitBackdropFilter: 'blur(28px) saturate(1.8)',
+          border: '1px solid rgba(255, 255, 255, 0.11)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.16)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',

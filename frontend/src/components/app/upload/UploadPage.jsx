@@ -5,6 +5,7 @@ import UploadCard from './UploadCard';
 import HowItWorks from './HowItWorks';
 import RecentUploads from './RecentUploads';
 import { useUploadWorkflow } from '../../../context/UploadWorkflowContext';
+import { useRecentDocuments } from '../../../hooks/useRecentDocuments';
 
 /**
  * UploadPage
@@ -33,11 +34,17 @@ export default function UploadPage() {
     handleSaveToLibrary,
     handleRetryExtraction,
     handleRetryValidation,
+    isSaving,
   } = useUploadWorkflow();
 
-  const uploadContainerRef = useRef(null);
+  // Real recent documents from the backend
+  const { uploads, isLoading: recentLoading, error: recentError, refresh: refreshRecent } = useRecentDocuments();
 
-  // Construct displayFile for components (combines selectedFile or uploadedDocument metadata proxy)
+  const uploadContainerRef = useRef(null);
+  // Track when isSaving transitions false→true→false to trigger a refresh
+  const wasSavingRef = useRef(false);
+
+  // Construct displayFile for components
   const displayFile = selectedFile || (fileMeta ? { name: fileMeta.name, size: fileMeta.size, type: fileMeta.type } : (uploadedDocument ? { name: uploadedDocument.filename, size: uploadedDocument.file_size, type: uploadedDocument.content_type } : null));
 
   // Maintain smooth scroll restoration on stage changes
@@ -61,6 +68,24 @@ export default function UploadPage() {
       }, 100);
     }
   }, [stage]);
+
+  // Refresh the recently-processed list when stage is 1 (initial load or after "Process Another")
+  useEffect(() => {
+    if (stage === 1) {
+      refreshRecent();
+    }
+  }, [stage, refreshRecent]);
+
+  // After a successful save (isSaving transitions true → false at stage 11),
+  // refresh the recently-processed list to include the newly saved document.
+  useEffect(() => {
+    if (wasSavingRef.current && !isSaving && stage === 11) {
+      // Small delay so the backend has committed before we re-fetch
+      const timer = setTimeout(() => refreshRecent(), 400);
+      return () => clearTimeout(timer);
+    }
+    wasSavingRef.current = isSaving;
+  }, [isSaving, stage, refreshRecent]);
 
   return (
     <div
@@ -97,10 +122,10 @@ export default function UploadPage() {
         />
       </div>
 
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {stage < 3 && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
+            initial={false}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -108,8 +133,12 @@ export default function UploadPage() {
             {/* How it works steps */}
             <HowItWorks />
 
-            {/* Recent uploads / empty state */}
-            <RecentUploads uploads={[]} />
+            {/* Recent uploads — real data from backend */}
+            <RecentUploads
+              uploads={uploads}
+              isLoading={recentLoading}
+              error={recentError}
+            />
           </motion.div>
         )}
       </AnimatePresence>

@@ -164,9 +164,17 @@ export default function AccountSecurityCard({ user = null }) {
   const googleEmail = securityData?.google_email || userEmail;
 
   // Real provider checks
-  const providers = securityData?.providers || (user?.app_metadata?.providers ?? (user?.app_metadata?.provider ? [user.app_metadata.provider] : ['email']));
-  const hasGoogle = providers.includes('google');
-  const hasPassword = securityData?.has_password ?? (providers.includes('email') || !hasGoogle);
+  const userMetadata = user?.user_metadata || {};
+  const userHasPasswordMeta =
+    userMetadata?.has_password === true || Boolean(userMetadata?.password_last_changed);
+  const baseProviders =
+    securityData?.providers ||
+    (user?.app_metadata?.providers ?? (user?.app_metadata?.provider ? [user.app_metadata.provider] : ['email']));
+  const hasGoogle = baseProviders.includes('google');
+  const hasPassword = Boolean(
+    securityData?.has_password ?? (userHasPasswordMeta || (!hasGoogle && baseProviders.includes('email')))
+  );
+  const providers = hasPassword && !baseProviders.includes('email') ? [...baseProviders, 'email'] : baseProviders;
 
   const currentSession = securityData?.current_session || {
     device: 'Windows PC (Chrome)',
@@ -231,9 +239,14 @@ export default function AccountSecurityCard({ user = null }) {
         }
       }
 
-      // Update password via Supabase Auth
+      // Update password via Supabase Auth & set user_metadata flags
+      const nowIso = new Date().toISOString();
       const { error: updateErr } = await supabase.auth.updateUser({
         password: newPassword,
+        data: {
+          has_password: true,
+          password_last_changed: nowIso,
+        },
       });
 
       if (updateErr) {
@@ -249,10 +262,18 @@ export default function AccountSecurityCard({ user = null }) {
         device_info: currentSession.device,
       });
 
+      // Update local state immediately so UI refreshes seamlessly
+      setSecurityData((prev) => ({
+        ...prev,
+        has_password: true,
+        password_last_changed: nowIso,
+        providers: Array.from(new Set([...(prev?.providers || baseProviders), 'email'])),
+      }));
+
       setShowPasswordModal(false);
       showToast(hasPassword ? 'Password changed successfully.' : 'Password added successfully. You can now sign in with email and password.');
       await refreshUser();
-      fetchSecurityState();
+      await fetchSecurityState();
     } catch (err) {
       console.error('Password operation failed:', err);
       setPasswordNotice({

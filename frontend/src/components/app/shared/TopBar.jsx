@@ -1,17 +1,20 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Bell, ChevronDown, User, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import NotificationPanel from './NotificationPanel';
+import { getNotifications } from '../../../api/notifications';
+import { supabase } from '../../../lib/supabase';
 
 /**
  * TopBar
  * Glassmorphism styling matching the main app cards.
  * userName is derived from the authenticated user's metadata.
+ * Notification bell fetches real unread count from the backend.
  */
 export default function TopBar({
   userPlan = 'Free Plan',
-  notificationCount = 3,
   isScrolled = false,
 }) {
   const { user, logout } = useAuth();
@@ -32,8 +35,67 @@ export default function TopBar({
       : userPlan;
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const menuRef = useRef(null);
+  const bellRef = useRef(null);
+
+  // ── Fetch real unread count on mount ──────────────────────
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const data = await getNotifications();
+      setUnreadCount(data?.unread_count ?? 0);
+    } catch {
+      // silently ignore — non-critical
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnreadCount();
+
+    // 1. Instant local sync on any action (save, edit, delete, password change, etc.)
+    const handleNotificationUpdate = () => {
+      fetchUnreadCount();
+    };
+    window.addEventListener('structra:notifications-updated', handleNotificationUpdate);
+
+    // 2. Background polling fallback (every 10 seconds)
+    const interval = setInterval(fetchUnreadCount, 10_000);
+
+    // 3. Supabase Realtime subscription on security_activity table
+    let channel = null;
+    const userId = user?.id;
+    if (userId) {
+      try {
+        channel = supabase
+          .channel(`public:security_activity:${userId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'security_activity',
+              filter: `user_id=eq.${userId}`,
+            },
+            () => {
+              fetchUnreadCount();
+            }
+          )
+          .subscribe();
+      } catch {
+        /* silent */
+      }
+    }
+
+    return () => {
+      window.removeEventListener('structra:notifications-updated', handleNotificationUpdate);
+      clearInterval(interval);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [fetchUnreadCount, user?.id]);
 
   // Close the account menu when clicking outside of it
   useEffect(() => {
@@ -51,6 +113,11 @@ export default function TopBar({
     setMenuOpen(false);
     await logout();
     navigate('/');
+  };
+
+  const handleBellClick = () => {
+    setBellOpen((v) => !v);
+    setMenuOpen(false);
   };
 
   const avatarUrl = user?.user_metadata?.avatar_url || user?.avatar_url || null;
@@ -208,53 +275,65 @@ export default function TopBar({
         <div style={{ flex: 1 }} />
 
         {/* ── Notification Bell ─────────────────────────────── */}
-        <button
-          id="notification-bell"
-          aria-label="Notifications"
-          className="topbar-icon-btn"
-          style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 44,
-            height: 44,
-            borderRadius: '50%',
-            cursor: 'pointer',
-            flexShrink: 0,
-            ...glassStyle,
-          }}
-        >
-          <Bell size={18} strokeWidth={1.8} color="rgba(255,240,220,0.85)" />
+        <div ref={bellRef} style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            id="notification-bell"
+            aria-label="Notifications"
+            aria-expanded={bellOpen}
+            aria-haspopup="true"
+            onClick={handleBellClick}
+            className="topbar-icon-btn"
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              cursor: 'pointer',
+              flexShrink: 0,
+              ...glassStyle,
+            }}
+          >
+            <Bell size={18} strokeWidth={1.8} color="rgba(255,240,220,0.85)" />
 
-          {/* Badge */}
-          {notificationCount > 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                top: -2,
-                right: -2,
-                minWidth: 18,
-                height: 18,
-                borderRadius: 9,
-                background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-                border: '1.5px solid rgba(20,10,5,0.9)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 9.5,
-                fontWeight: 700,
-                color: '#fff',
-                fontFamily: "'Inter', system-ui, sans-serif",
-                lineHeight: 1,
-                padding: '0 3px',
-                boxShadow: '0 0 10px rgba(249,115,22,0.6)',
-              }}
-            >
-              {notificationCount}
-            </div>
-          )}
-        </button>
+            {/* Badge — real unread count */}
+            {unreadCount > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -2,
+                  right: -2,
+                  minWidth: 18,
+                  height: 18,
+                  borderRadius: 9,
+                  background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                  border: '1.5px solid rgba(20,10,5,0.9)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  color: '#fff',
+                  fontFamily: "'Inter', system-ui, sans-serif",
+                  lineHeight: 1,
+                  padding: '0 3px',
+                  boxShadow: '0 0 10px rgba(249,115,22,0.6)',
+                }}
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </div>
+            )}
+          </button>
+
+          {/* Notification panel dropdown */}
+          <NotificationPanel
+            isOpen={bellOpen}
+            onClose={() => setBellOpen(false)}
+            onUnreadCountChange={setUnreadCount}
+          />
+        </div>
 
         {/* ── User Profile ──────────────────────────────────── */}
         {/* Wrapper gives us a relative anchor for the popover */}

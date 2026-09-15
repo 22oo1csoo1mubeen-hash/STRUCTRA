@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -92,24 +93,45 @@ function SkeletonCard({ viewMode = 'grid' }) {
 /* ─── Delete confirmation modal (Single or All) ──────────────────── */
 function DeleteModal({ doc, count = 0, loading, onConfirm, onCancel }) {
   const isAll = doc === 'ALL' || count > 0;
-  return (
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !loading) {
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [loading, onCancel]);
+
+  const modalBackdropStyle = {
+    position: 'fixed',
+    top: 0,
+    left: typeof window !== 'undefined' && window.innerWidth > 768 ? 215 : 0,
+    right: 0,
+    bottom: 0,
+    width: typeof window !== 'undefined' && window.innerWidth > 768 ? 'calc(100vw - 215px)' : '100vw',
+    height: '100vh',
+    background: 'rgba(0, 0, 0, 0.78)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    boxSizing: 'border-box',
+  };
+
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
       onClick={onCancel}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.75)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        padding: 20,
-      }}
+      style={modalBackdropStyle}
     >
       <motion.div
         initial={{ scale: 0.92, opacity: 0, y: 8 }}
@@ -241,31 +263,53 @@ function DeleteModal({ doc, count = 0, loading, onConfirm, onCancel }) {
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
 /* ─── Export confirmation modal ────────────────────────────────────── */
 function ExportModal({ doc, loading, onConfirm, onCancel }) {
   if (!doc) return null;
-  return (
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !loading) {
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [loading, onCancel]);
+
+  const modalBackdropStyle = {
+    position: 'fixed',
+    top: 0,
+    left: typeof window !== 'undefined' && window.innerWidth > 768 ? 215 : 0,
+    right: 0,
+    bottom: 0,
+    width: typeof window !== 'undefined' && window.innerWidth > 768 ? 'calc(100vw - 215px)' : '100vw',
+    height: '100vh',
+    background: 'rgba(0, 0, 0, 0.78)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    boxSizing: 'border-box',
+  };
+
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
       onClick={onCancel}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.75)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        padding: 20,
-      }}
+      style={modalBackdropStyle}
     >
       <motion.div
         initial={{ scale: 0.92, opacity: 0, y: 8 }}
@@ -389,7 +433,8 @@ function ExportModal({ doc, loading, onConfirm, onCancel }) {
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 

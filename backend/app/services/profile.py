@@ -1,8 +1,11 @@
 """Profile and account data aggregation and modification service for STRUCTRA."""
 
 import asyncio
+import logging
 import time
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 from pathlib import PurePath
 from typing import Any
 from urllib.parse import quote
@@ -307,6 +310,19 @@ async def update_user_profile(
     if settings:
         await _update_supabase_user_metadata(user_id, metadata_updates, settings)
 
+    # Fire-and-forget notification: profile updated
+    try:
+        from app.services.notifications import create_notification
+        asyncio.create_task(
+            create_notification(
+                user_id=user_id,
+                event_type="profile_updated",
+                settings=settings,
+            )
+        )
+    except Exception:
+        pass
+
     # Return refreshed profile payload
     return await get_user_profile_data(user_id, current_user, settings)
 
@@ -402,6 +418,19 @@ async def upload_user_avatar(
 
     await _update_supabase_user_metadata(user_id, metadata_updates, settings)
 
+    # Fire-and-forget notification: avatar changed
+    try:
+        from app.services.notifications import create_notification
+        asyncio.create_task(
+            create_notification(
+                user_id=user_id,
+                event_type="avatar_changed",
+                settings=settings,
+            )
+        )
+    except Exception:
+        pass
+
     return AvatarUploadResponse(
         avatar_url=avatar_url,
         message="Profile picture updated successfully.",
@@ -444,6 +473,19 @@ async def delete_user_avatar(
         "avatar_content_type": None,
     }
     await _update_supabase_user_metadata(user_id, metadata_updates, settings)
+
+    # Fire-and-forget notification: avatar removed
+    try:
+        from app.services.notifications import create_notification
+        asyncio.create_task(
+            create_notification(
+                user_id=user_id,
+                event_type="avatar_removed",
+                settings=settings,
+            )
+        )
+    except Exception:
+        pass
 
     return {"message": "Profile picture removed successfully."}
 
@@ -542,10 +584,12 @@ async def record_security_activity(
         activity_url = f"{supabase_url.rstrip('/')}/rest/v1/security_activity"
         try:
             client = _get_shared_client()
-            await client.post(activity_url, headers=headers, json=payload)
-        except Exception:
+            resp = await client.post(activity_url, headers=headers, json=payload)
+            if not resp.is_success:
+                logger.warning("Supabase security_activity post failed [%s]: %s", resp.status_code, resp.text)
+        except Exception as exc:
             # Fallback will record in user_metadata if table is unavailable
-            pass
+            logger.warning("record_security_activity exception: %s", exc)
 
     return new_item
 
@@ -655,18 +699,44 @@ async def get_security_overview(
     elif isinstance(app_metadata.get("provider"), str):
         providers_set.add(app_metadata.get("provider").lower())
 
-    # If no provider list found, default based on auth type
-    if not providers_set:
+    # Fetch recent activity
+    recent_activity = await get_user_security_activity(user_id, settings, limit=10)
+
+    has_activity_password = any(
+        act.event_type in ("password_created", "password_changed", "password_reset", "password_reset_requested")
+        for act in recent_activity
+    )
+
+    # Determine whether password credential exists
+    has_password = (
+        bool(user_metadata.get("has_password"))
+        or bool(user_metadata.get("password_last_changed"))
+        or has_activity_password
+        or "email" in providers_set
+        or bool(auth_data and auth_data.get("encrypted_password"))
+    )
+
+    if has_password or not providers_set:
         providers_set.add("email")
 
     providers = sorted(list(providers_set))
 
-    # Determine whether password credential exists
-    has_password = (
-        "email" in providers_set
-        or bool(auth_data and auth_data.get("encrypted_password"))
-        or bool(user_metadata.get("has_password"))
-    )
+    # Sync has_password flag into Supabase user_metadata if not already set
+    if has_password and not user_metadata.get("has_password") and settings:
+        try:
+            supabase_url, secret_key = _extract_settings(settings)
+            admin_user_url = f"{supabase_url.rstrip('/')}/auth/v1/admin/users/{user_id}"
+            headers = {
+                "apikey": secret_key,
+                "Authorization": f"Bearer {secret_key}",
+                "Content-Type": "application/json",
+            }
+            client = _get_shared_client()
+            new_metadata = dict(user_metadata)
+            new_metadata["has_password"] = True
+            await client.put(admin_user_url, headers=headers, json={"user_metadata": new_metadata})
+        except Exception:
+            pass
 
     email_verified = bool(email_confirmed_at) if email_confirmed_at is not None else True
 
@@ -683,9 +753,6 @@ async def get_security_overview(
         last_active="Active now",
         is_current=True,
     )
-
-    # Fetch recent activity
-    recent_activity = await get_user_security_activity(user_id, settings, limit=10)
 
     # If activity log is empty, provide authentic baseline events derived from account timestamps
     if not recent_activity:

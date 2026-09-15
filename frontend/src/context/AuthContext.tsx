@@ -227,7 +227,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updatePassword = useCallback(async (password: string) => {
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await supabase.auth.updateUser({
+      password,
+      data: {
+        has_password: true,
+        password_last_changed: new Date().toISOString(),
+      },
+    });
     return { error };
   }, []);
 

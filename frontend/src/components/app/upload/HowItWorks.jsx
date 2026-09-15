@@ -117,10 +117,10 @@ function StepCard({ step, style }) {
   return (
     <motion.div
       whileHover={{
-        y: -3,
-        background: 'rgba(255,255,255,0.14)',
-        boxShadow:
-          '0 8px 28px rgba(0,0,0,0.28), inset 0 0 30px rgba(249,115,22,0.08)',
+        y: -2,
+        borderColor: 'rgba(255, 255, 255, 0.20)',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.20)',
+        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.085) 0%, rgba(255, 255, 255, 0.035) 100%)',
       }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
       style={{
@@ -130,31 +130,15 @@ function StepCard({ step, style }) {
         gap: 12,
         padding: '16px 14px',
         borderRadius: 12,
-        background: 'rgba(255,255,255,0.09)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255,255,255,0.12)',
-        boxShadow:
-          '0 2px 16px rgba(0,0,0,0.22), inset 0 0 40px rgba(249,115,22,0.06)',
+        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.022) 100%)',
+        border: '1px solid rgba(255, 255, 255, 0.11)',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.14)',
         minHeight: 88,
         position: 'relative',
         overflow: 'hidden',
         ...style,
       }}
     >
-      {/* Inner top-left glow accent */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: 60,
-          height: 60,
-          background:
-            'radial-gradient(circle at top left, rgba(249,115,22,0.10) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }}
-      />
 
       {/* Number badge */}
       <div
@@ -239,15 +223,13 @@ export default function HowItWorks() {
       <div
         style={{
           borderRadius: 18,
-          background: 'rgba(255,255,255,0.07)',
-          backdropFilter: 'blur(28px) saturate(1.5)',
-          WebkitBackdropFilter: 'blur(28px) saturate(1.5)',
-          borderTop: '1.5px solid rgba(249,115,22,0.65)',
-          borderBottom: '1.5px solid rgba(249,115,22,0.65)',
-          borderLeft: '1px solid rgba(255,255,255,0.09)',
-          borderRight: '1px solid rgba(255,255,255,0.09)',
-          boxShadow:
-            '0 4px 50px rgba(0,0,0,0.40), inset 0 0 80px rgba(249,115,22,0.12), inset 0 1px 0 rgba(255,255,255,0.10), 0 0 30px rgba(249,115,22,0.15)',
+          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.022) 100%)',
+          backdropFilter: 'blur(28px) saturate(1.8)',
+          WebkitBackdropFilter: 'blur(28px) saturate(1.8)',
+          transform: 'translateZ(0)',
+          WebkitTransform: 'translateZ(0)',
+          border: '1px solid rgba(255, 255, 255, 0.11)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.16)',
           padding: '18px 18px 20px',
           position: 'relative',
           overflow: 'hidden',
@@ -262,7 +244,7 @@ export default function HowItWorks() {
             width: '80%',
             height: 1,
             background:
-              'linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent)',
+              'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent)',
             pointerEvents: 'none',
           }}
         />
