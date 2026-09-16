@@ -108,16 +108,21 @@ async def create_notification(
         }
 
         # Build human-readable description
+        import re
+        clean_doc_name = document_name
+        if clean_doc_name and re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", str(clean_doc_name), re.I):
+            clean_doc_name = "Document"
+
         base_label = EVENT_LABELS.get(event_type, event_type.replace("_", " ").title())
-        if document_name:
+        if clean_doc_name:
             if event_type == "document_saved":
-                human_desc = f"{document_name} was saved to your library"
+                human_desc = f"{clean_doc_name} was saved to your library"
             elif event_type == "document_edited":
-                human_desc = f"{document_name} was edited"
+                human_desc = f"{clean_doc_name} was edited"
             elif event_type == "document_deleted":
-                human_desc = f"{document_name} was deleted"
+                human_desc = f"{clean_doc_name} was deleted"
             elif event_type == "document_exported":
-                human_desc = f"{document_name} was exported"
+                human_desc = f"{clean_doc_name} was exported"
             else:
                 human_desc = description or base_label
         else:
@@ -257,6 +262,19 @@ async def get_user_notifications(
             except Exception:
                 pass
 
+        # Clean up legacy UUID descriptions (e.g. "68d53fc7-... was exported" or raw UUID)
+        import re as _re
+        clean_desc = raw_desc
+        if _re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", clean_desc.strip(), _re.I):
+            clean_desc = "Document was exported" if event_type == "document_exported" else EVENT_LABELS.get(event_type, "Activity recorded")
+        else:
+            clean_desc = _re.sub(
+                r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s+was\s+",
+                "Document was ",
+                clean_desc,
+                flags=_re.I,
+            )
+
         # read_at is None when column doesn't exist (treat all as unread)
         read_at_val = r.get("read_at") if has_read_at else None
 
@@ -264,7 +282,7 @@ async def get_user_notifications(
             id=str(r.get("id")),
             event_type=event_type,
             title=EVENT_LABELS.get(event_type, event_type.replace("_", " ").title()),
-            description=raw_desc,
+            description=clean_desc,
             document_id=document_id,
             document_name=document_name,
             created_at=str(r.get("created_at") or ""),

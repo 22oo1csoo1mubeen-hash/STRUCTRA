@@ -354,3 +354,65 @@ class TestMarkNotificationsRead:
 
         assert captured_params.get("user_id") == "eq.isolated-user"
         assert captured_params.get("read_at") == "is.null"
+
+    @pytest.mark.anyio
+    async def test_create_notification_sanitizes_uuid_document_name(self):
+        """When a raw UUID is passed as document_name, it must format cleanly as 'Document was exported'."""
+        captured = {}
+
+        async def fake_post(url, headers, json):
+            captured.update(json)
+
+        fake_client = MagicMock()
+        fake_client.post = fake_post
+
+        with patch("app.services.notifications._get_shared_client", return_value=fake_client):
+            with patch("app.services.notifications._extract_settings", return_value=("https://test.supabase.co", "secret")):
+                settings = MagicMock()
+                await create_notification(
+                    user_id="user-a",
+                    event_type="document_exported",
+                    document_name="68d53fc7-262f-404d-8f38-f35c65702a45",
+                    settings=settings,
+                )
+
+        assert captured.get("description") == "Document was exported"
+
+    @pytest.mark.anyio
+    async def test_legacy_uuid_description_cleaned_up_in_get(self):
+        """Legacy rows with raw UUIDs in descriptions must be sanitized when fetched."""
+        rows = [
+            {
+                "id": "notif-legacy-1",
+                "event_type": "document_exported",
+                "description": "68d53fc7-262f-404d-8f38-f35c65702a45 was exported",
+                "device_info": "",
+                "ip_address": None,
+                "created_at": "2026-09-14T20:00:00+00:00",
+                "read_at": None,
+            },
+            {
+                "id": "notif-legacy-2",
+                "event_type": "document_exported",
+                "description": "68d53fc7-262f-404d-8f38-f35c65702a45",
+                "device_info": "",
+                "ip_address": None,
+                "created_at": "2026-09-14T20:01:00+00:00",
+                "read_at": None,
+            },
+        ]
+        fake_response = MagicMock()
+        fake_response.is_success = True
+        fake_response.json.return_value = rows
+        fake_client = MagicMock()
+        fake_client.get = AsyncMock(return_value=fake_response)
+
+        with patch("app.services.notifications._get_shared_client", return_value=fake_client):
+            with patch("app.services.notifications._extract_settings", return_value=("https://test.supabase.co", "secret")):
+                settings = MagicMock()
+                result = await get_user_notifications(user_id="user-a", settings=settings)
+
+        assert len(result) == 2
+        assert result[0]["description"] == "Document was exported"
+        assert result[1]["description"] == "Document was exported"
+

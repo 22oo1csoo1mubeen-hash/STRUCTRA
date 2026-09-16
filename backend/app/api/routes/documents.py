@@ -541,7 +541,21 @@ async def export_document(
     download_name = quote(filename, safe="")
 
     # Fire-and-forget notification: document exported
-    _export_doc_name = export_data.get("filename") if isinstance(export_data, dict) else str(document_id)
+    import re
+    _raw_export_name = (
+        export_data.filename
+        if hasattr(export_data, "filename") and export_data.filename
+        else (export_data.get("filename") if isinstance(export_data, dict) else None)
+    )
+    if not _raw_export_name or re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", str(_raw_export_name), re.I):
+        if metadata and getattr(metadata, "filename", None):
+            _raw_export_name = metadata.filename
+        elif "temp_doc_dict" in locals() and temp_doc_dict.get("filename"):
+            _raw_export_name = temp_doc_dict.get("filename")
+        else:
+            _raw_export_name = "Document"
+
+    _export_doc_name = _raw_export_name
     asyncio.create_task(
         create_notification(
             user_id=current_user.user_id,

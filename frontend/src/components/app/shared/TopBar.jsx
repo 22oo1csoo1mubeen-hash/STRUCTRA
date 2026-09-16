@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Bell, ChevronDown, User, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../../hooks/useAuth';
@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import NotificationPanel from './NotificationPanel';
 import { getNotifications } from '../../../api/notifications';
 import { supabase } from '../../../lib/supabase';
+import { getUserAvatarUrl } from '../../../utils/avatar';
 
 /**
  * TopBar
@@ -120,7 +121,7 @@ export default function TopBar({
     setMenuOpen(false);
   };
 
-  const avatarUrl = user?.user_metadata?.avatar_url || user?.avatar_url || null;
+  const avatarUrl = useMemo(() => getUserAvatarUrl(user), [user]);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
 
   useEffect(() => {

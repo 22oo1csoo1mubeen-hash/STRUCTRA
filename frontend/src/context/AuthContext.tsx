@@ -29,13 +29,56 @@ interface AuthContextValue {
   logout: () => Promise<void>;
 }
 
+/* ─── Normalize User Metadata (avatar persistence) ──── */
+function normalizeUserMetadata(user: User | null): User | null {
+  if (!user) return null;
+  const meta = user.user_metadata || {};
+  if (meta.avatar_status === 'removed' || meta.avatar_removed === true) {
+    return {
+      ...user,
+      user_metadata: {
+        ...meta,
+        avatar_url: null,
+        picture: null,
+      },
+    };
+  }
+  if (meta.avatar_status === 'custom' && meta.custom_avatar_url) {
+    return {
+      ...user,
+      user_metadata: {
+        ...meta,
+        avatar_url: meta.custom_avatar_url,
+      },
+    };
+  }
+  if (!meta.avatar_status && meta.picture && !meta.avatar_url) {
+    return {
+      ...user,
+      user_metadata: {
+        ...meta,
+        avatar_url: meta.picture,
+      },
+    };
+  }
+  return user;
+}
+
 /* ─── Context ─────────────────────────────────────────── */
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /* ─── Provider ────────────────────────────────────────── */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+
+  const setUser = useCallback((userOrFn: User | null | ((prev: User | null) => User | null)) => {
+    setUserState((prev) => {
+      const next = typeof userOrFn === 'function' ? userOrFn(prev) : userOrFn;
+      return normalizeUserMetadata(next);
+    });
+  }, []);
+
   /**
    * loading starts true and is only set to false after the INITIAL_SESSION
    * event fires from onAuthStateChange. This is the single, reliable signal
@@ -77,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [setUser]);
 
   /* ── Login ──────────────────────────────────────────── */
   const login = useCallback(

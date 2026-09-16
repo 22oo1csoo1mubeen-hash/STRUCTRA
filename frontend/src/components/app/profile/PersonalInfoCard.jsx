@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Pencil, Camera, Upload, Trash2, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { updateProfile, uploadProfilePicture, deleteProfilePicture } from '../../../api/profile';
 import { useAuth } from '../../../hooks/useAuth';
+import { getUserAvatarUrl } from '../../../utils/avatar';
 
 export default function PersonalInfoCard({
   user = null,
@@ -26,7 +27,7 @@ export default function PersonalInfoCard({
   const initialOrg = user?.organization || user?.user_metadata?.organization || '';
   const initialJob = user?.job_title || user?.user_metadata?.job_title || '';
   const initialLoc = user?.location || user?.user_metadata?.location || '';
-  const initialAvatar = user?.avatar_url || user?.user_metadata?.avatar_url || null;
+  const initialAvatar = getUserAvatarUrl(user);
   const isEmailVerified = user?.email_verified ?? true;
 
   // Local form state
@@ -194,9 +195,13 @@ export default function PersonalInfoCard({
           if (!prev) return prev;
           return {
             ...prev,
+            avatar_url: result.avatar_url,
             user_metadata: {
               ...prev.user_metadata,
               avatar_url: result.avatar_url,
+              custom_avatar_url: result.avatar_url,
+              avatar_status: 'custom',
+              avatar_removed: false,
             },
           };
         });
@@ -229,11 +234,16 @@ export default function PersonalInfoCard({
           if (!prev) return prev;
           return {
             ...prev,
+            avatar_url: null,
             user_metadata: {
               ...prev.user_metadata,
               avatar_url: null,
+              picture: null,
+              custom_avatar_url: null,
               avatar_storage_path: null,
               avatar_content_type: null,
+              avatar_status: 'removed',
+              avatar_removed: true,
             },
           };
         });

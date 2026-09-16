@@ -245,7 +245,24 @@ async def get_user_profile_data(
         or "User"
     )
 
-    avatar_url = user_metadata.get("avatar_url") or user_metadata.get("picture")
+    # Derive avatar with multi-session persistence for custom and removed states
+    if user_metadata.get("avatar_status") == "removed" or user_metadata.get("avatar_removed") is True:
+        avatar_url = None
+    elif user_metadata.get("avatar_status") == "custom" and user_metadata.get("custom_avatar_url"):
+        avatar_url = user_metadata.get("custom_avatar_url")
+    elif user_metadata.get("avatar_storage_path") and str(user_metadata.get("avatar_url", "")).startswith("/profile/avatar/"):
+        avatar_url = user_metadata.get("avatar_url")
+    else:
+        avatar_url = user_metadata.get("avatar_url") or user_metadata.get("picture")
+        if not avatar_url and auth_data and isinstance(auth_data, dict):
+            for ident in (auth_data.get("identities") or []):
+                if ident.get("provider") == "google":
+                    id_data = ident.get("identity_data") or {}
+                    avatar_url = id_data.get("avatar_url") or id_data.get("picture")
+                    if avatar_url:
+                        break
+        if avatar_url and ("default-user" in str(avatar_url).lower() or "silhouette" in str(avatar_url).lower()):
+            avatar_url = None
 
     # Email verification state: True if confirmed or default True when email present
     email_verified = bool(email_confirmed_at) if email_confirmed_at is not None else True
@@ -412,8 +429,11 @@ async def upload_user_avatar(
     avatar_url = f"/profile/avatar/{user_id}?v={timestamp}"
     metadata_updates = {
         "avatar_url": avatar_url,
+        "custom_avatar_url": avatar_url,
         "avatar_storage_path": storage_path,
         "avatar_content_type": raw_content_type,
+        "avatar_status": "custom",
+        "avatar_removed": False,
     }
 
     await _update_supabase_user_metadata(user_id, metadata_updates, settings)
@@ -469,8 +489,12 @@ async def delete_user_avatar(
     # 2. Reset avatar metadata
     metadata_updates = {
         "avatar_url": None,
+        "picture": None,
+        "custom_avatar_url": None,
         "avatar_storage_path": None,
         "avatar_content_type": None,
+        "avatar_status": "removed",
+        "avatar_removed": True,
     }
     await _update_supabase_user_metadata(user_id, metadata_updates, settings)
 

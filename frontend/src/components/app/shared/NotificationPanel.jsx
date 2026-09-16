@@ -141,6 +141,24 @@ function SkeletonItem() {
   );
 }
 
+/* ─── Format notification description ─────────────────────── */
+function formatNotificationDesc(item) {
+  if (!item?.description) return '';
+  const desc = item.description;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidPrefixRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s+was\s+/i;
+
+  if (uuidRegex.test(desc.trim())) {
+    return item.event_type === 'document_exported'
+      ? 'Document was exported'
+      : (item.title || 'Activity recorded');
+  }
+  if (uuidPrefixRegex.test(desc)) {
+    return desc.replace(uuidPrefixRegex, 'Document was ');
+  }
+  return desc;
+}
+
 /* ─── Main panel ───────────────────────────────────────────── */
 export default function NotificationPanel({ isOpen, onClose, onUnreadCountChange }) {
   const [items, setItems] = useState([]);
@@ -243,6 +261,26 @@ export default function NotificationPanel({ isOpen, onClose, onUnreadCountChange
             overflowX: 'hidden',
           }}
         >
+          {/* Scoped custom scrollbar: sleek 4px width */}
+          <style>{`
+            #notification-panel::-webkit-scrollbar {
+              width: 4px;
+            }
+            #notification-panel::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            #notification-panel::-webkit-scrollbar-thumb {
+              background: rgba(249, 115, 22, 0.45);
+              border-radius: 9999px;
+            }
+            #notification-panel::-webkit-scrollbar-thumb:hover {
+              background: rgba(249, 115, 22, 0.80);
+            }
+            #notification-panel {
+              scrollbar-width: thin;
+              scrollbar-color: rgba(249, 115, 22, 0.45) transparent;
+            }
+          `}</style>
           {/* Panel header */}
           <div
             style={{
@@ -412,6 +450,7 @@ export default function NotificationPanel({ isOpen, onClose, onUnreadCountChange
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p
+                          title={formatNotificationDesc(item)}
                           style={{
                             fontSize: 13,
                             fontWeight: item.is_read ? 400 : 600,
@@ -423,7 +462,7 @@ export default function NotificationPanel({ isOpen, onClose, onUnreadCountChange
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {item.description}
+                          {formatNotificationDesc(item)}
                         </p>
                         <p
                           style={{

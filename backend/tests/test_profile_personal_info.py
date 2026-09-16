@@ -296,3 +296,69 @@ def test_get_avatar_stream():
         assert response.content == fake_png
         assert response.headers["content-type"] == "image/png"
         assert "Cache-Control" in response.headers
+
+
+# 10. Avatar Persistence: Removed status overrides Google OAuth picture
+def test_removed_avatar_status_persisted_over_oauth_picture():
+    app.dependency_overrides[get_settings] = get_mock_settings
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+        user_id=USER_A_ID,
+        email="alice@gmail.com",
+    )
+
+    # Simulate user having signed in with Google, where Google re-injected picture,
+    # but the user had explicitly removed their avatar in STRUCTRA.
+    with patch("app.services.profile._fetch_supabase_user_record", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.profile._fetch_user_document_stats", new_callable=AsyncMock) as mock_stats:
+
+        mock_fetch.return_value = {
+            "id": USER_A_ID,
+            "email": "alice@gmail.com",
+            "user_metadata": {
+                "picture": "https://lh3.googleusercontent.com/a/google-profile-photo",
+                "avatar_url": "https://lh3.googleusercontent.com/a/google-profile-photo",
+                "avatar_status": "removed",
+                "avatar_removed": True,
+            },
+        }
+        mock_stats.return_value = (0, 0)
+
+        client = TestClient(app)
+        response = client.get("/profile")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["user"]["avatar_url"] is None
+
+
+# 11. Avatar Persistence: Custom uploaded avatar overrides Google OAuth picture
+def test_custom_avatar_status_persisted_over_oauth_picture():
+    app.dependency_overrides[get_settings] = get_mock_settings
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+        user_id=USER_A_ID,
+        email="alice@gmail.com",
+    )
+
+    with patch("app.services.profile._fetch_supabase_user_record", new_callable=AsyncMock) as mock_fetch, \
+         patch("app.services.profile._fetch_user_document_stats", new_callable=AsyncMock) as mock_stats:
+
+        mock_fetch.return_value = {
+            "id": USER_A_ID,
+            "email": "alice@gmail.com",
+            "user_metadata": {
+                "picture": "https://lh3.googleusercontent.com/a/google-profile-photo",
+                "avatar_url": "https://lh3.googleusercontent.com/a/google-profile-photo",
+                "custom_avatar_url": f"/profile/avatar/{USER_A_ID}?v=12345",
+                "avatar_status": "custom",
+                "avatar_removed": False,
+            },
+        }
+        mock_stats.return_value = (0, 0)
+
+        client = TestClient(app)
+        response = client.get("/profile")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["user"]["avatar_url"] == f"/profile/avatar/{USER_A_ID}?v=12345"
+

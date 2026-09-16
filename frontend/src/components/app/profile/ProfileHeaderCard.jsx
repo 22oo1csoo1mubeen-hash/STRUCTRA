@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Pencil, Check, Calendar, Mail } from 'lucide-react';
+import { getUserAvatarUrl } from '../../../utils/avatar';
 
 /* ─────────────────────────────────────────────────────────────
    Format date utility (e.g. "18 Aug 2026")
@@ -169,7 +170,7 @@ export default function ProfileHeaderCard({
   const memberSinceFormatted = formatMemberDate(account?.member_since || user?.created_at);
   const initial = (displayName.charAt(0) || userEmail.charAt(0) || 'U').toUpperCase();
 
-  const avatarUrl = user?.avatar_url || user?.user_metadata?.avatar_url || null;
+  const avatarUrl = useMemo(() => getUserAvatarUrl(user), [user]);
   const [avatarLoadError, setAvatarLoadError] = useState(false);
 
   useEffect(() => {

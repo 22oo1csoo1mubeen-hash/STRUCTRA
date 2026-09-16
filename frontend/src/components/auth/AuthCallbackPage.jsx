@@ -138,8 +138,49 @@ export default function AuthCallbackPage() {
           /**
            * Google OAuth (or any other provider) flow:
            * The session is valid and the user is authenticated.
-           * Show the success animation for 5 seconds before navigating.
+           * Ensure custom or removed avatar preference is preserved against OAuth overwrites.
            */
+          const meta = session.user?.user_metadata || {};
+          if (meta.avatar_status === 'removed' || meta.avatar_removed === true) {
+            try {
+              supabase.auth.updateUser({
+                data: {
+                  avatar_url: null,
+                  picture: null,
+                  avatar_status: 'removed',
+                  avatar_removed: true,
+                },
+              });
+            } catch {
+              /* silent */
+            }
+          } else if (meta.avatar_status === 'custom' && meta.custom_avatar_url) {
+            try {
+              supabase.auth.updateUser({
+                data: {
+                  avatar_url: meta.custom_avatar_url,
+                  avatar_status: 'custom',
+                  avatar_removed: false,
+                },
+              });
+            } catch {
+              /* silent */
+            }
+          } else if (!meta.avatar_status) {
+            const googlePhoto = meta.picture || meta.avatar_url;
+            if (googlePhoto && !meta.avatar_url) {
+              try {
+                supabase.auth.updateUser({
+                  data: {
+                    avatar_url: googlePhoto,
+                  },
+                });
+              } catch {
+                /* silent */
+              }
+            }
+          }
+
           setStatus('oauth_success');
         }
       }
