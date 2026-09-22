@@ -107,11 +107,8 @@ function DeleteModal({ doc, count = 0, loading, onConfirm, onCancel }) {
 
   const modalBackdropStyle = {
     position: 'fixed',
-    top: 0,
-    left: typeof window !== 'undefined' && window.innerWidth > 768 ? 215 : 0,
-    right: 0,
-    bottom: 0,
-    width: typeof window !== 'undefined' && window.innerWidth > 768 ? 'calc(100vw - 215px)' : '100vw',
+    inset: 0,
+    width: '100vw',
     height: '100vh',
     background: 'rgba(0, 0, 0, 0.78)',
     backdropFilter: 'blur(12px)',
@@ -285,11 +282,8 @@ function ExportModal({ doc, loading, onConfirm, onCancel }) {
 
   const modalBackdropStyle = {
     position: 'fixed',
-    top: 0,
-    left: typeof window !== 'undefined' && window.innerWidth > 768 ? 215 : 0,
-    right: 0,
-    bottom: 0,
-    width: typeof window !== 'undefined' && window.innerWidth > 768 ? 'calc(100vw - 215px)' : '100vw',
+    inset: 0,
+    width: '100vw',
     height: '100vh',
     background: 'rgba(0, 0, 0, 0.78)',
     backdropFilter: 'blur(12px)',
@@ -957,7 +951,7 @@ export default function DocumentLibraryPage() {
               </button>
 
               {/* Skeleton Result Workspace */}
-              <div style={{ display: 'flex', gap: 24, width: '100%', height: 740 }}>
+              <div style={{ display: 'flex', gap: 24, width: '100%', height: 'clamp(520px, calc(100vh - 200px), 760px)' }}>
                 {/* Left Preview Skeleton */}
                 <div style={{
                   flex: '0 0 42%',

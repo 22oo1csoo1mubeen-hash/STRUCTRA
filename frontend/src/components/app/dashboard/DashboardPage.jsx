@@ -39,12 +39,12 @@ const RESPONSIVE_CSS = `
   grid-template-columns: repeat(5, 1fr);
   gap: 12px;
 }
-@media (max-width: 1280px) {
+@media (max-width: 1460px) {
   .dashboard-row-1 {
     grid-template-columns: repeat(3, 1fr);
   }
 }
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .dashboard-row-1 {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -61,7 +61,7 @@ const RESPONSIVE_CSS = `
   gap: 12px;
   align-items: stretch;
 }
-@media (max-width: 1024px) {
+@media (max-width: 1080px) {
   .dashboard-row-2 {
     grid-template-columns: 1fr;
   }
@@ -73,7 +73,7 @@ const RESPONSIVE_CSS = `
   gap: 12px;
   align-items: stretch;
 }
-@media (max-width: 1200px) {
+@media (max-width: 1380px) {
   .dashboard-row-3 {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -148,7 +148,7 @@ export default function DashboardPage() {
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100%',
-        padding: '0 24px 28px',
+        padding: '0 clamp(16px, 2vw, 24px) 28px',
       }}
     >
       <style>{RESPONSIVE_CSS}</style>

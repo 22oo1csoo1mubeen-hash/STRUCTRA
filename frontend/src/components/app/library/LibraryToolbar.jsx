@@ -16,7 +16,7 @@ function LabelledDropdown({ id, groupLabel, value, options, onChange }) {
   }, [open]);
 
   return (
-    <div ref={ref} style={{ position: 'relative', flex: '1 1 180px', minWidth: 155 }}>
+    <div ref={ref} style={{ position: 'relative', flex: '1 1 150px', minWidth: 135 }}>
       <button
         id={id}
         type="button"
@@ -118,7 +118,7 @@ function ActionsDropdown({ onExportAll, onDeleteAll, exportAllLoading, deleteAll
   const isDisabled = (exportAllLoading || deleteAllLoading || totalDocs === 0);
 
   return (
-    <div ref={ref} style={{ position: 'relative', flex: '1 1 150px', minWidth: 140 }}>
+    <div ref={ref} style={{ position: 'relative', flex: '1 1 140px', minWidth: 130 }}>
       <button
         id="library-actions-dropdown-btn"
         type="button"
@@ -283,10 +283,19 @@ export default function LibraryToolbar({
   const [focused, setFocused] = useState(false);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 28px 0', width: '100%', boxSizing: 'border-box' }}>
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      rowGap: 12,
+      flexWrap: 'wrap',
+      padding: '18px clamp(16px, 2vw, 28px) 0',
+      width: '100%',
+      boxSizing: 'border-box',
+    }}>
 
       {/* Search Input - Expands with maximum generous width */}
-      <div style={{ position: 'relative', flex: '3 1 280px', minWidth: 220 }}>
+      <div style={{ position: 'relative', flex: '3 1 240px', minWidth: 200 }}>
         <input
           id="library-search-input"
           type="text"

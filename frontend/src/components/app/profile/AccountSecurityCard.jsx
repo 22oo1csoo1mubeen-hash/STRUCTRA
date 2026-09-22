@@ -407,11 +407,8 @@ export default function AccountSecurityCard({ user = null }) {
   // Full-content overlay backdrop covering whole content space (excluding sidebar)
   const modalBackdropStyle = {
     position: 'fixed',
-    top: 0,
-    left: typeof window !== 'undefined' && window.innerWidth > 768 ? 215 : 0,
-    right: 0,
-    bottom: 0,
-    width: typeof window !== 'undefined' && window.innerWidth > 768 ? 'calc(100vw - 215px)' : '100vw',
+    inset: 0,
+    width: '100vw',
     height: '100vh',
     background:
       'radial-gradient(ellipse at 50% 45%, rgba(249, 115, 22, 0.10) 0%, rgba(6, 4, 10, 0.45) 60%, rgba(4, 2, 8, 0.58) 100%)',

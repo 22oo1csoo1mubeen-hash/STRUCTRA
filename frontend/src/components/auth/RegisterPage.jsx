@@ -170,15 +170,23 @@ export default function RegisterPage() {
       initial="hidden"
       animate="visible"
       style={{
-        position: 'relative', width: '100vw', height: '100vh',
-        overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative',
+        width: '100vw',
+        minHeight: '100vh',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'clamp(64px, 8vh, 80px) 16px clamp(20px, 3vh, 32px)',
+        boxSizing: 'border-box',
       }}
     >
       <motion.img
         initial={{ opacity: 0 }} animate={{ opacity: 0.45 }} transition={{ duration: 0.65 }}
         src={loginBg} alt="" aria-hidden="true" draggable={false}
         style={{
-          position: 'absolute', inset: 0, width: '100%', height: '100%',
+          position: 'fixed', inset: 0, width: '100%', height: '100%',
           objectFit: 'cover', objectPosition: 'center',
           userSelect: 'none', pointerEvents: 'none',
         }}

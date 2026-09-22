@@ -131,11 +131,14 @@ export default function LoginPage() {
       style={{
         position: 'relative',
         width: '100vw',
-        height: '100vh',
-        overflow: 'hidden',
+        minHeight: '100vh',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: 'clamp(64px, 8vh, 80px) 16px clamp(20px, 3vh, 32px)',
+        boxSizing: 'border-box',
       }}
     >
       <motion.img
@@ -147,7 +150,7 @@ export default function LoginPage() {
         aria-hidden="true"
         draggable={false}
         style={{
-          position: 'absolute',
+          position: 'fixed',
           inset: 0,
           width: '100%',
           height: '100%',

@@ -151,11 +151,11 @@ export default function QuickOverviewGrid({
         </p>
       </div>
 
-      {/* ── 4 Metric Cards Grid (Strict Single Row) ── */}
+      {/* ── 4 Metric Cards Grid ── */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
           gap: 12,
         }}
       >

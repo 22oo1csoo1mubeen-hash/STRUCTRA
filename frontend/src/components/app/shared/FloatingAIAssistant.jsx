@@ -66,8 +66,8 @@ export default function FloatingAIAssistant() {
       whileTap={{ scale: 0.92 }}
       style={{
         position: 'fixed',
-        bottom: 28,
-        right: 28,
+        bottom: 'clamp(18px, 3vh, 28px)',
+        right: 'clamp(18px, 2.5vw, 28px)',
         width: 56,
         height: 56,
         borderRadius: '50%',

@@ -54,11 +54,14 @@ export default function ForgotPasswordPage() {
       style={{
         position: 'relative',
         width: '100vw',
-        height: '100vh',
-        overflow: 'hidden',
+        minHeight: '100vh',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: 'clamp(64px, 8vh, 80px) 16px clamp(20px, 3vh, 32px)',
+        boxSizing: 'border-box',
       }}
     >
       {/* ── 1. Background image ───────────────────────── */}
@@ -71,7 +74,7 @@ export default function ForgotPasswordPage() {
         aria-hidden="true"
         draggable={false}
         style={{
-          position: 'absolute',
+          position: 'fixed',
           inset: 0,
           width: '100%',
           height: '100%',

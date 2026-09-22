@@ -31,7 +31,11 @@ export default function FeatureStrip() {
   return (
     <motion.div
       className="absolute bottom-0 left-0 right-0 flex justify-center"
-      style={{ paddingBottom: 32, paddingLeft: 32, paddingRight: 32 }}
+      style={{
+        paddingBottom: 'clamp(14px, 2.5vh, 32px)',
+        paddingLeft: 'clamp(16px, 2.5vw, 32px)',
+        paddingRight: 'clamp(16px, 2.5vw, 32px)',
+      }}
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, delay: 0.85, ease: [0.22, 1, 0.36, 1] }}
@@ -43,7 +47,7 @@ export default function FeatureStrip() {
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'stretch',
-          padding: '18px 24px',
+          padding: 'clamp(12px, 1.5vh, 18px) clamp(16px, 2vw, 24px)',
           maxWidth: 800,
           width: '100%',
           background: 'rgba(255, 255, 255, 0.015)',

@@ -151,11 +151,8 @@ function DataProtectionModal({ onClose, onNavigateSecurity }) {
       transition={{ duration: 0.2 }}
       style={{
         position: 'fixed',
-        top: 0,
-        left: typeof window !== 'undefined' && window.innerWidth > 768 ? 215 : 0,
-        right: 0,
-        bottom: 0,
-        width: typeof window !== 'undefined' && window.innerWidth > 768 ? 'calc(100vw - 215px)' : '100vw',
+        inset: 0,
+        width: '100vw',
         height: '100vh',
         background:
           'radial-gradient(ellipse at 50% 45%, rgba(59, 130, 246, 0.10) 0%, rgba(6, 4, 10, 0.45) 60%, rgba(4, 2, 8, 0.58) 100%)',
@@ -447,7 +444,7 @@ export default function ProfilePage() {
   return (
     <div
       style={{
-        padding: '24px 32px 40px 32px',
+        padding: '24px clamp(16px, 2.5vw, 32px) 40px',
         maxWidth: 1240,
         margin: '0 auto',
         width: '100%',
@@ -457,6 +454,20 @@ export default function ProfilePage() {
         gap: 22,
       }}
     >
+      <style>{`
+        .profile-workspace-grid {
+          display: grid;
+          grid-template-columns: clamp(230px, 22vw, 290px) 1fr;
+          align-items: stretch;
+          gap: 22px;
+          width: 100%;
+        }
+        @media (max-width: 980px) {
+          .profile-workspace-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
       {/* ── Page Header: Dynamic Icon + Title + Subtitle ── */}
       <motion.div
         key={activeTab}
@@ -515,15 +526,7 @@ export default function ProfilePage() {
       </motion.div>
 
       {/* ── 2-Column Layout: Mini Navigation + Workspace ── */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '290px 1fr',
-          alignItems: 'stretch',
-          gap: 22,
-          width: '100%',
-        }}
-      >
+      <div className="profile-workspace-grid">
         {/* Left Column: 4-Tab Mini-Sidebar */}
         <ProfileSidebarNav activeTab={activeTab} onSelectTab={setActiveTab} />
 

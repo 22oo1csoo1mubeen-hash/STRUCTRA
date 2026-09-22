@@ -466,6 +466,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
           onMouseLeave={() => handleViewportMouseLeave(false)}
           style={{
             flex: 1,
+            minHeight: 0,
             background: '#090b0e',
             position: 'relative',
             overflow: 'hidden',
@@ -513,8 +514,8 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
             isPdf ? (
               <div
                 style={{
-                  width: '100%',
-                  height: '100%',
+                  position: 'absolute',
+                  inset: 0,
                   transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom / 100})`,
                   transformOrigin: 'center center',
                   transition: isPanning ? 'none' : 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)'
@@ -539,12 +540,13 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
             ) : (
               <div
                 style={{
+                  position: 'absolute',
+                  inset: 0,
                   display: 'flex',
                   justifyContent: 'center',
                   alignItems: 'center',
-                  width: '100%',
-                  height: '100%',
-                  padding: 10
+                  padding: 10,
+                  overflow: 'hidden'
                 }}
               >
                 <img

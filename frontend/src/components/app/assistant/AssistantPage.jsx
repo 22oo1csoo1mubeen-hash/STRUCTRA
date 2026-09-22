@@ -1520,10 +1520,11 @@ export default function AssistantPage() {
       initial="hidden"
       animate="visible"
       style={{
-        padding: '24px 28px 0 28px',
+        padding: 'clamp(12px, 1.8vh, 20px) clamp(16px, 2vw, 28px) clamp(12px, 1.8vh, 18px)',
         display: 'flex',
         flexDirection: 'column',
-        height: 'calc(100vh - 64px)',
+        height: 'calc(100vh - 72px)',
+        maxHeight: 'calc(100vh - 72px)',
         maxWidth: 1040,
         margin: '0 auto',
         width: '100%',

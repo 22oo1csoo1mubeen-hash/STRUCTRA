@@ -43,14 +43,14 @@ export default function HeroSection() {
         animate="visible"
       >
         {/* ── Logo ──────────────────────────────────── */}
-        <motion.div variants={itemVariants} style={{ marginBottom: 20, marginTop: -90 }}>
+        <motion.div variants={itemVariants} style={{ marginBottom: 'clamp(10px, 1.8vh, 20px)', marginTop: 'clamp(-85px, -8vh, -24px)' }}>
           <img
             src="/logo.png"
             alt="Structra Logo"
             draggable={false}
             style={{
-              width: 100,
-              height: 100,
+              width: 'clamp(72px, 8vh, 100px)',
+              height: 'clamp(72px, 8vh, 100px)',
               objectFit: 'contain',
               userSelect: 'none',
               filter: 'drop-shadow(0 2px 20px rgba(255,255,255,0.15))',
@@ -63,7 +63,7 @@ export default function HeroSection() {
           variants={itemVariants}
           style={{
             fontFamily: "'Syncopate', 'Michroma', sans-serif",
-            fontSize: 'clamp(44px, 7vw, 65px)',
+            fontSize: 'clamp(38px, 5.5vw, 65px)',
             fontWeight: 700,
             letterSpacing: '0.28em',
             backgroundImage: 'linear-gradient(to bottom, #ffffff 0%, #f0f0f0 40%, #c8c8c8 55%, #e8e8e8 100%)',
@@ -71,7 +71,7 @@ export default function HeroSection() {
             WebkitTextFillColor: 'transparent',
             lineHeight: 1,
             textAlign: 'center',
-            marginBottom: 10,
+            marginBottom: 'clamp(6px, 1vh, 10px)',
             textShadow: '0 2px 40px rgba(255,255,255,0.15)',
             userSelect: 'none',
             /* nudge right to visually compensate for letter-spacing on last char */
@@ -86,12 +86,12 @@ export default function HeroSection() {
           variants={itemVariants}
           style={{
             fontFamily: "'Inter', system-ui, sans-serif",
-            fontSize: 'clamp(12px, 1.25vw, 16px)',
+            fontSize: 'clamp(11.5px, 1.15vw, 15.5px)',
             fontWeight: 400,
             letterSpacing: '0.32em',
             color: 'rgba(255,255,255,0.68)',
             textAlign: 'center',
-            marginBottom: 42,
+            marginBottom: 'clamp(20px, 3.5vh, 42px)',
             userSelect: 'none',
             paddingLeft: '0.32em',
           }}
@@ -132,8 +132,8 @@ function CTAButton() {
         position: 'relative',
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 36,
-        padding: '12px 22px 12px 32px',
+        gap: 'clamp(20px, 2.5vw, 36px)',
+        padding: 'clamp(10px, 1.2vh, 12px) 22px clamp(10px, 1.2vh, 12px) clamp(22px, 2vw, 32px)',
         borderRadius: 9999,
         background: 'none',
         border: '1px solid rgba(237, 139, 59, 0.87)',

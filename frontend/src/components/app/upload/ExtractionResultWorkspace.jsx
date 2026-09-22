@@ -668,9 +668,9 @@ export default function ExtractionResultWorkspace({
 
       {/* Main Layout Conditional */}
       {currentStage < 11 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: 760, paddingBottom: 16 }}>
-          {/* Main columns row */}
-          <div style={{ display: 'flex', gap: 24, width: '100%', alignItems: 'stretch', flex: 1, minHeight: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', width: '100%', paddingBottom: 16 }}>
+          {/* Main columns row - dynamic height driven by right panel */}
+          <div style={{ display: 'flex', gap: 24, width: '100%', alignItems: 'stretch' }}>
           
             {/* Left Column: Document Preview Component */}
             <DocumentPreviewViewer
@@ -678,8 +678,8 @@ export default function ExtractionResultWorkspace({
               documentId={docId}
             />
 
-        {/* Right Column: Dynamic Content Based on Stage */}
-        <div style={{ flex: 1, display: 'grid', minWidth: 0 }}>
+            {/* Right Column: Dynamic Content Based on Stage */}
+            <div style={{ flex: 1, display: 'grid', minWidth: 0 }}>
           <AnimatePresence>
             {currentStage === 10 ? (
               <motion.div
@@ -958,12 +958,12 @@ function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetU
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             style={{ 
-              flex: '0 1 auto', minHeight: 0, maxHeight: 320,
+              flex: '0 0 auto', maxHeight: 360,
               background: 'rgba(255,255,255,0.045)', 
               backdropFilter: 'blur(24px)',
               WebkitBackdropFilter: 'blur(24px)',
               border: '1px solid rgba(255,255,255,0.09)', 
-              borderRadius: 12, overflow: 'hidden', marginBottom: stage === 7 ? 16 : 0, display: 'flex', flexDirection: 'column',
+              borderRadius: 12, overflow: 'hidden', marginBottom: 0, display: 'flex', flexDirection: 'column',
               boxShadow: '0 4px 20px rgba(0,0,0,0.22)'
             }}
           >
@@ -1286,7 +1286,7 @@ function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
 
       {/* Editable Line Items Scrollable */}
       <div style={{ 
-        flex: '0 1 auto', minHeight: 0, maxHeight: 320,
+        flex: '0 0 auto', maxHeight: 360,
         background: 'rgba(255,255,255,0.045)', 
         backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
