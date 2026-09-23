@@ -16,6 +16,7 @@ import UploadPage from './components/app/upload/UploadPage';
 import DocumentLibraryPage from './components/app/library/DocumentLibraryPage';
 import DashboardPage from './components/app/dashboard/DashboardPage';
 import AssistantPage from './components/app/assistant/AssistantPage';
+import MLCategorizerPage from './components/app/ml/MLCategorizerPage';
 
 /**
  * App
@@ -58,6 +59,7 @@ function App() {
                     <Route path="dashboard" element={<DashboardPage />} />
                     <Route path="library" element={<DocumentLibraryPage />} />
                     <Route path="assistant" element={<AssistantPage />} />
+                    <Route path="ml" element={<MLCategorizerPage />} />
                   </Route>
                 </Routes>
               </BrowserRouter>
