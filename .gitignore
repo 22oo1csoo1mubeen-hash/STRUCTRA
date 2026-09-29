@@ -51,17 +51,23 @@ desktop.ini
 .cache/
 
 # ==========================
-# Python (Future Backend)
+# Python Virtual Environments
 # ==========================
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.db
-.venv/
+.venv*/
 venv/
 env/
 ENV/
+
+# ==========================
+# ML Artifacts (large binaries)
+# ==========================
+backend/ml/models/*.joblib
+backend/ml/data/*.csv
 
 # ==========================
 # Testing

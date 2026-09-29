@@ -1,6 +1,18 @@
+# Environment
 .env
+
+# Virtual environments (all variants)
 .venv/
+.venv*/
+
+# Python cache
 __pycache__/
 *.py[cod]
+
+# Testing
 .pytest_cache/
 .ruff_cache/
+
+# ML artifacts (large binaries — retrain locally)
+ml/models/*.joblib
+ml/data/*.csv
