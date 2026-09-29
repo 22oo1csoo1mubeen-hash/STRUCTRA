@@ -1,0 +1,80 @@
+{
+  "model_architecture": "Multinomial Naive Bayes",
+  "training_timestamp_utc": "2026-09-29T18:36:25.798543+00:00",
+  "total_samples": 10479,
+  "train_samples": 8383,
+  "test_samples": 2096,
+  "cv_folds": 5,
+  "best_cv_accuracy": 1.0,
+  "best_cv_std": 0.0,
+  "test_accuracy": 1.0,
+  "test_macro_f1": 1.0,
+  "test_weighted_f1": 1.0,
+  "classes": [
+    "Healthcare & Medical",
+    "Meals & Dining",
+    "Office Supplies & Hardware",
+    "Retail & Groceries",
+    "Technology & Cloud Services",
+    "Travel & Logistics",
+    "Utilities & Telecom"
+  ],
+  "total_duration_sec": 6.05,
+  "detailed_metrics": {
+    "Healthcare & Medical": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 299.0
+    },
+    "Meals & Dining": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 300.0
+    },
+    "Office Supplies & Hardware": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 298.0
+    },
+    "Retail & Groceries": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 300.0
+    },
+    "Technology & Cloud Services": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 300.0
+    },
+    "Travel & Logistics": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 299.0
+    },
+    "Utilities & Telecom": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 300.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 2096.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 2096.0
+    }
+  }
+}

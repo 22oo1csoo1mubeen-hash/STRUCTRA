@@ -514,11 +514,11 @@ function GridCard({ doc, onView, onDelete, onDownload, isExporting = false }) {
 
   return (
     <motion.article
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       whileHover={{ y: -2.5 }}
-      transition={{ duration: 0.20, ease: 'easeOut' }}
+      transition={{ duration: 0.12, ease: 'easeOut' }}
       onClick={() => onView?.(doc)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -739,11 +739,11 @@ function ListCard({ doc, onView, onDelete, onDownload, isExporting = false }) {
 
   return (
     <motion.article
-      initial={{ opacity: 0, x: -4 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       whileHover={{ y: -1 }}
-      transition={{ duration: 0.18, ease: 'easeOut' }}
+      transition={{ duration: 0.12, ease: 'easeOut' }}
       onClick={() => onView?.(doc)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}

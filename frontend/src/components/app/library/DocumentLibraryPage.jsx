@@ -1191,43 +1191,27 @@ export default function DocumentLibraryPage() {
 
             {/* Document Grid (4-column desktop) / List */}
             {!loading && !pageTransitioning && pageItems.length > 0 && (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`${viewMode}-page-${page}-size-${pageSize}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                  className={viewMode === 'grid' ? 'lib-grid-container' : undefined}
-                  style={{
-                    display: viewMode === 'list' ? 'flex' : undefined,
-                    flexDirection: viewMode === 'list' ? 'column' : undefined,
-                    gap: 14,
-                  }}
-                >
-                  {pageItems.map((doc, idx) => (
-                    <motion.div
-                      key={doc.document_id || doc.id}
-                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{
-                        duration: 0.22,
-                        delay: Math.min(idx * 0.035, 0.25),
-                        ease: [0.22, 1, 0.36, 1],
-                      }}
-                    >
-                      <DocumentCard
-                        doc={doc}
-                        viewMode={viewMode}
-                        onView={handleView}
-                        onDelete={(d) => setDeleteTarget(d)}
-                        onDownload={(d) => setExportTarget(d)}
-                        isExporting={exportingDocId === (doc.document_id || doc.id)}
-                      />
-                    </motion.div>
-                  ))}
-                </motion.div>
-              </AnimatePresence>
+              <div
+                key={`${viewMode}-page-${page}-size-${pageSize}`}
+                className={viewMode === 'grid' ? 'lib-grid-container' : undefined}
+                style={{
+                  display: viewMode === 'list' ? 'flex' : undefined,
+                  flexDirection: viewMode === 'list' ? 'column' : undefined,
+                  gap: 14,
+                }}
+              >
+                {pageItems.map((doc) => (
+                  <DocumentCard
+                    key={doc.document_id || doc.id}
+                    doc={doc}
+                    viewMode={viewMode}
+                    onView={handleView}
+                    onDelete={(d) => setDeleteTarget(d)}
+                    onDownload={(d) => setExportTarget(d)}
+                    isExporting={exportingDocId === (doc.document_id || doc.id)}
+                  />
+                ))}
+              </div>
             )}
           </div>
 

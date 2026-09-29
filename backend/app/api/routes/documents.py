@@ -28,6 +28,7 @@ from app.schemas.documents import (
     DocumentValidationResult,
     DuplicateDetectionResult,
     DuplicateDocumentCandidate,
+    MLClassificationResult,
     MathematicalValidationResult,
     OriginalDocumentInfo,
     ReceiptInvoiceExtraction,
@@ -171,6 +172,27 @@ async def list_recent_documents(
 
         effective_needs_review = False if effective_conf_level == "HIGH" else True
 
+        # Inline ML classification for list view
+        ml_list_result = None
+        if ext_data:
+            try:
+                from app.services.ml.classifier import classify_document_expense
+                _pred = classify_document_expense(
+                    vendor_name=ext_data.get("vendor_company"),
+                    line_items=ext_data.get("line_items", []),
+                    total_amount=ext_data.get("total"),
+                    filename=doc.filename,
+                )
+                if _pred.get("ml_model_active"):
+                    ml_list_result = MLClassificationResult(
+                        category=_pred["ml_category"],
+                        confidence=_pred["ml_confidence"],
+                        confidence_percent=f"{_pred['ml_confidence'] * 100:.1f}%",
+                        model_name="Trained Expense Classifier (10k Dataset)",
+                    )
+            except Exception:
+                pass
+
         items.append(
             DocumentListItem(
                 document_id=doc.id,
@@ -191,6 +213,7 @@ async def list_recent_documents(
                 system_confidence_level=system_level or qual_data.get("confidence_level"),
                 confidence_override=override_level,
                 needs_review=effective_needs_review,
+                ml_classification=ml_list_result,
             )
         )
 
@@ -284,6 +307,27 @@ async def list_documents(
 
         effective_needs_review = False if effective_conf_level == "HIGH" else True
 
+        # Inline ML classification for list view
+        ml_list_result = None
+        if ext_data:
+            try:
+                from app.services.ml.classifier import classify_document_expense
+                _pred = classify_document_expense(
+                    vendor_name=ext_data.get("vendor_company"),
+                    line_items=ext_data.get("line_items", []),
+                    total_amount=ext_data.get("total"),
+                    filename=doc.filename,
+                )
+                if _pred.get("ml_model_active"):
+                    ml_list_result = MLClassificationResult(
+                        category=_pred["ml_category"],
+                        confidence=_pred["ml_confidence"],
+                        confidence_percent=f"{_pred['ml_confidence'] * 100:.1f}%",
+                        model_name="Trained Expense Classifier (10k Dataset)",
+                    )
+            except Exception:
+                pass
+
         items.append(
             DocumentListItem(
                 document_id=doc.id,
@@ -304,6 +348,7 @@ async def list_documents(
                 system_confidence_level=system_level or qual_data.get("confidence_level"),
                 confidence_override=override_level,
                 needs_review=effective_needs_review,
+                ml_classification=ml_list_result,
             )
         )
 
@@ -355,6 +400,26 @@ async def _build_detail_response(
 
     download_url = await create_signed_storage_url(record.storage_path, settings)
 
+    ml_result = None
+    if extraction_model:
+        try:
+            from app.services.ml.classifier import classify_document_expense
+            pred = classify_document_expense(
+                vendor_name=extraction_model.vendor_company,
+                line_items=extraction_model.line_items,
+                total_amount=extraction_model.total,
+                filename=record.filename,
+            )
+            if pred.get("ml_model_active"):
+                ml_result = MLClassificationResult(
+                    category=pred["ml_category"],
+                    confidence=pred["ml_confidence"],
+                    confidence_percent=f"{pred['ml_confidence'] * 100:.1f}%",
+                    model_name="Trained Expense Classifier (10k Dataset)",
+                )
+        except Exception as err:
+            print(f"[STRUCTRA ML WARN] Failed to classify document: {err}")
+
     return DocumentDetailResponse(
         document=_metadata_response(record),
         extraction=extraction_model,
@@ -365,6 +430,7 @@ async def _build_detail_response(
             content_type=record.content_type,
             filename=record.filename,
         ),
+        ml_classification=ml_result,
     )
 
 
@@ -790,10 +856,30 @@ async def extract_document(
                 detail="Document extraction is unavailable.",
             ) from error
 
+    ml_res = None
+    try:
+        from app.services.ml.classifier import classify_document_expense
+        pred = classify_document_expense(
+            vendor_name=validated_extraction.vendor_company,
+            line_items=validated_extraction.line_items,
+            total_amount=validated_extraction.total,
+            filename=metadata.filename,
+        )
+        if pred.get("ml_model_active"):
+            ml_res = MLClassificationResult(
+                category=pred["ml_category"],
+                confidence=pred["ml_confidence"],
+                confidence_percent=f"{pred['ml_confidence'] * 100:.1f}%",
+                model_name="Trained Expense Classifier (10k Dataset)",
+            )
+    except Exception as err:
+        print(f"[STRUCTRA ML WARN] Failed to classify extraction: {err}")
+
     return DocumentExtractionResponse(
         document_id=document_id,
         extraction=validated_extraction,
         quality=quality_res,
+        ml_classification=ml_res,
     )
 
 

@@ -14,6 +14,7 @@ import AuthCallbackPage from './components/auth/AuthCallbackPage';
 import MainLayout from './components/app/shared/MainLayout';
 import UploadPage from './components/app/upload/UploadPage';
 import DocumentLibraryPage from './components/app/library/DocumentLibraryPage';
+import CategoriesPage from './components/app/categories/CategoriesPage';
 import DashboardPage from './components/app/dashboard/DashboardPage';
 import AssistantPage from './components/app/assistant/AssistantPage';
 import ProfilePage from './components/app/profile/ProfilePage';
@@ -58,6 +59,7 @@ function App() {
                     <Route path="upload" element={<UploadPage />} />
                     <Route path="dashboard" element={<DashboardPage />} />
                     <Route path="library" element={<DocumentLibraryPage />} />
+                    <Route path="categories" element={<CategoriesPage />} />
                     <Route path="assistant" element={<AssistantPage />} />
                     <Route path="profile" element={<ProfilePage />} />
                   </Route>

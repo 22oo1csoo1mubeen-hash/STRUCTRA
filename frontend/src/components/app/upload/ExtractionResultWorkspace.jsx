@@ -5,7 +5,7 @@ import {
   Image as ImageIcon, CheckCircle2, RefreshCw, RefreshCcw, ZoomIn, ZoomOut, Maximize, Maximize2,
   Download, Search, Sparkles, Building2, Calendar, MapPin, Hash, IndianRupee, 
   List, ArrowRight, Minus, Plus, AlertTriangle, AlertCircle, X, Check, Save,
-  FileDown, Trash2, Edit2, ShieldCheck, Info, Loader2
+  FileDown, Trash2, Edit2, ShieldCheck, Info, Loader2, Tag
 } from 'lucide-react';
 import ExtractionConfidenceCard from './ExtractionConfidenceCard';
 import FieldConfidenceIndicator from './FieldConfidenceIndicator';
@@ -28,6 +28,12 @@ const MOCK_RESULT = {
   invoiceNumber: "INV-2025-08-0098",
   totalAmount: "₹\u00A01,365.00",
   totalInWords: "One Thousand Three Hundred Sixty Five Rupees Only",
+  mlClassification: {
+    category: "Retail & Groceries",
+    confidence: 0.995,
+    confidence_percent: "99.5%",
+    model_name: "Trained Expense Classifier (10k Dataset)"
+  },
   lineItems: [
     { item: "Aashirvaad Atta 5kg", qty: 1, rate: "₹\u00A0289.00", amount: "₹\u00A0289.00" },
     { item: "Amul Toned Milk 1L", qty: 2, rate: "₹\u00A063.00", amount: "₹\u00A0126.00" },
@@ -100,6 +106,7 @@ export default function ExtractionResultWorkspace({
       invoiceNumber: extractionResult.extraction.invoice_number || '—',
       totalAmount: formatCurrency(extractionResult.extraction.total),
       confidenceOverride: extractionResult.quality?.confidence_override || null,
+      mlClassification: extractionResult.ml_classification || null,
       lineItems: (extractionResult.extraction.line_items || []).map(li => ({
         item: li.description || '—',
         qty: li.quantity !== null && li.quantity !== undefined ? li.quantity : '—',
@@ -933,11 +940,36 @@ function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetU
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Sparkles size={20} color="#f97316" />
           <h3 style={{ fontSize: 16, fontWeight: 600, color: '#fff', margin: 0 }}>Extracted Information</h3>
         </div>
+        {displayData.mlClassification && (
+          <div 
+            id="ml-classification-badge"
+            title={`Predicted by ${displayData.mlClassification.model_name || 'Trained ML Model'}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '4px 12px',
+              borderRadius: 20,
+              background: 'linear-gradient(135deg, rgba(249,115,22,0.18) 0%, rgba(234,88,12,0.08) 100%)',
+              border: '1px solid rgba(249,115,22,0.38)',
+              color: '#fb923c',
+              fontSize: 12,
+              fontWeight: 600,
+              boxShadow: '0 2px 10px rgba(249,115,22,0.15)'
+            }}
+          >
+            <Tag size={13} color="#f97316" />
+            <span>ML Category: <strong style={{ color: '#fff' }}>{displayData.mlClassification.category}</strong></span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', borderLeft: '1px solid rgba(249,115,22,0.3)', paddingLeft: 6 }}>
+              {displayData.mlClassification.confidence_percent || `${Math.round((displayData.mlClassification.confidence || 1) * 100)}%`}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Cards Grid */}
@@ -1697,6 +1729,12 @@ function Stage11SuccessView({
               </div>
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{displayData?.vendor || 'Unknown Vendor'}</div>
+            {displayData?.mlClassification && (
+              <div style={{ fontSize: 12, color: '#fb923c', marginTop: 3, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Tag size={12} color="#f97316" />
+                <span>ML Category: <strong>{displayData.mlClassification.category}</strong></span>
+              </div>
+            )}
           </div>
         </div>
 

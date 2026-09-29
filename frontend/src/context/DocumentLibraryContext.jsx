@@ -106,6 +106,7 @@ export function DocumentLibraryProvider({ children }) {
       system_confidence_level: systemLevel || qual.confidence_level || 'HIGH',
       confidence_override: overrideLevel || null,
       needs_review: effectiveNeedsReview,
+      ml_classification: detail.ml_classification || null,
     };
   };
 

@@ -37,6 +37,16 @@ function LibraryIcon({ active }) {
   );
 }
 
+function CategoriesIcon({ active }) {
+  const c = active ? '#f97316' : 'rgba(255,255,255,0.70)';
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" />
+    </svg>
+  );
+}
+
 function AIAssistantIcon({ active }) {
   const c = active ? '#f97316' : 'rgba(255,255,255,0.70)';
   return (
@@ -61,6 +71,7 @@ const primaryNavItems = [
   { id: 'upload-documents', label: 'Upload',           Icon: UploadIcon,      path: '/app/upload' },
   { id: 'dashboard',        label: 'Dashboard',        Icon: DashboardIcon,   path: '/app/dashboard' },
   { id: 'document-library', label: 'Document Library', Icon: LibraryIcon,     path: '/app/library' },
+  { id: 'categories',       label: 'Categories',       Icon: CategoriesIcon,  path: '/app/categories' },
   { id: 'ai-assistant',     label: 'AI Assistant',     Icon: AIAssistantIcon, path: '/app/assistant' },
 ];
 

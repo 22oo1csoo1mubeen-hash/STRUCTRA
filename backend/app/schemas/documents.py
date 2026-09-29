@@ -223,12 +223,22 @@ class DuplicateDetectionResult(BaseModel):
 from app.services.quality.schemas import ExtractionQualityResult
 
 
+class MLClassificationResult(BaseModel):
+    """Result from STRUCTRA's trained ML expense and document classifier."""
+
+    category: str
+    confidence: float
+    confidence_percent: str
+    model_name: str = "Trained Expense Classifier (10k Dataset)"
+
+
 class DocumentExtractionResponse(BaseModel):
     """Validated extraction returned for one owned document."""
 
     document_id: UUID
     extraction: ReceiptInvoiceExtraction
     quality: ExtractionQualityResult | None = None
+    ml_classification: MLClassificationResult | None = None
 
 
 DocumentValidationStatus = Literal["valid", "warning", "invalid", "unable_to_validate"]
@@ -275,6 +285,7 @@ class DocumentListItem(BaseModel):
     system_confidence_level: str | None = None
     confidence_override: str | None = None
     needs_review: bool | None = None
+    ml_classification: MLClassificationResult | None = None
 
 
 class DocumentLibraryStats(BaseModel):
@@ -321,4 +332,5 @@ class DocumentDetailResponse(BaseModel):
     quality: ExtractionQualityResult | None = None
     validation: DocumentValidationResult | MathematicalValidationResult | None = None
     original: OriginalDocumentInfo
+    ml_classification: MLClassificationResult | None = None
 
