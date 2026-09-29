@@ -58,21 +58,33 @@ __pycache__/
 *.pyo
 *.pyd
 *.db
+.venv/
 .venv*/
 venv/
 env/
 ENV/
 
 # ==========================
-# ML Artifacts (large binaries)
+# ML Artifacts & Datasets
 # ==========================
+ml/models/*.joblib
+ml/data/*.csv
 backend/ml/models/*.joblib
 backend/ml/data/*.csv
+# Keep the champion model and training corpus tracked
+!ml/models/expense_classifier.joblib
+!ml/data/receipt_expenses_10k.csv
+!backend/ml/models/expense_classifier.joblib
+!backend/ml/data/receipt_expenses_10k.csv
 
 # ==========================
-# Testing
+# Testing & Linting
 # ==========================
 coverage/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
 
 # ==========================
 # Misc
@@ -81,13 +93,7 @@ coverage/
 *.swo
 
 # ==========================
-# Python Cache
-# ==========================
-.pytest_cache/
-.mypy_cache/
-.pyre/
-
-# ==========================
 # VS Code History
 # ==========================
 .history/
+
