@@ -46,6 +46,7 @@ const steps = [
 function FlowArrow() {
   return (
     <div
+      className="structra-flow-arrow"
       style={{
         flexShrink: 0,
         width: 52,
@@ -116,6 +117,7 @@ function FlowArrow() {
 function StepCard({ step, style }) {
   return (
     <motion.div
+      className="structra-how-step-card"
       whileHover={{
         y: -2,
         borderColor: 'rgba(255, 255, 255, 0.20)',
@@ -218,6 +220,7 @@ function StepCard({ step, style }) {
 export default function HowItWorks() {
   return (
     <div
+      className="structra-how-it-works"
       style={{ padding: '20px 28px 0 28px' }}
     >
       <div
@@ -269,7 +272,7 @@ export default function HowItWorks() {
         </div>
 
         {/* Step row — cards separated by animated flow arrows */}
-        <div style={{ display: 'flex', alignItems: 'stretch', width: '100%' }}>
+        <div className="structra-how-steps-row" style={{ display: 'flex', alignItems: 'stretch', width: '100%' }}>
           {steps.map((step, idx) => (
             <React.Fragment key={step.id}>
               {/* Card Container */}
@@ -279,7 +282,7 @@ export default function HowItWorks() {
               
               {/* Flow Arrow (not in the last item) */}
               {idx < steps.length - 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                <div className="structra-flow-connector" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                   <FlowArrow />
                 </div>
               )}

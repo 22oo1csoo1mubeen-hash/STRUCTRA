@@ -13,7 +13,7 @@ function formatCurrency(amount) {
  * VendorSpendingSection
  * Ranked list of vendors with proportional spending bars.
  */
-export default function VendorSpendingSection({ vendorData, loading }) {
+export default function VendorSpendingSection({ vendorData }) {
   const vendors = vendorData?.vendors || [];
   const hasVendors = vendors.length > 0;
   const maxVendorSpend = hasVendors ? Math.max(...vendors.map((v) => v.total_spent), 1) : 1;

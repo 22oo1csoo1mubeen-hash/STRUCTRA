@@ -124,7 +124,7 @@ export function UploadWorkflowProvider({ children }) {
     const uploadPromise = uploadDocument(fileObj, forceDuplicate);
 
     try {
-      const [_, response] = await Promise.all([minAnimationPromise, uploadPromise]);
+      const [, response] = await Promise.all([minAnimationPromise, uploadPromise]);
 
       // Stale response guard
       if (activeWorkflowIdRef.current !== workflowId) return;

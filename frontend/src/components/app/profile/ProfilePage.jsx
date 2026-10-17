@@ -443,6 +443,7 @@ export default function ProfilePage() {
 
   return (
     <div
+      className="structra-profile-page"
       style={{
         padding: '24px clamp(16px, 2.5vw, 32px) 40px',
         maxWidth: 1240,
@@ -470,6 +471,7 @@ export default function ProfilePage() {
       `}</style>
       {/* ── Page Header: Dynamic Icon + Title + Subtitle ── */}
       <motion.div
+        className="structra-profile-page-heading"
         key={activeTab}
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}

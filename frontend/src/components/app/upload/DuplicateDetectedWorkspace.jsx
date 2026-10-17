@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, ArrowRight, RefreshCw, CheckCircle2, AlertTriangle, FileText, Calendar, Building, DollarSign } from 'lucide-react';
+import { ArrowRight, RefreshCw, CheckCircle2, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getDocumentDetail } from '../../../api/documents';
 
@@ -57,8 +57,6 @@ export default function DuplicateDetectedWorkspace({
   // Helper formatting values from existing detail or upload response
   const filename = uploadedDocument?.filename || file?.name || 'Uploaded Document';
   const extData = detail?.extraction;
-  const qualData = detail?.quality;
-
   const vendorName = extData?.vendor_company || extData?.vendor_name || '—';
   const docDate = extData?.date || extData?.document_date || '—';
   const totalAmount = extData?.total != null

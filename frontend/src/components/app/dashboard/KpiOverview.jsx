@@ -23,6 +23,7 @@ function KpiMiniCard({ kpi, index }) {
     <>
       <motion.div
         id={kpi.id}
+        className="dashboard-kpi-card"
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.18, ease: 'easeOut', delay: index * 0.03 }}

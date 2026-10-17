@@ -3,12 +3,13 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { listDocuments, deleteDocument, downloadDocument, exportDocument, getDocumentDetail, saveDocument } from '../../../api/documents';
+import { listDocuments, deleteDocument, exportDocument, getDocumentDetail, saveDocument } from '../../../api/documents';
 import { useDocumentLibrary } from '../../../context/DocumentLibraryContext';
 
 import LibrarySummaryCards from './LibrarySummaryCards';
 import LibraryToolbar      from './LibraryToolbar';
-import DocumentCard, { parseDateString } from './DocumentCard';
+import DocumentCard from './DocumentCard';
+import { parseDateString } from '../../../utils/documentDate';
 import LibraryPagination   from './LibraryPagination';
 import LibraryEmptyState   from './LibraryEmptyState';
 import ExtractionResultWorkspace from '../upload/ExtractionResultWorkspace';
@@ -267,10 +268,9 @@ function DeleteModal({ doc, count = 0, loading, onConfirm, onCancel }) {
 
 /* ─── Export confirmation modal ────────────────────────────────────── */
 function ExportModal({ doc, loading, onConfirm, onCancel }) {
-  if (!doc) return null;
-
   // Close on Escape key
   useEffect(() => {
+    if (!doc) return undefined;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && !loading) {
         onCancel();
@@ -278,7 +278,9 @@ function ExportModal({ doc, loading, onConfirm, onCancel }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [loading, onCancel]);
+  }, [doc, loading, onCancel]);
+
+  if (!doc) return null;
 
   const modalBackdropStyle = {
     position: 'fixed',
@@ -616,28 +618,6 @@ export default function DocumentLibraryPage() {
     }
   };
 
-  // Auto-open result view if navigated with selectedDocId state or URL query or preserved in session
-  useEffect(() => {
-    let selectedDocId = location.state?.selectedDocId || new URLSearchParams(location.search).get('document_id');
-    if (!selectedDocId) {
-      try {
-        selectedDocId = sessionStorage.getItem('structra_library_active_doc_id');
-      } catch {
-        /* silent */
-      }
-    }
-
-    if (selectedDocId && !detailDoc) {
-      const docObj = {
-        document_id: selectedDocId,
-        id: selectedDocId,
-        filename: location.state?.filename || 'Document',
-      };
-      const initialDetail = location.state?.documentDetail || null;
-      handleView(docObj, initialDetail);
-    }
-  }, [location.state?.selectedDocId, location.search]);
-
   const pageItems = useMemo(() => {
     if (!cachedItems || cachedItems.length === 0) return [];
     const copy = [...cachedItems];
@@ -692,7 +672,7 @@ export default function DocumentLibraryPage() {
     }
   };
 
-  const handleView = async (doc, initialData = null) => {
+  const handleView = useCallback(async (doc, initialData = null) => {
     const docId = doc?.document_id || doc?.id;
     if (!docId) return;
 
@@ -767,7 +747,29 @@ export default function DocumentLibraryPage() {
     } finally {
       setDetailLoading(false);
     }
-  };
+  }, [cachedItems]);
+
+  // Auto-open result view if navigated with selectedDocId state or URL query or preserved in session
+  useEffect(() => {
+    let selectedDocId = location.state?.selectedDocId || new URLSearchParams(location.search).get('document_id');
+    if (!selectedDocId) {
+      try {
+        selectedDocId = sessionStorage.getItem('structra_library_active_doc_id');
+      } catch {
+        /* silent */
+      }
+    }
+
+    if (selectedDocId && !detailDoc) {
+      const docObj = {
+        document_id: selectedDocId,
+        id: selectedDocId,
+        filename: location.state?.filename || 'Document',
+      };
+      const initialDetail = location.state?.documentDetail || null;
+      handleView(docObj, initialDetail);
+    }
+  }, [location.state?.selectedDocId, location.state?.filename, location.state?.documentDetail, location.search, detailDoc, handleView]);
 
   const handleBackToLibrary = () => {
     try {
@@ -807,7 +809,6 @@ export default function DocumentLibraryPage() {
       : (detailData?.quality?.confidence_override ?? null);
 
     let extractionPayload = null;
-    let total = undefined;
     if (updatedDisplayData) {
       const lineItems = (updatedDisplayData.lineItems || []).map((item) => ({
         description: item.item || item.description || '',
@@ -815,7 +816,7 @@ export default function DocumentLibraryPage() {
         unit_price: parseNum(item.rate || item.unit_price),
         line_total: parseNum(item.amount || item.line_total),
       }));
-      total = parseNum(updatedDisplayData.totalAmount);
+      const total = parseNum(updatedDisplayData.totalAmount);
 
       extractionPayload = {
         vendor_company: updatedDisplayData.vendor ?? detailData?.extraction?.vendor_company ?? '',
@@ -922,13 +923,72 @@ export default function DocumentLibraryPage() {
             grid-template-columns: 1fr;
           }
         }
+
+        @media (max-width: 767px) {
+          .library-page { padding: 0 12px 88px !important; }
+          .library-page-header { padding: 20px 14px 0 !important; }
+          .library-page-header h1 { font-size: 27px !important; }
+          .library-page-header-art { display: none !important; }
+          .library-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; padding: 16px 12px 0 !important; }
+          .library-summary-grid > div { min-width: 0; min-height: 112px; flex-direction: column; align-items: flex-start !important; gap: 7px !important; padding: 12px !important; border-radius: 13px !important; }
+          .library-summary-grid > div > div:nth-child(2) { width: 32px !important; height: 32px !important; border-radius: 9px !important; }
+          .library-summary-grid > div > div:nth-child(2) svg { width: 17px; height: 17px; }
+          .library-summary-grid > div > div:nth-child(3) > span:first-child { font-size: 10px !important; }
+          .library-summary-grid > div > div:nth-child(3) > span:nth-child(2) { font-size: 23px !important; }
+          .library-toolbar { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px !important; padding: 16px 12px 0 !important; }
+          .library-search-wrap { grid-column: 1 / -1; min-width: 0 !important; }
+          .library-filter-wrap, .library-actions-wrap { min-width: 0 !important; width: 100%; }
+          .library-toolbar .library-filter-wrap > button, .library-toolbar .library-actions-wrap > button { height: 48px !important; padding-left: 11px !important; padding-right: 30px !important; }
+          .library-filter-wrap > div, .library-actions-wrap > div { min-width: 0 !important; max-width: calc(100vw - 32px); }
+          .library-view-toggle { justify-content: stretch; width: 100%; margin-left: 0 !important; }
+          .library-view-toggle button { flex: 1; width: auto !important; min-width: 0; height: 48px !important; }
+          .library-content-area { padding: 14px 12px 0 !important; }
+          .library-grid-card { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 !important; padding: 11px 12px !important; border-radius: 14px !important; }
+          .library-grid-card > div:nth-child(2) { grid-column: 1 / -1; padding: 0 0 8px !important; }
+          .library-grid-card > div:nth-child(3) { display: none !important; }
+          .library-grid-card > div:nth-child(4) { grid-column: 1 / -1; display: grid !important; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px !important; padding: 0 !important; }
+          .library-grid-card > div:nth-child(4) > p:first-child { grid-column: 1 / -1; font-size: 14px !important; }
+          .library-grid-card > div:nth-child(4) > p:nth-child(2) { grid-column: 1 / -1; font-size: 11.5px !important; }
+          .library-grid-card > div:nth-child(4) > div:nth-child(3) { grid-column: 1 / -1; margin-top: 3px !important; }
+          .library-grid-card > div:nth-child(4) > div:nth-child(4) { grid-column: 1 / -1; margin-top: 4px !important; }
+          .library-grid-card > div:nth-child(4) > div:nth-child(4) button { width: 36px !important; height: 36px !important; }
+          .library-list-card { display: grid !important; grid-template-columns: 42px minmax(0, 1fr) auto !important; align-items: center !important; gap: 7px 9px !important; padding: 11px !important; }
+          .library-list-card .lib-list-thumbnail { grid-column: 1; grid-row: 1 / span 2; width: 42px !important; height: 46px !important; }
+          .library-list-card .lib-list-badges { grid-column: 2; grid-row: 1; flex-direction: row !important; flex-wrap: wrap; gap: 5px !important; min-width: 0; }
+          .library-list-card .lib-list-info { grid-column: 2; grid-row: 2; }
+          .library-list-card .lib-list-info > p:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .library-list-card .lib-list-date { grid-column: 2; grid-row: 3; font-size: 11px !important; }
+          .library-list-card .lib-list-amount { grid-column: 3; grid-row: 1; font-size: 12px !important; }
+          .library-list-card .lib-list-confidence { grid-column: 3; grid-row: 2; justify-self: end; }
+          .library-list-card .lib-list-actions { grid-column: 3; grid-row: 3; }
+          .library-list-card .lib-list-actions button { width: 36px !important; height: 36px !important; }
+          .library-pagination { padding: 16px 12px 96px !important; gap: 10px !important; }
+          .library-detail-page { padding: 14px 12px 40px !important; }
+          .library-detail-skeleton { height: auto !important; flex-direction: column; }
+          .library-detail-skeleton > div:first-child { flex: none !important; height: 42vh; min-height: 220px; }
+          .library-detail-skeleton > div:last-child { min-height: 280px; }
+          .library-detail-page .library-extraction-columns { flex-direction: column; gap: 14px !important; }
+          .library-detail-page .library-extraction-columns > div { width: 100%; }
+          .library-detail-page .library-detail-preview { flex: none !important; height: min(58vh, 520px); min-height: 340px; }
+          .library-detail-page .library-extraction-info-grid { grid-template-columns: minmax(0, 1fr) !important; }
+        }
+        @media (max-width: 380px) {
+          .library-summary-grid > div { padding: 9px !important; min-height: 104px; }
+          .library-summary-grid > div > div:nth-child(3) > span:first-child { font-size: 9px !important; }
+          .library-summary-grid > div > div:nth-child(3) > span:nth-child(2) { font-size: 20px !important; }
+          .library-list-card { grid-template-columns: 36px minmax(0, 1fr) auto !important; gap: 7px !important; }
+          .library-list-card .lib-list-thumbnail { width: 36px !important; height: 42px !important; }
+        }
+        @media (min-width: 540px) and (max-width: 767px) {
+          .lib-grid-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
       `}</style>
 
       {/* ════════════════════════════════════════════════════════════════
           DOCUMENT DETAIL / RESULT VIEW (WHEN A CARD IS OPENED)
       ════════════════════════════════════════════════════════════════ */}
       {detailDoc ? (
-        <div style={{ width: '100%', maxWidth: 1400, margin: '0 auto', padding: '24px 28px 48px' }}>
+        <div className="library-detail-page" style={{ width: '100%', maxWidth: 1400, margin: '0 auto', padding: '24px 28px 48px' }}>
           {detailLoading ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {/* Back Button Skeleton */}
@@ -951,7 +1011,7 @@ export default function DocumentLibraryPage() {
               </button>
 
               {/* Skeleton Result Workspace */}
-              <div style={{ display: 'flex', gap: 24, width: '100%', height: 'clamp(520px, calc(100vh - 200px), 760px)' }}>
+              <div className="library-detail-skeleton" style={{ display: 'flex', gap: 24, width: '100%', height: 'clamp(520px, calc(100vh - 200px), 760px)' }}>
                 {/* Left Preview Skeleton */}
                 <div style={{
                   flex: '0 0 42%',
@@ -1051,10 +1111,10 @@ export default function DocumentLibraryPage() {
         /* ════════════════════════════════════════════════════════════════
             NORMAL DOCUMENT LIBRARY GRID & LIST VIEW
         ════════════════════════════════════════════════════════════════ */
-        <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: 40 }}>
+        <div className="library-page" style={{ display: 'flex', flexDirection: 'column', paddingBottom: 40 }}>
 
           {/* PAGE HEADER */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '24px 28px 0' }}>
+          <div className="library-page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '24px 28px 0' }}>
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1077,6 +1137,7 @@ export default function DocumentLibraryPage() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
               aria-hidden="true"
+              className="library-page-header-art"
               style={{ flexShrink: 0, width: 140, height: 96, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               {[2, 1, 0].map((i) => (
@@ -1143,7 +1204,7 @@ export default function DocumentLibraryPage() {
           />
 
           {/* MAIN CONTENT AREA */}
-          <div style={{ padding: '16px 28px 0' }}>
+          <div className="library-content-area" style={{ padding: '16px 28px 0' }}>
 
             {/* Fetch error */}
             {fetchError && (

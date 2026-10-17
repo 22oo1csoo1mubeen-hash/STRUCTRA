@@ -135,6 +135,7 @@ export default function DangerZoneCard() {
 
   return (
     <div
+      className="structra-profile-danger-content"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -145,6 +146,7 @@ export default function DangerZoneCard() {
     >
       {/* ── CARD 1: Delete Your Account Hero Card ── */}
       <motion.div
+        className="profile-danger-summary-card"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.24, ease: 'easeOut' }}
@@ -158,7 +160,7 @@ export default function DangerZoneCard() {
         }}
       >
         {/* Top Hero Row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div className="profile-danger-summary-heading" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {/* Circular Glowing Red Trash Badge */}
           <div
             style={{
@@ -215,6 +217,7 @@ export default function DangerZoneCard() {
 
         {/* 5 Data Category Items — Row with Vertical Dividers Matching Reference */}
         <div
+          className="profile-danger-data-list"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -228,6 +231,7 @@ export default function DangerZoneCard() {
             const isFirst = index === 0;
             return (
               <div
+                className="profile-danger-data-item"
                 key={item.id}
                 style={{
                   display: 'flex',
@@ -304,6 +308,7 @@ export default function DangerZoneCard() {
 
       {/* ── CARD 2: Delete Account Confirmation & Action ── */}
       <motion.div
+        className="profile-danger-confirm-card"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.26, delay: 0.06, ease: 'easeOut' }}
@@ -341,7 +346,7 @@ export default function DangerZoneCard() {
         </div>
 
         {/* Input + Action Button */}
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="profile-danger-confirm-actions" style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
           <input
             type="text"
             value={deleteInput}
@@ -412,6 +417,7 @@ export default function DangerZoneCard() {
 
       {/* ── CARD 3: Need help? Alternative Option (Icon spans 2 rows) ── */}
       <motion.div
+        className="profile-danger-help-card"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.28, delay: 0.12, ease: 'easeOut' }}
@@ -425,7 +431,7 @@ export default function DangerZoneCard() {
           gap: 16,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 260 }}>
+        <div className="profile-danger-help-copy" style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 260 }}>
           {/* Info Badge spanning both text rows */}
           <div
             style={{
@@ -469,6 +475,7 @@ export default function DangerZoneCard() {
         </div>
 
         <motion.button
+          className="profile-danger-signout-button"
           onClick={handleSignOutInstead}
           disabled={isSigningOut}
           whileHover={!isSigningOut ? { scale: 1.03, backgroundColor: 'rgba(255,255,255,0.08)' } : {}}
@@ -502,9 +509,11 @@ export default function DangerZoneCard() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
+                className="profile-danger-confirm-backdrop"
                 style={modalBackdropStyle}
               >
                 <motion.div
+                  className="profile-danger-confirm-modal"
                   initial={{ opacity: 0, scale: 0.94, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.94, y: 10 }}

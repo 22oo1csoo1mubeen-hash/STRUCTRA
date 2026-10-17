@@ -42,6 +42,7 @@ const NAV_ITEMS = [
 export default function ProfileSidebarNav({ activeTab = 'profile', onSelectTab = () => {} }) {
   return (
     <motion.div
+      className="structra-profile-nav"
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
@@ -115,6 +116,7 @@ export default function ProfileSidebarNav({ activeTab = 'profile', onSelectTab =
             {/* Active Left Indicator Bar */}
             {isSelected && (
               <div
+                className="profile-nav-active-indicator"
                 style={{
                   position: 'absolute',
                   left: 0,
@@ -134,6 +136,7 @@ export default function ProfileSidebarNav({ activeTab = 'profile', onSelectTab =
 
             {/* Icon Box */}
             <div
+              className="profile-nav-icon-box"
               style={{
                 width: 38,
                 height: 38,
@@ -173,7 +176,7 @@ export default function ProfileSidebarNav({ activeTab = 'profile', onSelectTab =
             </div>
 
             {/* Text Information */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <div className="profile-nav-copy" style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
               <span
                 style={{
                   fontSize: 14,

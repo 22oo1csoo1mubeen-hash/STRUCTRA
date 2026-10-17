@@ -2,14 +2,14 @@
  * FeatureCard
  * A single feature item: icon box + title + description
  */
-export default function FeatureCard({ icon, title, description }) {
+export default function FeatureCard({ icon, title, description, s = 1 }) {
   return (
     <div
       style={{
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'flex-start',
-        gap: 10,
+        gap: `${Math.round(10 * s)}px`,
         flex: 1,
       }}
     >
@@ -23,7 +23,7 @@ export default function FeatureCard({ icon, title, description }) {
         <span
           style={{
             fontFamily: 'var(--font-ui)',
-            fontSize: 14,
+            fontSize: `${Math.round(14 * s)}px`,
             fontWeight: 700,
             letterSpacing: '0.04em',
             color: '#ffffff',
@@ -35,7 +35,7 @@ export default function FeatureCard({ icon, title, description }) {
         <span
           style={{
             fontFamily: 'var(--font-ui)',
-            fontSize: 12,
+            fontSize: `${Math.round(12 * s)}px`,
             fontWeight: 400,
             letterSpacing: '0.01em',
             color: 'rgba(255, 255, 255, 0.7)',

@@ -38,7 +38,7 @@ function ConfidenceBadge({ level }) {
  * ReviewQueueSection (Row 3, Column 3)
  * Transparent glass styling matching the document library.
  */
-export default function ReviewQueueSection({ reviewData, loading }) {
+export default function ReviewQueueSection({ reviewData }) {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -56,6 +56,7 @@ export default function ReviewQueueSection({ reviewData, loading }) {
   return (
     <>
       <motion.div
+        className="dashboard-summary-card"
         whileHover={{
           y: -2.5,
           borderColor: 'rgba(255, 255, 255, 0.20)',

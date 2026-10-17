@@ -38,7 +38,7 @@ function ItemIcon({ name }) {
   );
 }
 
-function ItemRow({ item, idx }) {
+function ItemRow({ item }) {
   const qty = item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1);
 
   return (
@@ -114,7 +114,7 @@ function ItemRow({ item, idx }) {
  * MostPurchasedItemsSection
  * Transparent glass styling matching the document library.
  */
-export default function MostPurchasedItemsSection({ itemData, loading }) {
+export default function MostPurchasedItemsSection({ itemData }) {
   const [modalOpen, setModalOpen] = useState(false);
   const items = itemData?.items || [];
   const previewItems = items.slice(0, 3);
@@ -123,6 +123,7 @@ export default function MostPurchasedItemsSection({ itemData, loading }) {
   return (
     <>
       <motion.div
+        className="dashboard-items-card"
         whileHover={{
           y: -2.5,
           borderColor: 'rgba(255, 255, 255, 0.20)',

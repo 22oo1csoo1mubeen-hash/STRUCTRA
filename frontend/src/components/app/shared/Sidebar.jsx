@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import logo from '../../../assets/structra-logo.png';
 import { useAuth } from '../../../hooks/useAuth';
 
@@ -79,6 +80,29 @@ const secondaryNavItems = [
   { id: 'profile', label: 'Profile', Icon: ProfileIcon, path: '/app/profile' },
 ];
 
+function MobileNavItem({ item, isActive, onNavigate }) {
+  const { Icon } = item;
+  return (
+    <button
+      type="button"
+      className={`structra-mobile-nav-item${isActive ? ' active' : ''}`}
+      aria-label={item.label}
+      aria-current={isActive ? 'page' : undefined}
+      onClick={() => onNavigate(item.path)}
+    >
+      {isActive && (
+        <motion.span
+          className="structra-mobile-nav-indicator"
+          layoutId="structra-mobile-nav-indicator"
+          transition={{ type: 'spring', stiffness: 430, damping: 34 }}
+        />
+      )}
+      <span className="structra-mobile-nav-icon"><Icon active={isActive} /></span>
+      <span className="structra-mobile-nav-label">{item.label === 'Document Library' ? 'Library' : item.label === 'AI Assistant' ? 'AI' : item.label}</span>
+    </button>
+  );
+}
+
 /* ─── Single nav item ────────────────────────────────── */
 function NavItem({ item, isActive, onNavigate, collapsed }) {
   const { Icon } = item;
@@ -116,6 +140,7 @@ function NavItem({ item, isActive, onNavigate, collapsed }) {
       {/* Active left accent bar */}
       {isActive && (
         <div
+          className="structra-active-bar"
           style={{
             position: 'absolute',
             left: 0,
@@ -131,6 +156,7 @@ function NavItem({ item, isActive, onNavigate, collapsed }) {
 
       {/* Icon — spacious and un-cramped */}
       <div
+        className="structra-sidebar-icon-box"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -198,6 +224,7 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   return (
     <aside
+      className="structra-sidebar"
       style={{
         width: collapsed ? 68 : 215,
         minWidth: collapsed ? 68 : 215,
@@ -262,6 +289,7 @@ export default function Sidebar({ collapsed, onToggle }) {
 
       {/* Logo row — perfectly centered when collapsed */}
       <Link
+        className="structra-sidebar-logo"
         to="/"
         style={{
           display: 'flex',
@@ -415,6 +443,17 @@ export default function Sidebar({ collapsed, onToggle }) {
             onNavigate={navigate}
             collapsed={collapsed}
             isActive={location.pathname === item.path}
+          />
+        ))}
+      </nav>
+
+      <nav className="structra-mobile-bottom-nav" aria-label="Main navigation">
+        {[...primaryNavItems, ...secondaryNavItems].map((item) => (
+          <MobileNavItem
+            key={item.id}
+            item={item}
+            onNavigate={navigate}
+            isActive={location.pathname === item.path || location.pathname.startsWith(item.path + '/')}
           />
         ))}
       </nav>

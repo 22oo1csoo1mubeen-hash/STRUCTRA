@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Lock, Eye, EyeOff } from 'lucide-react';
+import { Lock, Eye, EyeOff, Mail } from 'lucide-react';
 import NavBar from '../landing/NavBar';
 import loginBg from '../../assets/login-background.webp';
 import logo from '../../assets/structra-logo.png';
@@ -130,18 +130,33 @@ export default function LoginPage() {
       animate="visible"
       style={{
         position: 'relative',
-        width: '100vw',
-        minHeight: '100vh',
-        overflowY: 'auto',
-        overflowX: 'hidden',
+        width: '100%',
+        minHeight: '100dvh',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'clamp(64px, 8vh, 80px) 16px clamp(20px, 3vh, 32px)',
+        padding: 'max(76px, calc(env(safe-area-inset-top, 0px) + 68px)) 16px max(32px, env(safe-area-inset-bottom, 32px))',
         boxSizing: 'border-box',
       }}
     >
+      <style>{`
+        .login-header-block {
+          margin-bottom: 16px;
+        }
+        .login-welcome-block {
+          margin-bottom: 14px;
+        }
+        @media (min-height: 680px) {
+          .login-header-block {
+            margin-bottom: 24px;
+          }
+          .login-welcome-block {
+            margin-bottom: 20px;
+          }
+        }
+      `}</style>
       <motion.img
+        className="auth-bg-img"
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.45 }}
         transition={{ duration: 0.65 }}
@@ -149,24 +164,20 @@ export default function LoginPage() {
         alt=""
         aria-hidden="true"
         draggable={false}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          objectPosition: 'center',
-          userSelect: 'none',
-          pointerEvents: 'none',
-        }}
+      />
+
+      <div
+        className="auth-bg-overlay"
+        aria-hidden="true"
       />
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.65 }}>
         <NavBar />
       </motion.div>
 
-      <AuthGlassCard>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+      <div style={{ margin: 'auto 0', width: '100%', display: 'flex', justifyContent: 'center' }}>
+        <AuthGlassCard>
+        <div className="login-header-block" style={{ textAlign: 'center' }}>
           <img
             src={logo}
             alt="Structra logo"
@@ -203,7 +214,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div style={{ marginBottom: 20 }}>
+        <div className="login-welcome-block">
           <h2
             style={{
               fontFamily: "'Inter', system-ui, sans-serif",
@@ -340,7 +351,7 @@ export default function LoginPage() {
               id="login-email"
               type="email"
               placeholder="Email"
-              icon={User}
+              icon={Mail}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="username"
@@ -363,6 +374,8 @@ export default function LoginPage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10,
               marginBottom: 20,
             }}
           >
@@ -420,7 +433,8 @@ export default function LoginPage() {
             Register
           </Link>
         </p>
-      </AuthGlassCard>
+        </AuthGlassCard>
+      </div>
     </motion.div>
   );
 }

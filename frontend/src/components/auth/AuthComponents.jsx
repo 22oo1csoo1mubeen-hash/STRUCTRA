@@ -23,13 +23,14 @@ export function AuthCheckbox({ id, checked, onChange, children }) {
       onClick={() => onChange(!checked)}
       id={id}
       style={{
-        display: 'flex',
+        display: 'inline-flex',
         alignItems: 'center',
         gap: 10,
         background: 'none',
         border: 'none',
         cursor: 'pointer',
-        padding: 0,
+        padding: '4px 0',
+        minHeight: 36,
         textAlign: 'left',
       }}
     >
@@ -150,6 +151,7 @@ export function AuthInput({
         onChange={onChange}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
+        className="auth-input-element"
         autoComplete={
           autoComplete !== undefined
             ? autoComplete
@@ -161,12 +163,12 @@ export function AuthInput({
         }
         style={{
           width: '100%',
-          padding: '10px 38px 10px 38px',
+          padding: '11px 38px 11px 38px',
+          minHeight: 46,
           background: 'rgba(10, 8, 6, 0.55)',
           border: `1px solid ${borderColor}`,
           borderRadius: 10,
           color: '#fff',
-          fontSize: 13,
           fontFamily: "'Inter', system-ui, sans-serif",
           fontWeight: 400,
           letterSpacing: '0.01em',
@@ -176,6 +178,7 @@ export function AuthInput({
           WebkitBackdropFilter: 'blur(8px)',
           transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
           caretColor: '#ffffff',
+          boxSizing: 'border-box',
         }}
       />
 
@@ -216,7 +219,8 @@ export function GoogleButton({ id, onClick, text = "Continue with Google", loadi
         alignItems: 'center',
         justifyContent: 'center',
         gap: 10,
-        padding: '9px 16px',
+        padding: '10px 16px',
+        minHeight: 44,
         borderRadius: 10,
         background: 'rgba(255,255,255,0.05)',
         border: '1px solid rgba(255,255,255,0.18)',
@@ -230,6 +234,7 @@ export function GoogleButton({ id, onClick, text = "Continue with Google", loadi
         WebkitBackdropFilter: 'blur(8px)',
         transition: 'border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease',
         opacity: disabled ? 0.65 : 1,
+        boxSizing: 'border-box',
       }}
     >
       {loading ? (
@@ -324,11 +329,12 @@ export function AuthSubmitButton({ id, children, loading = false, disabled = fal
         justifyContent: 'center',
         gap: 12,
         padding: '11px 20px',
+        minHeight: 46,
         borderRadius: 10,
         background: disabled ? 'rgba(20, 12, 6, 0.45)' : 'rgba(20, 12, 6, 0.65)',
-        border: '1px solid rgba(255, 185, 80, 0.55)',
+        border: '1px solid rgba(255, 185, 80, 0.65)',
         boxShadow:
-          '0 0 12px rgba(255, 165, 50, 0.10), inset 0 0 12px rgba(255, 160, 40, 0.15)',
+          '0 0 16px rgba(255, 175, 50, 0.22), inset 0 0 12px rgba(255, 160, 40, 0.16)',
         color: disabled ? 'rgba(255,255,255,0.55)' : '#ffffff',
         fontSize: 14,
         fontFamily: "'Inter', system-ui, sans-serif",
@@ -340,6 +346,7 @@ export function AuthSubmitButton({ id, children, loading = false, disabled = fal
         WebkitBackdropFilter: 'blur(8px)',
         transition: 'all 0.2s ease',
         opacity: disabled ? 0.7 : 1,
+        boxSizing: 'border-box',
       }}
     >
       {loading ? (
@@ -448,31 +455,93 @@ export function AuthGlassCard({ children }) {
     <>
       <style>{`
         @keyframes cardFadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .auth-input-element {
+          font-size: 16px !important;
+        }
+        .auth-input-element::placeholder {
+          color: rgba(255, 255, 255, 0.40);
+        }
+
+        /* Background image & overlay defaults (Desktop >= 768px) */
+        .auth-bg-img {
+          position: fixed;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center 40%;
+          user-select: none;
+          pointer-events: none;
+        }
+        .auth-bg-overlay {
+          position: fixed;
+          inset: 0;
+          background: radial-gradient(ellipse at center, rgba(10, 8, 6, 0.3) 0%, rgba(5, 5, 5, 0.75) 100%);
+          pointer-events: none;
+        }
+
+        /* Desktop card styling (>= 768px) - 100% PRESERVED */
+        .auth-glass-card-container {
+          position: relative;
+          z-index: 10;
+          width: 100%;
+          max-width: 370px;
+          margin: 0 auto;
+          border-radius: 20px;
+          background: linear-gradient(180deg, rgba(20, 15, 10, 0.25) 0%, rgba(12, 9, 7, 0.45) 100%);
+          border-top: 1px solid rgba(255, 255, 255, 0.25);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+          border-left: none;
+          border-right: none;
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          box-shadow: 0 0 60px rgba(255, 140, 30, 0.12), 0 8px 40px rgba(0,0,0,0.35), inset 0 25px 30px -15px rgba(255, 165, 50, 0.15), inset 0 -25px 30px -15px rgba(255, 165, 50, 0.15);
+          animation: cardFadeIn 0.7s ease-out 0.15s both;
+          box-sizing: border-box;
+          padding: 32px 32px 24px;
+        }
+
+        @media (min-width: 768px) {
+          .auth-input-element {
+            font-size: 13px !important;
+          }
+        }
+
+        /* Mobile responsive styles (< 768px) */
+        @media (max-width: 767px) {
+          .auth-bg-img {
+            opacity: 0.92 !important;
+            object-position: center center;
+          }
+          .auth-bg-overlay {
+            background: radial-gradient(ellipse at center, rgba(10, 8, 6, 0.15) 0%, rgba(5, 5, 8, 0.55) 100%);
+          }
+          .auth-glass-card-container {
+            width: calc(100% - 32px);
+            max-width: 370px;
+            padding: 24px 20px 20px;
+          }
+        }
+
+        /* Narrow screens (<= 359px, e.g. 320x568) */
+        @media (max-width: 359px) {
+          .auth-glass-card-container {
+            width: calc(100% - 20px);
+            padding: 20px 16px 18px;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .auth-glass-card-container {
+            animation: none !important;
+            transition: none !important;
+          }
         }
       `}</style>
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 10,
-          width: '100%',
-          maxWidth: 360,
-          margin: '0 auto',
-          padding: '32px 32px 24px',
-          borderRadius: 20,
-          background: 'linear-gradient(180deg, rgba(20, 15, 10, 0.25) 0%, rgba(12, 9, 7, 0.45) 100%)',
-          borderTop: '1px solid rgba(255, 255, 255, 0.25)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.25)',
-          borderLeft: 'none',
-          borderRight: 'none',
-          backdropFilter: 'blur(6px)',
-          WebkitBackdropFilter: 'blur(6px)',
-          boxShadow:
-            '0 0 60px rgba(255, 140, 30, 0.12), 0 8px 40px rgba(0,0,0,0.35), inset 0 25px 30px -15px rgba(255, 165, 50, 0.15), inset 0 -25px 30px -15px rgba(255, 165, 50, 0.15)',
-          animation: 'cardFadeIn 0.7s ease-out 0.15s both',
-        }}
-      >
+      <div className="auth-glass-card-container">
         {children}
       </div>
     </>

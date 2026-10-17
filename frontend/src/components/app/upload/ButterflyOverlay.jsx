@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 /**
@@ -7,11 +7,11 @@ import { motion } from 'framer-motion';
  */
 function GlowingButterfly({ 
   size = 52, 
-  glowColor = '#f97316', 
   flapDuration = 0.32,
   prefersReducedMotion = false 
 }) {
-  const gradId = useMemo(() => `bf-grad-${Math.random().toString(36).slice(2, 8)}`, []);
+  const reactId = useId();
+  const gradId = `bf-grad-${reactId.replace(/:/g, '')}`;
 
   return (
     <svg 

@@ -171,33 +171,53 @@ export default function RegisterPage() {
       animate="visible"
       style={{
         position: 'relative',
-        width: '100vw',
-        minHeight: '100vh',
-        overflowY: 'auto',
-        overflowX: 'hidden',
+        width: '100%',
+        minHeight: '100dvh',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'clamp(64px, 8vh, 80px) 16px clamp(20px, 3vh, 32px)',
+        padding: 'max(76px, calc(env(safe-area-inset-top, 0px) + 68px)) 16px max(32px, env(safe-area-inset-bottom, 32px))',
         boxSizing: 'border-box',
       }}
     >
+      <style>{`
+        .register-header-block {
+          margin-bottom: 16px;
+        }
+        .register-welcome-block {
+          margin-bottom: 14px;
+        }
+        @media (min-height: 680px) {
+          .register-header-block {
+            margin-bottom: 24px;
+          }
+          .register-welcome-block {
+            margin-bottom: 20px;
+          }
+        }
+      `}</style>
       <motion.img
-        initial={{ opacity: 0 }} animate={{ opacity: 0.45 }} transition={{ duration: 0.65 }}
-        src={loginBg} alt="" aria-hidden="true" draggable={false}
-        style={{
-          position: 'fixed', inset: 0, width: '100%', height: '100%',
-          objectFit: 'cover', objectPosition: 'center',
-          userSelect: 'none', pointerEvents: 'none',
-        }}
+        className="auth-bg-img"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.45 }}
+        transition={{ duration: 0.65 }}
+        src={loginBg}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+      />
+      <div
+        className="auth-bg-overlay"
+        aria-hidden="true"
       />
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.65 }}>
         <NavBar />
       </motion.div>
 
-      <AuthGlassCard>
+      <div style={{ margin: 'auto 0', width: '100%', display: 'flex', justifyContent: 'center' }}>
+        <AuthGlassCard>
         {/* ── Brand header ────────────────────── */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div className="register-header-block" style={{ textAlign: 'center' }}>
           <img
             src={logo} alt="Structra logo"
             style={{ width: 42, height: 'auto', marginBottom: 8, display: 'inline-block' }}
@@ -236,7 +256,7 @@ export default function RegisterPage() {
              STATE B — Registration form
           ══════════════════════════════════════ */
           <>
-            <div style={{ marginBottom: 20 }}>
+            <div className="register-welcome-block">
               <h2 style={{
                 fontFamily: "'Inter', system-ui, sans-serif",
                 fontSize: 18, fontWeight: 700, color: '#ffffff',
@@ -388,7 +408,8 @@ export default function RegisterPage() {
             </p>
           </>
         )}
-      </AuthGlassCard>
+        </AuthGlassCard>
+      </div>
     </motion.div>
   );
 }

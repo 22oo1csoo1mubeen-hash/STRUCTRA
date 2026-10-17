@@ -66,6 +66,7 @@ export default function LibrarySummaryCards({
 
   return (
     <div
+      className="library-summary-grid"
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
@@ -76,6 +77,7 @@ export default function LibrarySummaryCards({
       {cards.map((card, i) => (
         <motion.div
           key={card.id}
+          className="library-summary-card"
           id={card.id}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

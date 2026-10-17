@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
  * DashboardHeader
  * Top greeting and context row with live refresh indicator.
  */
-export default function DashboardHeader({ onRefresh, refreshing, lastUpdated }) {
+export default function DashboardHeader({ onRefresh, refreshing }) {
   const currentDateFormatted = new Date().toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -14,6 +14,7 @@ export default function DashboardHeader({ onRefresh, refreshing, lastUpdated }) 
 
   return (
     <div
+      className="dashboard-header"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -23,8 +24,8 @@ export default function DashboardHeader({ onRefresh, refreshing, lastUpdated }) 
         padding: '24px 32px 16px',
       }}
     >
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div className="dashboard-header-copy">
+        <div className="dashboard-header-title-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <h1
             style={{
               fontSize: 34,
@@ -67,6 +68,7 @@ export default function DashboardHeader({ onRefresh, refreshing, lastUpdated }) 
           </span>
         </div>
         <p
+          className="dashboard-header-description"
           style={{
             fontSize: 13.5,
             color: 'rgba(255,255,255,0.52)',
@@ -79,8 +81,9 @@ export default function DashboardHeader({ onRefresh, refreshing, lastUpdated }) 
         </p>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="dashboard-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div
+          className="dashboard-date-chip"
           style={{
             display: 'flex',
             alignItems: 'center',

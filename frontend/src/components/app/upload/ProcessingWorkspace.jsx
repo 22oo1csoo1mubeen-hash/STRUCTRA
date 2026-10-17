@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CloudUploadIcon, AISparkIcon, ShieldValidationIcon, SuccessReadyIcon } from './ProcessingIcons';
-import { CheckCircle2, Circle, FileText, Image as ImageIcon, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { CheckCircle2, Circle, FileText, AlertCircle, RefreshCw } from 'lucide-react';
 import ButterflyOverlay from './ButterflyOverlay';
 
 // --- Checklist Items ---
@@ -186,7 +186,7 @@ export default function ProcessingWorkspace({
   };
 
   return (
-    <div ref={workspaceRef} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div ref={workspaceRef} className="structra-processing-workspace" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
       
       {/* Decorative Butterfly Overlay — Activated when processing takes >10s */}
       <AnimatePresence>
@@ -210,7 +210,7 @@ export default function ProcessingWorkspace({
       </AnimatePresence>
 
       {/* Top Animated Icon Container */}
-      <div style={{ height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+      <div className="structra-processing-icon" style={{ height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
         <AnimatePresence mode="wait">
           {stage === 3 && <CloudUploadIcon key="icon3" />}
           {stage === 4 && <AISparkIcon key="icon4" />}
@@ -220,7 +220,7 @@ export default function ProcessingWorkspace({
       </div>
 
       {/* Header Text */}
-      <div style={{ height: 70, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div className="structra-processing-heading" style={{ height: 70, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <AnimatePresence mode="wait">
           <motion.h2
             key={title}
@@ -252,6 +252,7 @@ export default function ProcessingWorkspace({
       <AnimatePresence>
         {stage < 6 && (
           <motion.div 
+            className="structra-processing-file-card"
             initial={{ opacity: 1, scale: 1, height: 'auto' }}
             exit={{ opacity: 0, scale: 0.95, height: 0, marginTop: 0, overflow: 'hidden' }}
             transition={{ duration: 0.3 }}
@@ -287,7 +288,7 @@ export default function ProcessingWorkspace({
       </AnimatePresence>
 
       {/* Dynamic Bottom Section (Progress Bar OR Checklist) */}
-      <div style={{ position: 'relative', width: '100%', maxWidth: 460, marginTop: 32, minHeight: stage >= 6 ? 80 : 180 }}>
+      <div className="structra-processing-progress" style={{ position: 'relative', width: '100%', maxWidth: 460, marginTop: 32, minHeight: stage >= 6 ? 80 : 180 }}>
         <AnimatePresence mode="wait">
           
           {/* STAGE 3: Progress Bar */}

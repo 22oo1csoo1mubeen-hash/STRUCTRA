@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_URL } from '../config/api';
 
 /**
  * Helper to retrieve the current user's JWT access token for authenticated API calls.
@@ -97,7 +96,7 @@ export async function sendAssistantMessage({ session_id, message, history = [] }
     clearTimeout(timeoutId);
   } catch (netErr) {
     if (netErr.name === 'AbortError') {
-      throw new Error('STRUCTRA response timed out. Please try asking again.');
+      throw new Error('STRUCTRA response timed out. Please try asking again.', { cause: netErr });
     }
     throw netErr;
   }

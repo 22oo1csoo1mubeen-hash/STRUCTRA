@@ -4,6 +4,7 @@ import { Pencil, Camera, Upload, Trash2, Check, AlertCircle, Loader2 } from 'luc
 import { updateProfile, uploadProfilePicture, deleteProfilePicture } from '../../../api/profile';
 import { useAuth } from '../../../hooks/useAuth';
 import { getUserAvatarUrl } from '../../../utils/avatar';
+import { getApiAssetUrl } from '../../../config/api';
 
 export default function PersonalInfoCard({
   user = null,
@@ -39,6 +40,7 @@ export default function PersonalInfoCard({
     jobTitle: initialJob,
     location: initialLoc,
   });
+  const [savedData, setSavedData] = useState({ ...formData });
 
   // Sync state if user prop updates externally
   useEffect(() => {
@@ -62,7 +64,6 @@ export default function PersonalInfoCard({
 
   // Edit Mode state
   const [isEditing, setIsEditing] = useState(startInEditMode);
-  const [savedData, setSavedData] = useState({ ...formData });
 
   useEffect(() => {
     if (startInEditMode) {
@@ -263,6 +264,7 @@ export default function PersonalInfoCard({
 
   return (
     <motion.div
+      className="structra-profile-personal-card"
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
@@ -384,7 +386,7 @@ export default function PersonalInfoCard({
             >
               {hasCustomPicture ? (
                 <img
-                  src={avatarUrl.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${avatarUrl}` : avatarUrl}
+                  src={getApiAssetUrl(avatarUrl)}
                   alt={displayName}
                   onError={() => setAvatarLoadError(true)}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}

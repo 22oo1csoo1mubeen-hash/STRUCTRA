@@ -12,6 +12,7 @@ export default function DashboardStatusBar({ refreshing }) {
 
   return (
     <div
+      className="dashboard-status-bar"
       style={{
         display: 'flex',
         alignItems: 'center',

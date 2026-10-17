@@ -22,7 +22,7 @@ import { downloadDocument } from '../../../api/documents';
  * - Centered single Download Original button in in-panel footer
  * - Fullscreen & Expanded modal viewing mode with ESC key navigation
  */
-export default function DocumentPreviewViewer({ file, documentId, className, style }) {
+export default function DocumentPreviewViewer({ file, documentId, filename, documentInfo, className, style }) {
   const [zoom, setZoom] = useState(80);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -44,6 +44,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
   const isMouseDownRef = useRef(false);
   const startMouseRef = useRef({ x: 0, y: 0 });
   const startPanRef = useRef({ x: 0, y: 0 });
+  const startTouchRef = useRef(null);
   const inPanelViewportRef = useRef(null);
   const modalViewportRef = useRef(null);
 
@@ -96,10 +97,13 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
   }, [isFullscreen]);
 
   // File metadata resolution
-  const rawFileName = file?.name || (documentId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(documentId) ? documentId : null);
+  const rawFileName = file?.name || filename || (documentId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(documentId) ? documentId : null);
   const fileName = rawFileName || 'Receipt.png';
   const fileType = file?.type || '';
   const isPdf = fileType === 'application/pdf' || /\.pdf$/i.test(fileName);
+  const inferredFormat = documentInfo?.format || fileType.split('/').pop()?.toUpperCase() || fileName.split('.').pop()?.toUpperCase() || 'Document';
+  const inferredSize = documentInfo?.size || (file?.size ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : '');
+  const fullscreenMetadata = [inferredFormat, inferredSize, documentInfo?.processedAt].filter(Boolean).join(' · ');
 
   // Reset pan offset when document or fullscreen state changes
   useEffect(() => {
@@ -323,6 +327,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
       >
         {/* Top Header Bar — Perfectly Aligned & Spaced */}
         <div
+          className="structra-document-preview-toolbar"
           style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -464,6 +469,31 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
           onMouseDown={(e) => handleMouseDown(e, false)}
           onMouseMove={(e) => handleViewportMouseMove(e, false)}
           onMouseLeave={() => handleViewportMouseLeave(false)}
+          onTouchStart={(e) => {
+            if (e.touches.length !== 1) return;
+            const touch = e.touches[0];
+            startTouchRef.current = { x: touch.clientX, y: touch.clientY, pan: { ...pan }, isModal: false };
+            setIsPanning(true);
+          }}
+          onTouchMove={(e) => {
+            if (!startTouchRef.current || startTouchRef.current.isModal || e.touches.length !== 1) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            setPan({
+              x: startTouchRef.current.pan.x + touch.clientX - startTouchRef.current.x,
+              y: startTouchRef.current.pan.y + touch.clientY - startTouchRef.current.y,
+            });
+          }}
+          onTouchEnd={() => {
+            if (startTouchRef.current?.isModal) return;
+            startTouchRef.current = null;
+            setIsPanning(false);
+          }}
+          onTouchCancel={() => {
+            if (startTouchRef.current?.isModal) return;
+            startTouchRef.current = null;
+            setIsPanning(false);
+          }}
           style={{
             flex: 1,
             minHeight: 0,
@@ -476,7 +506,8 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
             padding: 16,
             cursor: isPanning ? 'grabbing' : 'grab',
             userSelect: 'none',
-            WebkitUserSelect: 'none'
+            WebkitUserSelect: 'none',
+            touchAction: 'none'
           }}
         >
           {/* Orange Glowing Pointer Dot */}
@@ -642,6 +673,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
         <AnimatePresence>
           {isFullscreen && (
             <motion.div
+              className="structra-document-fullscreen"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -666,6 +698,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
             >
               {/* Modal Header — Clean Spacing & High Contrast Controls */}
               <div
+                className="structra-document-fullscreen-header"
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -710,7 +743,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
                     >
                       {fileName}
                     </h2>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                    <span className="structra-document-fullscreen-hint" data-mobile-meta={fullscreenMetadata} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', fontFamily: "'Inter', system-ui, sans-serif" }}>
                       Expanded Document Viewer • Esc to exit
                     </span>
                   </div>
@@ -718,6 +751,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
 
                 {/* Modal Top Right Action Controls — Fully Visible & Clear */}
                 <div
+                  className="structra-document-fullscreen-controls"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -863,10 +897,34 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
 
               {/* Modal Body Container (Centered & 360° Drag Panning) */}
               <div
+                className="structra-document-fullscreen-viewport"
                 ref={modalViewportRef}
                 onMouseDown={(e) => handleMouseDown(e, true)}
                 onMouseMove={(e) => handleViewportMouseMove(e, true)}
                 onMouseLeave={() => handleViewportMouseLeave(true)}
+                onTouchStart={(e) => {
+                  if (e.touches.length !== 1) return;
+                  const touch = e.touches[0];
+                  startTouchRef.current = { x: touch.clientX, y: touch.clientY, pan: { ...modalPan }, isModal: true };
+                  setIsPanning(true);
+                }}
+                onTouchMove={(e) => {
+                  if (!startTouchRef.current?.isModal || e.touches.length !== 1) return;
+                  e.preventDefault();
+                  const touch = e.touches[0];
+                  setModalPan({
+                    x: startTouchRef.current.pan.x + touch.clientX - startTouchRef.current.x,
+                    y: startTouchRef.current.pan.y + touch.clientY - startTouchRef.current.y,
+                  });
+                }}
+                onTouchEnd={() => {
+                  startTouchRef.current = null;
+                  setIsPanning(false);
+                }}
+                onTouchCancel={() => {
+                  startTouchRef.current = null;
+                  setIsPanning(false);
+                }}
                 style={{
                   flex: 1,
                   position: 'relative',
@@ -881,6 +939,7 @@ export default function DocumentPreviewViewer({ file, documentId, className, sty
                   cursor: isPanning ? 'grabbing' : 'grab',
                   userSelect: 'none',
                   WebkitUserSelect: 'none',
+                  touchAction: 'none',
                 }}
               >
                 {/* Modal Orange Glowing Pointer Dot */}

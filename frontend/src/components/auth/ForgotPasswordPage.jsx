@@ -54,18 +54,29 @@ export default function ForgotPasswordPage() {
       style={{
         position: 'relative',
         width: '100vw',
-        minHeight: '100vh',
+        minHeight: '100dvh',
         overflowY: 'auto',
         overflowX: 'hidden',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'clamp(64px, 8vh, 80px) 16px clamp(20px, 3vh, 32px)',
+        padding: 'max(76px, calc(env(safe-area-inset-top, 0px) + 68px)) 16px max(32px, env(safe-area-inset-bottom, 32px))',
         boxSizing: 'border-box',
       }}
     >
+      <style>{`
+        .forgot-header-block {
+          margin-bottom: 16px;
+        }
+        @media (min-height: 680px) {
+          .forgot-header-block {
+            margin-bottom: 24px;
+          }
+        }
+      `}</style>
       {/* ── 1. Background image ───────────────────────── */}
       <motion.img
+        className="auth-bg-img"
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.45 }}
         transition={{ duration: 0.65 }}
@@ -73,16 +84,10 @@ export default function ForgotPasswordPage() {
         alt=""
         aria-hidden="true"
         draggable={false}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          objectPosition: 'center',
-          userSelect: 'none',
-          pointerEvents: 'none',
-        }}
+      />
+      <div
+        className="auth-bg-overlay"
+        aria-hidden="true"
       />
 
       {/* ── 2. NavBar ─────────────────────────────────── */}
@@ -91,9 +96,10 @@ export default function ForgotPasswordPage() {
       </motion.div>
 
       {/* ── 3. Glass authentication card ──────────────── */}
-      <AuthGlassCard>
+      <div style={{ margin: 'auto 0', width: '100%', display: 'flex', justifyContent: 'center' }}>
+        <AuthGlassCard>
         {/* ── Logo + Brand ─────────────────────────────── */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div className="forgot-header-block" style={{ textAlign: 'center' }}>
           <img
             src={logo}
             alt="Structra logo"
@@ -249,7 +255,8 @@ export default function ForgotPasswordPage() {
             </p>
           </>
         )}
-      </AuthGlassCard>
+        </AuthGlassCard>
+      </div>
     </motion.div>
   );
 }

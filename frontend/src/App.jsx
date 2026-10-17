@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { DocumentLibraryProvider } from './context/DocumentLibraryContext';
@@ -5,19 +6,20 @@ import { UploadWorkflowProvider } from './context/UploadWorkflowContext';
 import { DashboardProvider } from './context/DashboardContext';
 import { AssistantProvider } from './context/AssistantContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import LandingPage from './components/landing/LandingPage';
-import LoginPage from './components/auth/LoginPage';
-import RegisterPage from './components/auth/RegisterPage';
-import ForgotPasswordPage from './components/auth/ForgotPasswordPage';
-import ResetPasswordPage from './components/auth/ResetPasswordPage';
-import AuthCallbackPage from './components/auth/AuthCallbackPage';
+const LandingPage = lazy(() => import('./components/landing/LandingPage'));
+const LoginPage = lazy(() => import('./components/auth/LoginPage'));
+const RegisterPage = lazy(() => import('./components/auth/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./components/auth/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./components/auth/ResetPasswordPage'));
+const AuthCallbackPage = lazy(() => import('./components/auth/AuthCallbackPage'));
+const AboutPage = lazy(() => import('./components/about/AboutPage'));
 import MainLayout from './components/app/shared/MainLayout';
-import UploadPage from './components/app/upload/UploadPage';
-import DocumentLibraryPage from './components/app/library/DocumentLibraryPage';
-import CategoriesPage from './components/app/categories/CategoriesPage';
-import DashboardPage from './components/app/dashboard/DashboardPage';
-import AssistantPage from './components/app/assistant/AssistantPage';
-import ProfilePage from './components/app/profile/ProfilePage';
+const UploadPage = lazy(() => import('./components/app/upload/UploadPage'));
+const DocumentLibraryPage = lazy(() => import('./components/app/library/DocumentLibraryPage'));
+const CategoriesPage = lazy(() => import('./components/app/categories/CategoriesPage'));
+const DashboardPage = lazy(() => import('./components/app/dashboard/DashboardPage'));
+const AssistantPage = lazy(() => import('./components/app/assistant/AssistantPage'));
+const ProfilePage = lazy(() => import('./components/app/profile/ProfilePage'));
 
 /**
  * App
@@ -33,9 +35,19 @@ function App() {
           <DashboardProvider>
             <AssistantProvider>
               <BrowserRouter>
+                <Suspense fallback={(
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#080a0d', color: '#f97316', fontFamily: 'Inter, sans-serif' }}
+                  >
+                    Loading STRUCTRA…
+                  </div>
+                )}>
                 <Routes>
                   {/* Public pages */}
                   <Route path="/" element={<LandingPage />} />
+                  <Route path="/about" element={<AboutPage />} />
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
                   <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -68,6 +80,7 @@ function App() {
                   <Route path="/auth" element={<Navigate to="/login" replace />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
+                </Suspense>
               </BrowserRouter>
             </AssistantProvider>
           </DashboardProvider>

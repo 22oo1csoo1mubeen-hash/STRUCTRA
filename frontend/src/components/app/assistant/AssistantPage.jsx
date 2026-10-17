@@ -443,7 +443,7 @@ function RenderMarkdown({ text }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <div className="structra-assistant-markdown" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {blocks.map((block, bi) => {
         if (block.type === 'table') {
           // Parse table lines into headers and rows
@@ -461,6 +461,7 @@ function RenderMarkdown({ text }) {
 
           return (
             <div
+              className="structra-assistant-markdown-table"
               key={bi}
               style={{
                 margin: '8px 0',
@@ -508,6 +509,7 @@ function RenderMarkdown({ text }) {
                       {row.map((cell, ci) => (
                         <td
                           key={ci}
+                          data-label={headers[ci] || 'Value'}
                           style={{
                             padding: '9px 12px',
                             fontSize: 12.5,
@@ -515,7 +517,9 @@ function RenderMarkdown({ text }) {
                             verticalAlign: 'middle',
                           }}
                         >
-                          {renderCellContent(cell)}
+                          <span className="structra-assistant-table-cell-value">
+                            {renderCellContent(cell)}
+                          </span>
                         </td>
                       ))}
                     </tr>
@@ -529,6 +533,7 @@ function RenderMarkdown({ text }) {
         if (block.type === 'code') {
           return (
             <pre
+              className="structra-assistant-markdown-code"
               key={bi}
               style={{
                 margin: '6px 0',
@@ -1275,6 +1280,7 @@ function MessageBubble({ message, onSelectPrompt, onNavigateDoc }) {
 
   return (
     <motion.div
+      className={`structra-assistant-message${isUser ? ' is-user' : ' is-assistant'}`}
       initial={{ opacity: 0, y: 14, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
@@ -1289,6 +1295,7 @@ function MessageBubble({ message, onSelectPrompt, onNavigateDoc }) {
       {/* Assistant avatar */}
       {!isUser && (
         <div
+          className="structra-assistant-response-bubble"
           style={{
             width: 32,
             height: 32,
@@ -1307,6 +1314,7 @@ function MessageBubble({ message, onSelectPrompt, onNavigateDoc }) {
       )}
 
       <div
+        className="structra-assistant-message-content"
         style={{
           maxWidth: isUser ? '66%' : '84%',
           display: 'flex',
@@ -1516,6 +1524,7 @@ export default function AssistantPage() {
 
   return (
     <motion.div
+      className="structra-assistant-page"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
@@ -1533,6 +1542,7 @@ export default function AssistantPage() {
     >
       {/* ── Main glass card ── */}
       <motion.div
+        className="structra-assistant-card"
         variants={fadeUpVariant}
         style={{
           flex: 1,
@@ -1549,6 +1559,7 @@ export default function AssistantPage() {
       >
         {/* ── Header ── */}
         <div
+          className={`structra-assistant-header${hasMessages ? ' has-messages' : ''}`}
           style={{
             padding: hasMessages ? '16px 36px 14px 36px' : '26px 36px 18px 36px',
             textAlign: 'center',
@@ -1666,6 +1677,7 @@ export default function AssistantPage() {
               >
                 {/* Chips row */}
                 <div
+                  className="structra-assistant-suggestions"
                   style={{
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -1710,6 +1722,7 @@ export default function AssistantPage() {
 
         {/* ── Conversation area ── */}
         <div
+          className="structra-assistant-conversation"
           id="assistant-conversation-area"
           style={{
             flex: 1,
@@ -1876,6 +1889,7 @@ export default function AssistantPage() {
 
         {/* ── Input bar ── */}
         <div
+          className="structra-assistant-input-area"
           style={{
             padding: '14px 36px',
             borderTop: '1px solid rgba(255,255,255,0.05)',
@@ -1883,6 +1897,7 @@ export default function AssistantPage() {
           }}
         >
           <motion.div
+            className="structra-assistant-input-row"
             animate={{
               borderColor: inputFocused ? 'rgba(249,115,22,0.50)' : 'rgba(249,115,22,0.22)',
               boxShadow: inputFocused ? '0 0 0 3px rgba(249,115,22,0.08)' : '0 0 0 0px rgba(249,115,22,0)',

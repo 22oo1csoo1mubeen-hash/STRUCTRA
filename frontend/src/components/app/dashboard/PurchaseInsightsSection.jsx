@@ -37,7 +37,7 @@ function ConfidenceBadge({ level }) {
  * HighestReceiptSection (Row 3, Column 1)
  * Transparent glass styling matching the document library.
  */
-export default function HighestReceiptSection({ highlights, loading }) {
+export default function HighestReceiptSection({ highlights }) {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
   const receipt = highlights?.most_expensive_receipt;
@@ -50,6 +50,7 @@ export default function HighestReceiptSection({ highlights, loading }) {
   return (
     <>
       <motion.div
+        className="dashboard-summary-card"
         whileHover={{
           y: -2.5,
           borderColor: 'rgba(255, 255, 255, 0.20)',

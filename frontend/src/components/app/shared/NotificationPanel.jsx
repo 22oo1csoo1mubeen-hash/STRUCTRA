@@ -160,7 +160,7 @@ function formatNotificationDesc(item) {
 }
 
 /* ─── Main panel ───────────────────────────────────────────── */
-export default function NotificationPanel({ isOpen, onClose, onUnreadCountChange }) {
+export default function NotificationPanel({ isOpen, onClose, onUnreadCountChange, triggerRef }) {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -196,13 +196,15 @@ export default function NotificationPanel({ isOpen, onClose, onUnreadCountChange
   useEffect(() => {
     if (!isOpen) return;
     const handleOutside = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) {
+      const clickedPanel = panelRef.current?.contains(e.target);
+      const clickedTrigger = triggerRef?.current?.contains(e.target);
+      if (!clickedPanel && !clickedTrigger) {
         onClose?.();
       }
     };
     document.addEventListener('mousedown', handleOutside);
     return () => document.removeEventListener('mousedown', handleOutside);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, triggerRef]);
 
   const handleMarkAllRead = useCallback(async () => {
     if (marking) return;
@@ -238,6 +240,7 @@ export default function NotificationPanel({ isOpen, onClose, onUnreadCountChange
         <motion.div
           ref={panelRef}
           id="notification-panel"
+          className="structra-notification-panel"
           role="dialog"
           aria-label="Notifications"
           initial={{ opacity: 0, scale: 0.94, y: -8 }}

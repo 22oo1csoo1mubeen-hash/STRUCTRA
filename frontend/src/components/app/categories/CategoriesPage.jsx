@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { listDocuments, deleteDocument, exportDocument } from '../../../api/documents';
 import { useDocumentLibrary } from '../../../context/DocumentLibraryContext';
-import DocumentCard, { parseDateString } from '../library/DocumentCard';
+import DocumentCard from '../library/DocumentCard';
+import { parseDateString } from '../../../utils/documentDate';
 
 /* ─── Pre-defined Standard Categories ────────────────────── */
 const PRESET_CATEGORIES = [
@@ -326,15 +327,16 @@ function DeleteModal({ doc, loading, onConfirm, onCancel }) {
 
 /* ─── Export Modal ───────────────────────────────────────── */
 function ExportModal({ doc, loading, onConfirm, onCancel }) {
-  if (!doc) return null;
-
   useEffect(() => {
+    if (!doc) return undefined;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && !loading) onCancel();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [loading, onCancel]);
+  }, [doc, loading, onCancel]);
+
+  if (!doc) return null;
 
   return createPortal(
     <motion.div
@@ -685,14 +687,76 @@ export default function CategoriesPage() {
             grid-template-columns: 1fr;
           }
         }
+
+        @media (max-width: 767px) {
+          .category-page { padding-bottom: 88px !important; }
+          .category-page-header { padding: 20px 14px 0 !important; }
+          .category-page-header h1 { font-size: 27px !important; }
+          .category-page-header-art { display: none !important; }
+          .category-picker { padding: 14px 12px 0 !important; gap: 10px !important; }
+          #category-box-all { padding: 12px !important; border-radius: 14px !important; gap: 10px; }
+          #category-box-all > div:nth-child(2) { min-width: 0; gap: 10px !important; }
+          #category-box-all > div:nth-child(2) > div:first-child { width: 38px !important; height: 38px !important; border-radius: 10px !important; }
+          #category-box-all > div:nth-child(2) > div:nth-child(2) > div { flex-wrap: wrap; gap: 6px !important; }
+          #category-box-all > div:nth-child(2) > div:nth-child(2) > div > span:first-child { font-size: 13px !important; }
+          #category-box-all > div:nth-child(2) > span { display: none !important; }
+          #category-box-all > div:nth-child(3) { gap: 6px !important; }
+          #category-box-all > div:nth-child(3) > div:first-child > span:first-child { font-size: 23px !important; }
+          #category-box-all > div:nth-child(3) > div:first-child > span:nth-child(2) { font-size: 9px !important; white-space: nowrap; }
+          .cat-subcards-row-3, .cat-subcards-row-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+          .category-subcategory-grid { display: grid !important; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px !important; }
+          .category-subcategory-grid .cat-subcards-row-3, .category-subcategory-grid .cat-subcards-row-4 { display: contents; }
+          .cat-subcards-row-3 > div, .cat-subcards-row-4 > div { min-width: 0; min-height: 104px !important; flex-direction: column; align-items: flex-start !important; justify-content: flex-start; gap: 8px !important; padding: 10px !important; border-radius: 13px !important; }
+          .category-subcategory-grid .cat-subcards-row-3 > div, .category-subcategory-grid .cat-subcards-row-4 > div { grid-column: span 3; }
+          .category-subcategory-grid #category-box-healthcare, .category-subcategory-grid #category-box-office, .category-subcategory-grid #category-box-utilities { grid-column: span 2; }
+          .cat-subcards-row-3 > div > div:nth-child(2), .cat-subcards-row-4 > div > div:nth-child(2) { width: 32px !important; height: 32px !important; border-radius: 9px !important; }
+          .cat-subcards-row-3 > div > div:nth-child(2) svg, .cat-subcards-row-4 > div > div:nth-child(2) svg { width: 18px; height: 18px; }
+          .cat-subcards-row-3 > div > div:nth-child(3), .cat-subcards-row-4 > div > div:nth-child(3) { width: 100%; }
+          .cat-subcards-row-3 > div > div:nth-child(3) > span:first-child, .cat-subcards-row-4 > div > div:nth-child(3) > span:first-child { font-size: 11px !important; }
+          .cat-subcards-row-3 > div > div:nth-child(3) > div > span:first-child, .cat-subcards-row-4 > div > div:nth-child(3) > div > span:first-child { font-size: 17px !important; }
+          .category-toolbar { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px !important; padding: 16px 12px 0 !important; }
+          .category-search-wrap { grid-column: 1 / -1; min-width: 0 !important; }
+          .category-active-filter, .category-sort-wrap { min-width: 0 !important; width: 100%; height: 48px !important; padding: 0 10px !important; overflow: hidden; }
+          .category-active-filter > span:nth-of-type(1) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .category-sort-wrap select { height: 48px !important; font-size: 12px !important; padding-left: 10px !important; }
+          .category-view-toggle { grid-column: 1 / -1; width: 100%; margin-left: 0 !important; }
+          .category-view-toggle button { flex: 1; width: auto !important; height: 44px !important; }
+          .category-documents { padding: 14px 12px 0 !important; }
+          .library-grid-card { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 !important; padding: 11px 12px !important; border-radius: 14px !important; }
+          .library-grid-card > div:nth-child(2) { grid-column: 1 / -1; padding: 0 0 8px !important; }
+          .library-grid-card > div:nth-child(3) { display: none !important; }
+          .library-grid-card > div:nth-child(4) { grid-column: 1 / -1; display: grid !important; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px !important; padding: 0 !important; }
+          .library-grid-card > div:nth-child(4) > p:first-child { grid-column: 1 / -1; font-size: 14px !important; }
+          .library-grid-card > div:nth-child(4) > p:nth-child(2) { grid-column: 1 / -1; font-size: 11.5px !important; }
+          .library-grid-card > div:nth-child(4) > div:nth-child(3), .library-grid-card > div:nth-child(4) > div:nth-child(4) { grid-column: 1 / -1; margin-top: 4px !important; }
+          .library-grid-card > div:nth-child(4) > div:nth-child(4) button { width: 36px !important; height: 36px !important; }
+          .category-documents .library-list-card { display: grid !important; grid-template-columns: 42px minmax(0, 1fr) auto !important; align-items: center !important; gap: 7px 9px !important; padding: 11px !important; }
+          .category-documents .library-list-card .lib-list-thumbnail { grid-column: 1; grid-row: 1 / span 2; width: 42px !important; height: 46px !important; }
+          .category-documents .library-list-card .lib-list-badges { grid-column: 2; grid-row: 1; flex-direction: row !important; flex-wrap: wrap; gap: 5px !important; min-width: 0; }
+          .category-documents .library-list-card .lib-list-info { grid-column: 2; grid-row: 2; }
+          .category-documents .library-list-card .lib-list-info > p:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .category-documents .library-list-card .lib-list-date { grid-column: 2; grid-row: 3; font-size: 11px !important; }
+          .category-documents .library-list-card .lib-list-amount { grid-column: 3; grid-row: 1; font-size: 12px !important; }
+          .category-documents .library-list-card .lib-list-confidence { grid-column: 3; grid-row: 2; justify-self: end; }
+          .category-documents .library-list-card .lib-list-actions { grid-column: 3; grid-row: 3; }
+          .category-documents .library-list-card .lib-list-actions button { width: 36px !important; height: 36px !important; }
+        }
+        @media (max-width: 380px) {
+          .cat-subcards-row-3 > div, .cat-subcards-row-4 > div { min-height: 98px !important; padding: 9px !important; }
+          .category-documents .library-list-card { grid-template-columns: 36px minmax(0, 1fr) auto !important; gap: 7px !important; }
+          .category-documents .library-list-card .lib-list-thumbnail { width: 36px !important; height: 42px !important; }
+        }
+        @media (min-width: 540px) and (max-width: 767px) {
+          .lib-grid-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
       `}</style>
 
-      <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: 40, width: '100%' }}>
+      <div className="category-page" style={{ display: 'flex', flexDirection: 'column', paddingBottom: 40, width: '100%' }}>
 
         {/* ════════════════════════════════════════════════════════════════
             PAGE HEADER (MATCHING DOCUMENT LIBRARY HEADER)
         ════════════════════════════════════════════════════════════════ */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '24px 28px 0' }}>
+        <div className="category-page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '24px 28px 0' }}>
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -737,6 +801,7 @@ export default function CategoriesPage() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
             aria-hidden="true"
+            className="category-page-header-art"
             style={{
               flexShrink: 0,
               width: 140,
@@ -802,7 +867,7 @@ export default function CategoriesPage() {
         {/* ════════════════════════════════════════════════════════════════
             CATEGORY BOXES (ALL CATEGORIES OCCUPIES FULL LINE + COMPACT SUB-CARDS)
         ════════════════════════════════════════════════════════════════ */}
-        <div style={{ padding: '20px 28px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="category-picker" style={{ padding: '20px 28px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* ALL CATEGORIES - OCCUPIES THE WHOLE ROW / LINE */}
           {(() => {
             const allCat = categoryBoxes.find((c) => c.id === 'all') || categoryBoxes[0];
@@ -1118,7 +1183,7 @@ export default function CategoriesPage() {
             };
 
             return (
-              <>
+              <div className="category-subcategory-grid">
                 {/* Row 1: 3 categories filling the entire row */}
                 <div className="cat-subcards-row-3">
                   {row1Cats.map((cat, i) => renderCard(cat, i))}
@@ -1130,7 +1195,7 @@ export default function CategoriesPage() {
                     {row2Cats.map((cat, i) => renderCard(cat, i + 3))}
                   </div>
                 )}
-              </>
+              </div>
             );
           })()}
         </div>
@@ -1139,6 +1204,7 @@ export default function CategoriesPage() {
             TOOLBAR (SEARCH, SORT, VIEW MODE TOGGLE)
         ════════════════════════════════════════════════════════════════ */}
         <div
+          className="category-toolbar"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -1151,7 +1217,7 @@ export default function CategoriesPage() {
           }}
         >
           {/* Search Input */}
-          <div style={{ position: 'relative', flex: '3 1 240px', minWidth: 200 }}>
+          <div className="category-search-wrap" style={{ position: 'relative', flex: '3 1 240px', minWidth: 200 }}>
             <input
               id="category-search-input"
               type="text"
@@ -1208,6 +1274,7 @@ export default function CategoriesPage() {
 
           {/* Active Category Indicator / Filter Pill */}
           <div
+            className="category-active-filter"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1282,7 +1349,7 @@ export default function CategoriesPage() {
           </div>
 
           {/* Sort By Dropdown */}
-          <div style={{ position: 'relative', flex: '1 1 150px', minWidth: 140 }}>
+          <div className="category-sort-wrap" style={{ position: 'relative', flex: '1 1 150px', minWidth: 140 }}>
             <select
               id="category-sort-select"
               value={sortBy}
@@ -1330,7 +1397,7 @@ export default function CategoriesPage() {
           </div>
 
           {/* View Mode Toggle — Grid / List */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 'auto' }}>
+          <div className="category-view-toggle" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 'auto' }}>
             <motion.button
               id="category-grid-view-btn"
               type="button"
@@ -1402,7 +1469,7 @@ export default function CategoriesPage() {
         {/* ════════════════════════════════════════════════════════════════
             DOCUMENT GRID / LIST (MATCHING LIBRARY CARDS)
         ════════════════════════════════════════════════════════════════ */}
-        <div style={{ padding: '18px 28px 0' }}>
+        <div className="category-documents" style={{ padding: '18px 28px 0' }}>
           {/* Loading Skeletons */}
           {loading && (
             <div className={viewMode === 'grid' ? 'lib-grid-container' : undefined} style={{ display: viewMode === 'list' ? 'flex' : undefined, flexDirection: viewMode === 'list' ? 'column' : undefined, gap: 14 }}>

@@ -618,6 +618,26 @@ async def record_security_activity(
     return new_item
 
 
+# Keep the profile security feed separate from document/profile notifications
+# that share the same database table.
+SECURITY_ACTIVITY_EVENT_TYPES = (
+    "account_created",
+    "email_changed",
+    "email_verified",
+    "google_linked",
+    "mfa_disabled",
+    "mfa_enabled",
+    "oauth_sign_in",
+    "password_changed",
+    "password_created",
+    "password_reset",
+    "password_reset_requested",
+    "sessions_revoked",
+    "sign_in",
+    "sign_out",
+)
+
+
 async def get_user_security_activity(
     user_id: str,
     settings: Settings = None,
@@ -635,6 +655,7 @@ async def get_user_security_activity(
         params = {
             "select": "id,event_type,description,device_info,ip_address,created_at",
             "user_id": f"eq.{user_id}",
+            "event_type": f"in.({','.join(SECURITY_ACTIVITY_EVENT_TYPES)})",
             "order": "created_at.desc",
             "limit": str(limit),
         }
@@ -646,6 +667,8 @@ async def get_user_security_activity(
                 rows = response.json()
                 if isinstance(rows, list):
                     for r in rows:
+                        if str(r.get("event_type") or "").lower() not in SECURITY_ACTIVITY_EVENT_TYPES:
+                            continue
                         items.append(
                             SecurityActivityItem(
                                 id=str(r.get("id")),

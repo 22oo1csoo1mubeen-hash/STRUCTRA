@@ -23,10 +23,11 @@ export default function Stage2View({ file, onProcessDocument, onRemoveFile }) {
   const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0' }}>
+    <div className="structra-stage-ready" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0' }}>
       
       {/* Top Header */}
       <motion.div 
+        className="structra-stage-ready-heading"
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -56,6 +57,7 @@ export default function Stage2View({ file, onProcessDocument, onRemoveFile }) {
 
       {/* Detail Card Container */}
       <motion.div 
+        className="structra-stage-ready-card"
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
@@ -118,9 +120,9 @@ export default function Stage2View({ file, onProcessDocument, onRemoveFile }) {
         </div>
 
         {/* Document Info Grid */}
-        <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+        <div className="structra-stage-ready-info" style={{ flex: 1, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
           
-          <div style={{ flex: '1 1 150px', paddingRight: 10 }}>
+          <div className="structra-stage-ready-name" style={{ flex: '1 1 150px', paddingRight: 10 }}>
             <h3 style={{ 
               fontSize: 16, 
               fontWeight: 600, 
@@ -138,17 +140,17 @@ export default function Stage2View({ file, onProcessDocument, onRemoveFile }) {
             </div>
           </div>
           
-          <div style={{ flex: '1 1 80px' }}>
+          <div className="structra-stage-ready-type" style={{ flex: '1 1 80px' }}>
             <p style={{ fontSize: 12.5, color: 'rgba(255,240,220,0.5)', marginBottom: 4 }}>File Type</p>
             <p style={{ fontSize: 14.5, color: 'rgba(255,250,242,0.9)', fontWeight: 500 }}>{fileTypeStr}</p>
           </div>
 
-          <div style={{ flex: '1 1 80px' }}>
+          <div className="structra-stage-ready-size" style={{ flex: '1 1 80px' }}>
             <p style={{ fontSize: 12.5, color: 'rgba(255,240,220,0.5)', marginBottom: 4 }}>File Size</p>
             <p style={{ fontSize: 14.5, color: 'rgba(255,250,242,0.9)', fontWeight: 500 }}>{sizeStr}</p>
           </div>
 
-          <div style={{ flex: '1 1 150px' }}>
+          <div className="structra-stage-ready-date" style={{ flex: '1 1 150px' }}>
             <p style={{ fontSize: 12.5, color: 'rgba(255,240,220,0.5)', marginBottom: 4 }}>Added On</p>
             <p style={{ fontSize: 14.5, color: 'rgba(255,250,242,0.9)', fontWeight: 500, whiteSpace: 'nowrap' }}>{dateStr} • {timeStr}</p>
           </div>
@@ -157,6 +159,7 @@ export default function Stage2View({ file, onProcessDocument, onRemoveFile }) {
 
       {/* Action Buttons */}
       <motion.div 
+        className="structra-stage-ready-actions"
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
@@ -223,6 +226,7 @@ export default function Stage2View({ file, onProcessDocument, onRemoveFile }) {
 
       {/* Footer text */}
       <motion.div 
+        className="structra-stage-ready-security"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}

@@ -1,18 +1,28 @@
-import NavBar from './NavBar';
+﻿import NavBar from './NavBar';
 import HeroSection from './HeroSection';
 import FeatureStrip from './FeatureStrip';
-import bgImage from '../../assets/bg.webp';
+import landingBackground from '../../../../design-assets/landing/landing-background.webp';
+import { LandingLayoutProvider, useLanding } from './LandingLayoutContext';
 
 /**
  * LandingPage
- * Full-viewport container. Layers (bottom to top):
- *   1. Background image (object-fit: cover)
- *   2. Subtle dark overlay (readability)
- *   3. NavBar (absolute, top)
- *   4. HeroSection (absolute, center)
- *   5. FeatureStrip (absolute, bottom)
+ * Full-viewport container with deterministic responsive geometry
+ * locked to the background artwork and user's laptop source of truth.
  */
-export default function LandingPage() {
+function LandingPageContent() {
+  const layout = useLanding();
+  const backgroundStyle = {
+    position: 'absolute',
+    top: `${layout.imgTop}px`,
+    left: `${layout.imgLeft}px`,
+    width: `${layout.imgW}px`,
+    height: `${layout.imgH}px`,
+    maxWidth: 'none',
+    maxHeight: 'none',
+    userSelect: 'none',
+    pointerEvents: 'none',
+  };
+
   return (
     <div
       style={{
@@ -20,27 +30,22 @@ export default function LandingPage() {
         width: '100vw',
         height: '100vh',
         overflow: 'hidden',
+        backgroundColor: '#0a0d14',
       }}
     >
-      {/* ── 1. Background image ──────────────────────── */}
       <img
-        src={bgImage}
+        src={landingBackground}
         alt=""
         aria-hidden="true"
         draggable={false}
         style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
+          ...backgroundStyle,
           objectFit: 'cover',
-          objectPosition: 'center bottom',
-          userSelect: 'none',
-          pointerEvents: 'none',
+          objectPosition: 'center',
         }}
       />
 
-      {/* ── 2. Subtle dark overlay ───────────────────── */}
+      {/* Subtle dark overlay */}
       <div
         aria-hidden="true"
         style={{
@@ -51,14 +56,17 @@ export default function LandingPage() {
         }}
       />
 
-      {/* ── 3. NavBar ────────────────────────────────── */}
       <NavBar />
-
-      {/* ── 4. Hero section ──────────────────────────── */}
       <HeroSection />
-
-      {/* ── 5. Feature strip ─────────────────────────── */}
       <FeatureStrip />
     </div>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <LandingLayoutProvider>
+      <LandingPageContent />
+    </LandingLayoutProvider>
   );
 }

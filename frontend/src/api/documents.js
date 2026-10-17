@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
+import { API_URL } from '../config/api';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 /**
  * Uploads a document to the backend API.
@@ -38,7 +38,7 @@ export async function uploadDocument(file, forceDuplicate = false) {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Upload failed. Please try again.');
@@ -73,7 +73,7 @@ export async function extractDocument(documentId) {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Extraction failed. Please try again.');
@@ -110,7 +110,7 @@ export async function validateDocument(documentId, extraction) {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Validation failed.');
@@ -144,7 +144,7 @@ export async function downloadDocument(documentId) {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Document download failed.');
@@ -193,7 +193,7 @@ export async function exportDocument(documentId) {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Document export failed. Please try again.');
@@ -242,7 +242,7 @@ export async function getDocumentDetail(documentId) {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Failed to fetch document detail.');
@@ -300,7 +300,7 @@ export async function listDocuments(page = 1, pageSize = 20, options = {}) {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string'
@@ -336,7 +336,7 @@ export async function deleteDocument(documentId) {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string'
@@ -379,7 +379,7 @@ export async function getDocumentPreview(documentId) {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string' ? errorData.detail : (errorData.detail?.[0]?.msg || 'Failed to fetch document preview.');
@@ -416,7 +416,7 @@ export async function updateDocument(documentId, extraction) {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string'
@@ -477,7 +477,7 @@ export async function saveDocument(documentId, forceSaveDuplicate = false, extra
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string'
@@ -520,7 +520,7 @@ export async function getRecentDocuments() {
     let errorData;
     try {
       errorData = await response.json();
-    } catch (e) {
+    } catch {
       errorData = { detail: response.statusText };
     }
     const errorMessage = typeof errorData.detail === 'string'

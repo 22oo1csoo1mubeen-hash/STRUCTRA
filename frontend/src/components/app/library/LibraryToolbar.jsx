@@ -16,7 +16,7 @@ function LabelledDropdown({ id, groupLabel, value, options, onChange }) {
   }, [open]);
 
   return (
-    <div ref={ref} style={{ position: 'relative', flex: '1 1 150px', minWidth: 135 }}>
+    <div ref={ref} className="library-filter-wrap" style={{ position: 'relative', flex: '1 1 150px', minWidth: 135 }}>
       <button
         id={id}
         type="button"
@@ -118,7 +118,7 @@ function ActionsDropdown({ onExportAll, onDeleteAll, exportAllLoading, deleteAll
   const isDisabled = (exportAllLoading || deleteAllLoading || totalDocs === 0);
 
   return (
-    <div ref={ref} style={{ position: 'relative', flex: '1 1 140px', minWidth: 130 }}>
+    <div ref={ref} className="library-actions-wrap" style={{ position: 'relative', flex: '1 1 140px', minWidth: 130 }}>
       <button
         id="library-actions-dropdown-btn"
         type="button"
@@ -283,7 +283,7 @@ export default function LibraryToolbar({
   const [focused, setFocused] = useState(false);
 
   return (
-    <div style={{
+    <div className="library-toolbar" style={{
       display: 'flex',
       alignItems: 'center',
       gap: 12,
@@ -295,7 +295,7 @@ export default function LibraryToolbar({
     }}>
 
       {/* Search Input - Expands with maximum generous width */}
-      <div style={{ position: 'relative', flex: '3 1 240px', minWidth: 200 }}>
+      <div className="library-search-wrap" style={{ position: 'relative', flex: '3 1 240px', minWidth: 200 }}>
         <input
           id="library-search-input"
           type="text"
@@ -365,7 +365,7 @@ export default function LibraryToolbar({
       />
 
       {/* View Mode Toggle — Grid / List */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 'auto' }}>
+      <div className="library-view-toggle" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 'auto' }}>
         {/* Grid View Button */}
         <motion.button
           id="library-grid-view-btn"

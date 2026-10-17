@@ -39,6 +39,22 @@ const RESPONSIVE_CSS = `
   grid-template-columns: repeat(5, 1fr);
   gap: 12px;
 }
+body.dashboard-modal-open .dashboard-console .dashboard-kpi-card > div:first-child,
+body.dashboard-modal-open .dashboard-console .dashboard-chart-card > div:first-child,
+body.dashboard-modal-open .dashboard-console .dashboard-items-card > div:first-child,
+body.dashboard-modal-open .dashboard-console .dashboard-summary-card > div:first-child {
+  opacity: 0 !important;
+}
+body.dashboard-modal-open .dashboard-console .dashboard-kpi-card,
+body.dashboard-modal-open .dashboard-console .dashboard-chart-card,
+body.dashboard-modal-open .dashboard-console .dashboard-items-card,
+body.dashboard-modal-open .dashboard-console .dashboard-summary-card {
+  transform: none !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.065) 0%, rgba(255, 255, 255, 0.022) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.11) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28) !important;
+  filter: none !important;
+}
 @media (max-width: 1460px) {
   .dashboard-row-1 {
     grid-template-columns: repeat(3, 1fr);
@@ -82,6 +98,46 @@ const RESPONSIVE_CSS = `
   .dashboard-row-3 {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 767px) {
+  .structra-dashboard-page { padding: 0 12px 88px !important; }
+  .dashboard-header { padding: 14px 2px 12px !important; gap: 12px !important; }
+  .dashboard-header-copy { width: 100%; }
+  .dashboard-header-title-row { flex-wrap: wrap; gap: 8px !important; }
+  .dashboard-header-title-row h1 { font-size: 27px !important; }
+  .dashboard-header-description { max-width: 42rem; font-size: 12.5px !important; line-height: 1.45; }
+  .dashboard-header-actions { width: 100%; gap: 8px !important; }
+  .dashboard-date-chip { flex: 1; min-height: 38px; padding: 7px 10px !important; }
+  #dashboard-refresh-btn { min-height: 38px; justify-content: center; padding: 7px 12px !important; }
+  .dashboard-row-1 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }
+  .dashboard-row-1 > .dashboard-kpi-card:first-child { grid-column: 1 / -1; }
+  .dashboard-row-2, .dashboard-row-3 { gap: 10px; }
+  .dashboard-console { padding: 12px !important; gap: 10px !important; border-radius: 16px !important; }
+  .dashboard-console, .dashboard-console * { min-width: 0; }
+  .dashboard-row-1 > div { min-height: 76px !important; padding: 9px !important; gap: 7px !important; }
+  .dashboard-row-1 > div > div:nth-child(2) { width: 30px !important; height: 30px !important; }
+  .dashboard-row-1 > div > div:nth-child(2) svg { width: 16px; height: 16px; }
+  .dashboard-row-1 > div > div:nth-child(3) > span:nth-child(2) { font-size: 15px !important; }
+  .dashboard-chart-card > div:nth-child(2) { flex-wrap: wrap; align-items: center !important; gap: 8px !important; }
+  .dashboard-chart-card > div:nth-child(2) > div:first-child { min-width: 0; }
+  .dashboard-chart-card > div:nth-child(2) > div:last-child { margin-left: auto; }
+  .dashboard-chart-card { min-height: 250px !important; height: auto !important; padding: 13px 12px 10px !important; }
+  .dashboard-chart-card .spending-axis-label { font-size: 12px !important; font-weight: 600; fill: rgba(255,255,255,0.62) !important; }
+  .dashboard-items-card { min-height: 210px !important; height: auto !important; padding: 13px 12px 10px !important; }
+  .dashboard-summary-card { min-height: 148px !important; height: auto !important; padding: 12px !important; }
+  .dashboard-status-bar { padding-top: 10px !important; gap: 8px !important; }
+  .dashboard-status-bar > div { align-items: flex-start !important; }
+  .dashboard-modal-header { padding: 16px !important; }
+  .dashboard-modal-body { padding: 14px !important; }
+}
+@media (max-width: 399px) {
+  .dashboard-row-1 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .dashboard-row-1 > div > div:nth-child(2) { width: 26px !important; height: 26px !important; }
+  .dashboard-row-1 > div > div:nth-child(3) > span:nth-child(2) { font-size: 13px !important; }
+  .dashboard-console { padding: 10px !important; }
+  .dashboard-chart-card { min-height: 235px !important; }
+  .dashboard-chart-card .spending-axis-label { font-size: 11px !important; }
 }
 `;
 
@@ -144,6 +200,7 @@ export default function DashboardPage() {
 
   return (
     <div
+      className="structra-dashboard-page"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -216,6 +273,7 @@ export default function DashboardPage() {
               ONE LARGE TRANSPARENT GLASS CONTAINER
           ══════════════════════════════════════════════════ */}
           <div
+            className="dashboard-console"
             style={{
               borderRadius: 20,
               background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%)',
@@ -324,6 +382,7 @@ export default function DashboardPage() {
 function DashboardSkeleton() {
   return (
     <div
+      className="dashboard-console dashboard-skeleton-console"
       style={{
         borderRadius: 20,
         background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%)',

@@ -15,13 +15,23 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
-  const handleDragOver = useCallback((e) => {
+  const handleDragEnter = useCallback((e) => {
+    if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
     e.preventDefault();
     setIsDragOver(true);
   }, []);
 
-  const handleDragLeave = useCallback((e) => {
+  const handleDragOver = useCallback((e) => {
     e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    // Drag events bubble between the card's children. Keep the highlight while
+    // the pointer is still somewhere inside the drop target.
+    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
     setIsDragOver(false);
   }, []);
 
@@ -39,6 +49,7 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
 
   return (
     <div
+      className="structra-upload-card-wrapper"
       style={{ padding: '0 28px', marginTop: 14 }}
     >
       <input
@@ -53,7 +64,10 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
       />
 
       <motion.div
+        className="structra-upload-card-inner"
+        data-stage={stage}
         layout
+        onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -148,6 +162,7 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
             >
               {/* Cloud upload icon with sparkles */}
               <motion.div
+                className="structra-upload-icon"
                 animate={isDragOver ? { scale: 1.08, y: -4 } : { scale: 1, y: 0 }}
                 transition={{ duration: 0.22 }}
                 style={{
@@ -195,6 +210,7 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
 
               {/* Heading */}
               <h2
+                className="structra-upload-prompt"
                 style={{
                   fontSize: 18,
                   fontWeight: 700,
@@ -211,6 +227,7 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
 
               {/* "or" */}
               <p
+                className="structra-upload-or"
                 style={{
                   fontSize: 13,
                   color: 'rgba(255,240,220,0.60)',
@@ -257,10 +274,10 @@ export default function UploadCard({ stage, setStage, file, uploadedDocument, er
               </motion.button>
 
               {/* Formats */}
-              <p style={{ fontSize: 12.5, color: 'rgba(255,240,220,0.52)', fontFamily: "'Inter', sans-serif", marginBottom: 4, textAlign: 'center' }}>
+              <p className="structra-upload-supported" style={{ fontSize: 12.5, color: 'rgba(255,240,220,0.52)', fontFamily: "'Inter', sans-serif", marginBottom: 4, textAlign: 'center' }}>
                 Supported formats: PDF, JPG, PNG
               </p>
-              <p style={{ fontSize: 12.5, color: 'rgba(255,240,220,0.40)', fontFamily: "'Inter', sans-serif", textAlign: 'center' }}>
+              <p className="structra-upload-supported" style={{ fontSize: 12.5, color: 'rgba(255,240,220,0.40)', fontFamily: "'Inter', sans-serif", textAlign: 'center' }}>
                 You can upload multiple files at once
               </p>
 

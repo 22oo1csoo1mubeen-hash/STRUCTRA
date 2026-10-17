@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Bell, ChevronDown, User, LogOut } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import NotificationPanel from './NotificationPanel';
 import { getNotifications } from '../../../api/notifications';
 import { supabase } from '../../../lib/supabase';
 import { getUserAvatarUrl } from '../../../utils/avatar';
+import logo from '../../../assets/structra-logo.png';
+import { getApiAssetUrl } from '../../../config/api';
 
 /**
  * TopBar
@@ -222,6 +223,7 @@ export default function TopBar({
       `}</style>
 
       <div
+        className="structra-topbar"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -237,6 +239,10 @@ export default function TopBar({
           borderBottom: isScrolled ? '1px solid rgba(249,115,22,0.15)' : '1px solid transparent',
         }}
       >
+        <Link className="structra-mobile-brand" to="/" aria-label="Go to STRUCTRA home">
+          <img src={logo} alt="" />
+          <span>STRUCTRA</span>
+        </Link>
         {/* ── Workspace / System Status Badge ────────────────── */}
         <div
           id="topbar-workspace-badge"
@@ -333,6 +339,7 @@ export default function TopBar({
             isOpen={bellOpen}
             onClose={() => setBellOpen(false)}
             onUnreadCountChange={setUnreadCount}
+            triggerRef={bellRef}
           />
         </div>
 
@@ -378,7 +385,7 @@ export default function TopBar({
             >
               {avatarUrl && !avatarLoadError ? (
                 <img
-                  src={avatarUrl.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${avatarUrl}` : avatarUrl}
+                  src={getApiAssetUrl(avatarUrl)}
                   alt={userName}
                   onError={() => setAvatarLoadError(true)}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}

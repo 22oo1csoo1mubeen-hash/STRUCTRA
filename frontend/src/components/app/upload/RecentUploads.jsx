@@ -118,7 +118,7 @@ export default function RecentUploads({ uploads = [], isLoading = false, error =
   };
 
   return (
-    <div style={{ padding: '20px 28px 32px 28px' }}>
+    <div className="structra-recent-uploads" style={{ padding: '20px 28px 32px 28px' }}>
       <div
         style={{
           borderRadius: 18,
@@ -281,14 +281,15 @@ export default function RecentUploads({ uploads = [], isLoading = false, error =
 
         {/* Populated state — real document rows */}
         {!isLoading && !error && uploads.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {uploads.map((doc) => {
+          <div className="structra-recent-list" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {uploads.slice(0, 5).map((doc) => {
               const ts = doc.processed_at || doc.created_at;
               const amountStr = formatAmount(doc.total_amount);
               const relTime = formatRelativeTime(ts);
 
               return (
                 <motion.div
+                  className="structra-recent-row"
                   key={doc.document_id || doc.id}
                   onClick={() => handleDocumentClick(doc)}
                   role="button"
@@ -336,8 +337,22 @@ export default function RecentUploads({ uploads = [], isLoading = false, error =
                     </p>
 
                     {/* Vendor + time */}
-                    <p style={{ fontSize: 12, color: 'rgba(255,220,180,0.55)', fontFamily: "'Inter', sans-serif", marginTop: 2 }}>
-                      {doc.vendor_name ? `${doc.vendor_name} · ` : ''}{relTime}
+                    <p className="structra-recent-meta" style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      minWidth: 0,
+                      gap: 5,
+                      overflow: 'hidden',
+                      marginTop: 2,
+                      color: 'rgba(255,220,180,0.55)',
+                      fontSize: 12,
+                      lineHeight: 1.3,
+                      fontFamily: "'Inter', sans-serif",
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {doc.vendor_name && <span className="structra-recent-vendor" title={doc.vendor_name}>{doc.vendor_name}</span>}
+                      {doc.vendor_name && relTime && <span className="structra-recent-separator" aria-hidden="true">·</span>}
+                      {relTime && <span className="structra-recent-time">{relTime}</span>}
                     </p>
                   </div>
 

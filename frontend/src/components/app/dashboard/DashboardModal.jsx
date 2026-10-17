@@ -32,12 +32,28 @@ export default function DashboardModal({
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      document.body.classList.add('dashboard-modal-open');
     } else {
       document.body.style.overflow = '';
+      document.body.classList.remove('dashboard-modal-open');
     }
     return () => {
       document.body.style.overflow = '';
+      document.body.classList.remove('dashboard-modal-open');
     };
+  }, [isOpen]);
+
+  // Bring the dashboard content into view when an eye control opens its detail.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const scrollArea = document.getElementById('app-scroll-area');
+    if (!scrollArea) return undefined;
+
+    const frame = window.requestAnimationFrame(() => {
+      const middle = Math.max(0, (scrollArea.scrollHeight - scrollArea.clientHeight) / 2);
+      scrollArea.scrollTo({ top: middle, behavior: 'smooth' });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [isOpen]);
 
   // Close on Escape
@@ -57,6 +73,7 @@ export default function DashboardModal({
           {/* ── Dark overlay ── */}
           <motion.div
             key="dashboard-modal-overlay"
+            className="dashboard-modal-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -78,6 +95,7 @@ export default function DashboardModal({
             {/* ── Glass panel ── */}
             <motion.div
               key="dashboard-modal-panel"
+              className="dashboard-modal-panel"
               initial={{ opacity: 0, scale: 0.94, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 10 }}
@@ -97,21 +115,9 @@ export default function DashboardModal({
                 position: 'relative',
               }}
             >
-              {/* Top sheen */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: '10%',
-                  width: '80%',
-                  height: 1,
-                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.20), transparent)',
-                  pointerEvents: 'none',
-                }}
-              />
-
               {/* ── Modal header ── */}
               <div
+                className="dashboard-modal-header"
                 style={{
                   display: 'flex',
                   alignItems: 'flex-start',
@@ -198,6 +204,7 @@ export default function DashboardModal({
 
               {/* ── Modal body (scrollable) ── */}
               <div
+                className="dashboard-modal-body"
                 style={{
                   flex: 1,
                   overflowY: 'auto',

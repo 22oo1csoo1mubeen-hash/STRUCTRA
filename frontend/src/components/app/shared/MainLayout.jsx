@@ -25,6 +25,7 @@ export default function MainLayout() {
 
   return (
     <div
+      className="structra-app-shell"
       style={{
         position: 'relative',
         width: '100%',
@@ -71,6 +72,7 @@ export default function MainLayout() {
 
       {/* ── Main content column ── */}
       <main
+        className="structra-main-content"
         id="app-scroll-area"
         ref={scrollRef}
         onScroll={handleScroll}

@@ -134,7 +134,7 @@ function DonutChart({ high = 0, medium = 0, low = 0, total = 0, size = 'small' }
  * DocumentQualitySection (Row 3, Column 2)
  * Transparent glass styling with hover animation and enlarged modal ring.
  */
-export default function DocumentQualitySection({ qualityData, loading }) {
+export default function DocumentQualitySection({ qualityData }) {
   const [modalOpen, setModalOpen] = useState(false);
 
   const dist = qualityData?.distribution || { high: 0, medium: 0, low: 0 };
@@ -154,6 +154,7 @@ export default function DocumentQualitySection({ qualityData, loading }) {
   return (
     <>
       <motion.div
+        className="dashboard-summary-card"
         whileHover={{
           y: -2.5,
           borderColor: 'rgba(255, 255, 255, 0.20)',

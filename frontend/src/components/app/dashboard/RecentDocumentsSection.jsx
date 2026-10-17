@@ -38,7 +38,7 @@ function ConfidenceBadge({ level }) {
  * RecentDocumentsSection (Row 3, Column 4)
  * Transparent glass styling matching the document library.
  */
-export default function RecentDocumentsSection({ recentData, loading }) {
+export default function RecentDocumentsSection({ recentData }) {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -56,6 +56,7 @@ export default function RecentDocumentsSection({ recentData, loading }) {
   return (
     <>
       <motion.div
+        className="dashboard-summary-card"
         whileHover={{
           y: -2.5,
           borderColor: 'rgba(255, 255, 255, 0.20)',

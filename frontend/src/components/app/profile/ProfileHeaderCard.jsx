@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Pencil, Check, Calendar, Mail } from 'lucide-react';
 import { getUserAvatarUrl } from '../../../utils/avatar';
+import { getApiAssetUrl } from '../../../config/api';
 
 /* ─────────────────────────────────────────────────────────────
    Format date utility (e.g. "18 Aug 2026")
@@ -182,6 +183,7 @@ export default function ProfileHeaderCard({
 
   return (
     <motion.div
+      className="structra-profile-hero-card"
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
@@ -201,6 +203,7 @@ export default function ProfileHeaderCard({
 
       {/* ── Top Hero Identity Row ── */}
       <div
+        className="structra-profile-hero-identity"
         style={{
           position: 'relative',
           zIndex: 1,
@@ -233,7 +236,7 @@ export default function ProfileHeaderCard({
             >
               {avatarUrl && !avatarLoadError ? (
                 <img
-                  src={avatarUrl.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${avatarUrl}` : avatarUrl}
+                  src={getApiAssetUrl(avatarUrl)}
                   alt={displayName}
                   onError={() => setAvatarLoadError(true)}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -366,6 +369,7 @@ export default function ProfileHeaderCard({
 
       {/* ── Bottom Information Strip: Email & Member Since (Single Row) ── */}
       <div
+        className="structra-profile-hero-details"
         style={{
           position: 'relative',
           zIndex: 1,

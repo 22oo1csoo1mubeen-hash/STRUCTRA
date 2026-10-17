@@ -118,7 +118,6 @@ export default function SpendingChartSection({
 
   if (hasData) {
     if (points.length === 1) {
-      const cx = getX(0);
       const cy = getY(points[0].amount);
       pathD = `M ${padding.left} ${cy} L ${padding.left + chartW} ${cy}`;
       areaD = `M ${padding.left} ${padding.top + chartH} L ${padding.left} ${cy} L ${padding.left + chartW} ${cy} L ${padding.left + chartW} ${padding.top + chartH} Z`;
@@ -147,6 +146,7 @@ export default function SpendingChartSection({
 
   return (
     <motion.div
+      className="dashboard-chart-card"
       whileHover={{
         y: -2.5,
         borderColor: 'rgba(255, 255, 255, 0.20)',
@@ -351,6 +351,7 @@ export default function SpendingChartSection({
                     strokeWidth="1"
                   />
                   <text
+                    className="spending-axis-label"
                     x={padding.left - 6}
                     y={yPos + 3.5}
                     textAnchor="end"
@@ -409,6 +410,7 @@ export default function SpendingChartSection({
 
               return (
                 <text
+                  className="spending-axis-label"
                   key={i}
                   x={x}
                   y={padding.top + chartH + 14}

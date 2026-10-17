@@ -34,6 +34,7 @@ export default function LibraryPagination({
 
   return (
     <motion.div
+      className="library-pagination"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28 }}
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 28px 40px', gap: 12, flexWrap: 'wrap' }}
     >

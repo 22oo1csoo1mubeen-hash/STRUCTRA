@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import { listDocuments } from '../api/documents';
 import { broadcastDashboardInvalidation } from './DashboardContext';
 

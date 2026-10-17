@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { CheckCircle2, AlertTriangle, Info, Pencil, X, RotateCcw } from 'lucide-react';
 
 const SIGNAL_LABELS = {
@@ -30,23 +31,47 @@ const SIGNAL_LABELS = {
 export default function ExtractionConfidenceCard({ quality, onConfidenceChange }) {
   const [isHovered, setIsHovered] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [mobilePopoverPosition, setMobilePopoverPosition] = useState(null);
   const containerRef = useRef(null);
+  const popoverRef = useRef(null);
+
+  const toggleEditPopover = () => {
+    const shouldOpen = !isEditOpen;
+    if (shouldOpen && window.matchMedia('(max-width: 767px)').matches) {
+      const bounds = containerRef.current?.getBoundingClientRect();
+      const width = Math.min(360, window.innerWidth - 24);
+      if (bounds) {
+        const left = Math.max(12, Math.min(bounds.left, window.innerWidth - width - 12));
+        const top = Math.max(12, Math.min(bounds.bottom + 8, window.innerHeight - 220));
+        setMobilePopoverPosition({ left, top, maxHeight: Math.max(180, window.innerHeight - top - 12) });
+      } else {
+        setMobilePopoverPosition({ left: 12, top: 12, maxHeight: window.innerHeight - 24 });
+      }
+    } else if (!shouldOpen) {
+      setMobilePopoverPosition(null);
+    }
+    setIsEditOpen(shouldOpen);
+  };
 
   // Click outside and escape key listener to close edit dropdown
   useEffect(() => {
     if (!isEditOpen) return;
     const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      if (
+        containerRef.current && !containerRef.current.contains(e.target) &&
+        (!popoverRef.current || !popoverRef.current.contains(e.target))
+      ) {
         setIsEditOpen(false);
+        setMobilePopoverPosition(null);
       }
     };
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') setIsEditOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('pointerdown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isEditOpen]);
@@ -144,8 +169,11 @@ export default function ExtractionConfidenceCard({ quality, onConfidenceChange }
   return (
     <div
       ref={containerRef}
+      className="structra-confidence-card"
       style={{ position: 'relative', display: 'inline-block' }}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={() => {
+        if (window.matchMedia('(hover: hover)').matches) setIsHovered(true);
+      }}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Confidence Button with Dynamic Theme & Embedded Pencil Icon */}
@@ -154,7 +182,7 @@ export default function ExtractionConfidenceCard({ quality, onConfidenceChange }
         whileTap={{ scale: 0.98 }}
         onClick={() => {
           if (onConfidenceChange) {
-            setIsEditOpen(prev => !prev);
+            toggleEditPopover();
           }
         }}
         style={{
@@ -233,7 +261,7 @@ export default function ExtractionConfidenceCard({ quality, onConfidenceChange }
             title="Edit confidence level"
             onClick={(e) => {
               e.stopPropagation();
-              setIsEditOpen(prev => !prev);
+              toggleEditPopover();
             }}
             style={{
               display: 'flex',
@@ -265,14 +293,18 @@ export default function ExtractionConfidenceCard({ quality, onConfidenceChange }
 
       {/* Popover: Interactive Edit Dropdown or Hover Details */}
       <AnimatePresence>
-        {(isEditOpen || (isHovered && !isEditOpen)) && (
+        {(isEditOpen || (isHovered && !isEditOpen && window.matchMedia('(hover: hover)').matches)) && (
+          <ConfidencePopoverPortal enabled={Boolean(isEditOpen && mobilePopoverPosition)}>
           <motion.div
+            ref={popoverRef}
+            className="structra-confidence-popover"
+            onClick={(e) => e.stopPropagation()}
             initial={{ opacity: 0, y: 8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.96 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              position: 'absolute',
+              position: isEditOpen && mobilePopoverPosition ? 'fixed' : 'absolute',
               top: 'calc(100% + 10px)',
               right: 0,
               zIndex: 100,
@@ -290,6 +322,15 @@ export default function ExtractionConfidenceCard({ quality, onConfidenceChange }
               display: 'flex',
               flexDirection: 'column',
               gap: 12,
+              ...(isEditOpen && mobilePopoverPosition ? {
+                position: 'fixed',
+                left: mobilePopoverPosition.left,
+                right: 'auto',
+                top: mobilePopoverPosition.top,
+                width: 'min(360px, calc(100vw - 24px))',
+                maxWidth: 'none',
+                maxHeight: `min(calc(100dvh - 24px), ${mobilePopoverPosition.maxHeight}px)`,
+              } : {}),
             }}
           >
             {/* Popover Header */}
@@ -506,8 +547,14 @@ export default function ExtractionConfidenceCard({ quality, onConfidenceChange }
               </div>
             )}
           </motion.div>
+          </ConfidencePopoverPortal>
         )}
       </AnimatePresence>
     </div>
   );
+}
+
+function ConfidencePopoverPortal({ enabled, children }) {
+  if (!enabled || typeof document === 'undefined') return children;
+  return createPortal(children, document.body);
 }

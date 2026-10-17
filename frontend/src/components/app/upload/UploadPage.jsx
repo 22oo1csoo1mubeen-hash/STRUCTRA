@@ -21,7 +21,6 @@ export default function UploadPage() {
     fileMeta,
     fileError,
     uploadedDocument,
-    isForcedDuplicate,
     extractionResult,
     extractionError,
     validationResult,

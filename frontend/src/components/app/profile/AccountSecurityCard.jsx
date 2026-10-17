@@ -5,7 +5,6 @@ import {
   Lock,
   Mail,
   CheckCircle2,
-  MoreVertical,
   ArrowRight,
   X,
   Eye,
@@ -14,9 +13,6 @@ import {
   Smartphone,
   Globe,
   Radio,
-  Plus,
-  Key,
-  Shield,
   Loader2,
   Check,
   AlertCircle,
@@ -29,6 +25,23 @@ import {
   getSecurityActivity,
   recordSecurityActivity,
 } from '../../../api/profile';
+
+const SECURITY_ACTIVITY_TYPES = new Set([
+  'account_created',
+  'email_changed',
+  'email_verified',
+  'google_linked',
+  'mfa_disabled',
+  'mfa_enabled',
+  'oauth_sign_in',
+  'password_changed',
+  'password_created',
+  'password_reset',
+  'password_reset_requested',
+  'sessions_revoked',
+  'sign_in',
+  'sign_out',
+]);
 
 /* ─── Official Google 'G' Icon ──────────────────────────────── */
 function GoogleIcon() {
@@ -174,7 +187,6 @@ export default function AccountSecurityCard({ user = null }) {
   const hasPassword = Boolean(
     securityData?.has_password ?? (userHasPasswordMeta || (!hasGoogle && baseProviders.includes('email')))
   );
-  const providers = hasPassword && !baseProviders.includes('email') ? [...baseProviders, 'email'] : baseProviders;
 
   const currentSession = securityData?.current_session || {
     device: 'Windows PC (Chrome)',
@@ -329,7 +341,7 @@ export default function AccountSecurityCard({ user = null }) {
         /* silent */
       }
 
-      const { data, error } = await supabase.auth.linkIdentity({
+      const { error } = await supabase.auth.linkIdentity({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -371,16 +383,22 @@ export default function AccountSecurityCard({ user = null }) {
   const handleSignOutOthers = async () => {
     setIsSigningOutOthers(true);
     try {
-      await supabase.auth.signOut({ scope: 'others' });
+      const { error } = await supabase.auth.signOut({ scope: 'others' });
+      if (error) throw error;
 
-      await recordSecurityActivity({
-        event_type: 'sessions_revoked',
-        description: 'Signed out of all other active device sessions',
-        device_info: currentSession.device,
-      });
+      try {
+        await recordSecurityActivity({
+          event_type: 'sessions_revoked',
+          description: 'Signed out of all other active device sessions',
+          device_info: currentSession.device,
+        });
+      } catch (activityError) {
+        // Audit logging should not turn a successful session revocation into a failure.
+        console.warn('Other sessions were revoked, but the activity event could not be saved:', activityError);
+      }
 
       showToast('Signed out of all other devices successfully.');
-      fetchSecurityState();
+      void fetchSecurityState();
     } catch (err) {
       console.error('Failed to revoke other sessions:', err);
       showToast('Failed to sign out other sessions.');
@@ -396,7 +414,11 @@ export default function AccountSecurityCard({ user = null }) {
     setLoadingActivity(true);
     try {
       const items = await getSecurityActivity();
-      setActivityLogs(items);
+      setActivityLogs(
+        Array.isArray(items)
+          ? items.filter((item) => SECURITY_ACTIVITY_TYPES.has(String(item.event_type || '').toLowerCase()))
+          : []
+      );
     } catch (err) {
       console.error('Failed to load activity logs:', err);
     } finally {
@@ -422,8 +444,33 @@ export default function AccountSecurityCard({ user = null }) {
     boxSizing: 'border-box',
   };
 
+  // Do not briefly show guessed provider/password details from stale auth
+  // metadata while the authoritative security overview is still loading.
+  if (loadingOverview && !securityData) {
+    return (
+      <div
+        className="structra-profile-security-content structra-security-overview-loading"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <div className="structra-security-loading-heading">
+          <Loader2 size={18} className="animate-spin" color="#f97316" />
+          <span>Loading account security…</span>
+        </div>
+        {[0, 1, 2].map((item) => (
+          <div className="structra-security-loading-card" key={item}>
+            <span />
+            <span />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div
+      className="structra-profile-security-content"
       style={{
         display: 'flex',
         flexDirection: 'column',

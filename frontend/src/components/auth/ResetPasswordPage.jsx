@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
 import NavBar from '../landing/NavBar';
@@ -117,26 +117,50 @@ export default function ResetPasswordPage() {
       initial="hidden"
       animate="visible"
       style={{
-        position: 'relative', width: '100vw', height: '100vh',
-        overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative',
+        width: '100vw',
+        minHeight: '100dvh',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: 'max(76px, calc(env(safe-area-inset-top, 0px) + 68px)) 16px max(32px, env(safe-area-inset-bottom, 32px))',
+        boxSizing: 'border-box',
       }}
     >
+      <style>{`
+        .reset-header-block {
+          margin-bottom: 16px;
+        }
+        @media (min-height: 680px) {
+          .reset-header-block {
+            margin-bottom: 24px;
+          }
+        }
+      `}</style>
       <motion.img
-        initial={{ opacity: 0 }} animate={{ opacity: 0.45 }} transition={{ duration: 0.65 }}
-        src={loginBg} alt="" aria-hidden="true" draggable={false}
-        style={{
-          position: 'absolute', inset: 0, width: '100%', height: '100%',
-          objectFit: 'cover', objectPosition: 'center',
-          userSelect: 'none', pointerEvents: 'none',
-        }}
+        className="auth-bg-img"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.45 }}
+        transition={{ duration: 0.65 }}
+        src={loginBg}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+      />
+      <div
+        className="auth-bg-overlay"
+        aria-hidden="true"
       />
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.65 }}>
         <NavBar />
       </motion.div>
 
-      <AuthGlassCard>
+      <div style={{ margin: 'auto 0', width: '100%', display: 'flex', justifyContent: 'center' }}>
+        <AuthGlassCard>
         {/* ── Brand header ────────────────────── */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div className="reset-header-block" style={{ textAlign: 'center' }}>
           <img
             src={logo} alt="Structra logo"
             style={{ width: 42, height: 'auto', marginBottom: 8, display: 'inline-block' }}
@@ -232,7 +256,8 @@ export default function ResetPasswordPage() {
             </form>
           </>
         )}
-      </AuthGlassCard>
+        </AuthGlassCard>
+      </div>
     </motion.div>
   );
 }

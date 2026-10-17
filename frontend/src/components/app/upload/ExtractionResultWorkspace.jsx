@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Image as ImageIcon, CheckCircle2, RefreshCw, RefreshCcw, ZoomIn, ZoomOut, Maximize, Maximize2,
-  Download, Search, Sparkles, Building2, Calendar, MapPin, Hash, IndianRupee, 
-  List, ArrowRight, Minus, Plus, AlertTriangle, AlertCircle, X, Check, Save,
-  FileDown, Trash2, Edit2, ShieldCheck, Info, Loader2, Tag
+import {
+  Image as ImageIcon, CheckCircle2, RefreshCw, RefreshCcw, Search, Sparkles, Building2, Calendar, MapPin,
+  Hash, IndianRupee, AlertTriangle, X, Check, Save, FileDown, Trash2, Edit2,
+  ShieldCheck, Info, Loader2, Tag
 } from 'lucide-react';
 import ExtractionConfidenceCard from './ExtractionConfidenceCard';
-import FieldConfidenceIndicator from './FieldConfidenceIndicator';
 import DocumentPreviewViewer from './DocumentPreviewViewer';
 import { exportDocument } from '../../../api/documents';
 
@@ -365,11 +364,13 @@ export default function ExtractionResultWorkspace({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      className={`structra-extraction-workspace${isLibraryMode ? ' structra-document-detail' : ''}`}
       style={{ width: '100%', display: 'flex', flexDirection: 'column', isolation: 'isolate' }}
     >
       {/* Optional Top-Left Back Button for Library Mode */}
       {isLibraryMode && onBack && (
         <motion.button
+          className="structra-document-detail-back"
           onClick={onBack}
           whileHover={{ x: -3, color: '#fff', backgroundColor: 'rgba(255,255,255,0.1)' }}
           whileTap={{ scale: 0.97 }}
@@ -400,8 +401,8 @@ export default function ExtractionResultWorkspace({
       )}
 
       {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: 24 }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+      <div className="structra-document-detail-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: 24 }}>
+        <div className="structra-document-detail-heading" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <div style={{ 
             width: 48, height: 56, borderRadius: 8, 
             background: 'linear-gradient(135deg, #f97316 0%, #e85d04 100%)',
@@ -411,7 +412,7 @@ export default function ExtractionResultWorkspace({
             <ImageIcon size={24} color="#fff" />
           </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+              <div className="structra-document-detail-title-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
               <h2
                 style={{
                   fontSize: 20,
@@ -437,14 +438,14 @@ export default function ExtractionResultWorkspace({
                 <span style={{ fontSize: 11.5, fontWeight: 500, color: '#10b981' }}>Processed Successfully</span>
               </div>
             </div>
-            <p style={{ fontSize: 13, color: 'rgba(255,240,220,0.5)', margin: 0 }}>
+            <p className="structra-document-detail-meta" data-mobile-info={`${displayType} · ${displaySize} · ${realtimeProcessedAt}`} title={`${displayType} · ${displaySize} · Processed on ${realtimeProcessedAt}`} style={{ fontSize: 13, color: 'rgba(255,240,220,0.5)', margin: 0 }}>
               {displayType} • {displaySize} • Processed on {realtimeProcessedAt}
             </p>
           </div>
         </div>
 
         {/* Top Right Action Button & Confidence Ring */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className="structra-document-detail-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {currentStage !== 10 && currentStage !== 11 && (
             <ExtractionConfidenceCard
               quality={effectiveQuality}
@@ -597,10 +598,11 @@ export default function ExtractionResultWorkspace({
       </AnimatePresence>
 
       {/* Validation Details Popover */}
-      <AnimatePresence>
+      {typeof document !== 'undefined' && createPortal(<AnimatePresence>
         {showDetailsPopup && (
           <>
             <motion.div
+              className="structra-review-details-backdrop"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -609,6 +611,7 @@ export default function ExtractionResultWorkspace({
               style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 90, background: 'rgba(0,0,0,0.4)' }}
             />
             <motion.div 
+              className="structra-review-details-dialog"
               initial={{ opacity: 0, y: '-45%', x: '-50%', scale: 0.98 }}
               animate={{ opacity: 1, y: '-50%', x: '-50%', scale: 1 }}
               exit={{ opacity: 0, y: '-45%', x: '-50%', scale: 0.98 }}
@@ -621,7 +624,7 @@ export default function ExtractionResultWorkspace({
                 display: 'flex', flexDirection: 'column', maxHeight: '90vh'
               }}
             >
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="structra-review-details-header" style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontWeight: 600, color: '#fff', fontSize: 15 }}>Review Details</div>
               <button 
                 onClick={() => setShowDetailsPopup(false)}
@@ -631,30 +634,30 @@ export default function ExtractionResultWorkspace({
               </button>
             </div>
             
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 20, maxHeight: 400, overflowY: 'auto' }}>
+            <div className="structra-review-details-content" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 20, maxHeight: 400, overflowY: 'auto' }}>
               {displayIssues.length > 0 ? (
                 displayIssues.map((issue, idx) => (
-                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div className="structra-review-details-issue" key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ fontWeight: 600, color: '#f59e0b', fontSize: 14 }}>{issue.title}</div>
                     <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>
                       {issue.message}
                     </div>
                     {(issue.expected !== undefined && issue.expected !== null) && (
-                      <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: 12, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                      <div className="structra-review-details-metrics" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: 12, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="structra-review-details-metric" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                           <span style={{ color: 'rgba(255,255,255,0.5)' }}>
                             {issue.type === 'subtotal_mismatch' ? 'Calculated from line items' : 'Calculated / Expected'}
                           </span>
                           <span style={{ color: '#fff', fontFamily: 'monospace' }}>{formatCurrency(issue.expected)}</span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <div className="structra-review-details-metric" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                           <span style={{ color: 'rgba(255,255,255,0.5)' }}>
                             {issue.type === 'subtotal_mismatch' ? 'Document subtotal' : 'Extracted / Document'}
                           </span>
                           <span style={{ color: '#fff', fontFamily: 'monospace' }}>{formatCurrency(issue.actual)}</span>
                         </div>
                         <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.05)' }}></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <div className="structra-review-details-metric" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                           <span style={{ color: 'rgba(255,255,255,0.5)' }}>Difference</span>
                           <span style={{ color: '#f97316', fontFamily: 'monospace' }}>{formatCurrency(issue.difference)}</span>
                         </div>
@@ -671,18 +674,21 @@ export default function ExtractionResultWorkspace({
           </motion.div>
           </>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
 
       {/* Main Layout Conditional */}
       {currentStage < 11 ? (
         <div style={{ display: 'flex', flexDirection: 'column', width: '100%', paddingBottom: 16 }}>
           {/* Main columns row - dynamic height driven by right panel */}
-          <div style={{ display: 'flex', gap: 24, width: '100%', alignItems: 'stretch' }}>
+          <div className={`structra-extraction-columns${isLibraryMode ? ' library-extraction-columns' : ''}`} style={{ display: 'flex', gap: 24, width: '100%', alignItems: 'stretch' }}>
           
             {/* Left Column: Document Preview Component */}
             <DocumentPreviewViewer
               file={file}
               documentId={docId}
+              filename={displayFilename}
+              documentInfo={{ format: displayType, size: displaySize, processedAt: realtimeProcessedAt }}
+              className={isLibraryMode ? 'library-detail-preview' : 'structra-extraction-preview'}
             />
 
             {/* Right Column: Dynamic Content Based on Stage */}
@@ -742,6 +748,7 @@ export default function ExtractionResultWorkspace({
               style={{ width: '100%', overflow: 'hidden' }}
             >
               <div
+                className="structra-document-detail-action-bar"
                 style={{ 
                   background: 'rgba(255,255,255,0.055)', 
                   backdropFilter: 'blur(24px)',
@@ -935,9 +942,9 @@ export default function ExtractionResultWorkspace({
 // ------------------------------------------------------------------
 // RIGHT PANEL: STAGE 7, 8 & 11 (Results + Validation + Final Result)
 // ------------------------------------------------------------------
-function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetUpload, displayData, extractionResult }) {
+function ExtractionResultsRightPanel({ stage, displayData }) {
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <div className="structra-extraction-result-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
@@ -973,7 +980,7 @@ function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetU
       </div>
 
       {/* Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+      <div className="library-extraction-info-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
         <InfoCard icon={Building2} label="Vendor / Company" value={displayData.vendor} />
         <InfoCard icon={Calendar} label="Date" value={displayData.date} />
         <InfoCard icon={MapPin} label="Address" value={displayData.address} />
@@ -986,7 +993,8 @@ function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetU
       {/* Scrollable Line Items in Result - Only show in stage 7 and 11 */}
       <AnimatePresence>
         {(stage === 7 || stage === 11) && (
-          <motion.div 
+          <motion.div
+            className="structra-extraction-result-items"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             style={{ 
@@ -1015,10 +1023,10 @@ function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetU
                 <tbody>
                   {displayData.lineItems.map((item, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.item}</td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.qty}</td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.rate}</td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.amount}</td>
+                      <td data-label="Item" style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.item}</td>
+                      <td data-label="Qty" style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.qty}</td>
+                      <td data-label="Rate" style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.rate}</td>
+                      <td data-label="Amount" style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.amount}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1034,10 +1042,12 @@ function ExtractionResultsRightPanel({ stage, setStage, validationResult, resetU
 
 function InfoCard({ icon: Icon, label, value, fullWidth = false, highlight = false }) {
   const [isHovered, setIsHovered] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const textRef = useRef(null);
   const [isTruncated, setIsTruncated] = useState(false);
 
   useEffect(() => {
+    setIsExpanded(false);
     const checkTruncation = () => {
       if (textRef.current) {
         setIsTruncated(textRef.current.scrollWidth > textRef.current.clientWidth + 1);
@@ -1076,14 +1086,25 @@ function InfoCard({ icon: Icon, label, value, fullWidth = false, highlight = fal
 
   return (
     <div 
+      className={`structra-info-card${isExpanded ? ' is-expanded' : ''}`}
       style={{ gridColumn: fullWidth ? '1 / -1' : 'auto', minWidth: 0, position: 'relative' }}
-      onMouseEnter={() => setIsHovered(true)}
+      onClick={() => { if (isTruncated || isExpanded) setIsExpanded((expanded) => !expanded); }}
+      onKeyDown={(event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && (isTruncated || isExpanded)) {
+          event.preventDefault();
+          setIsExpanded((expanded) => !expanded);
+        }
+      }}
+      role={isTruncated || isExpanded ? 'button' : undefined}
+      tabIndex={isTruncated || isExpanded ? 0 : undefined}
+      aria-expanded={isTruncated || isExpanded ? isExpanded : undefined}
+      onMouseEnter={() => { if (window.matchMedia?.('(hover: hover)').matches) setIsHovered(true); }}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Base Card (Maintains grid layout) */}
       <motion.div 
         whileHover={!isTruncated ? { y: -2, boxShadow: '0 8px 24px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1)' } : {}}
-        style={{ ...cardStyle, opacity: (isHovered && isTruncated) ? 0 : 1 }}
+        style={{ ...cardStyle, opacity: ((isHovered || isExpanded) && isTruncated) ? 0 : 1 }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -1093,6 +1114,7 @@ function InfoCard({ icon: Icon, label, value, fullWidth = false, highlight = fal
           {!highlight && <CheckCircle2 size={16} color="#10b981" />}
         </div>
         <div 
+          className="structra-info-card-value"
           ref={textRef}
           style={{ fontSize: highlight ? 20 : 15, fontWeight: highlight ? 700 : 600, color: highlight ? '#fff' : 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
         >
@@ -1102,7 +1124,7 @@ function InfoCard({ icon: Icon, label, value, fullWidth = false, highlight = fal
 
       {/* Expanded Card (Overlays on hover) */}
       <AnimatePresence>
-        {(isHovered && isTruncated) && (
+        {((isHovered || isExpanded) && isTruncated) && (
           <motion.div 
             initial={{ opacity: 0, y: 0 }}
             animate={{ opacity: 1, y: -4, boxShadow: '0 16px 40px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1)' }}
@@ -1133,7 +1155,7 @@ function InfoCard({ icon: Icon, label, value, fullWidth = false, highlight = fal
 // ------------------------------------------------------------------
 // RIGHT PANEL: STAGE 10 (Duplicate Warning)
 // ------------------------------------------------------------------
-function DuplicateWarningView({ setStage, resetUpload, displayData }) {
+function DuplicateWarningView({ setStage, displayData }) {
   const [isOpening, setIsOpening] = useState(false);
 
   if (isOpening) {
@@ -1265,7 +1287,7 @@ function DuplicateWarningView({ setStage, resetUpload, displayData }) {
 // ------------------------------------------------------------------
 // RIGHT PANEL: STAGE 9 (Review / Edit)
 // ------------------------------------------------------------------
-function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
+function ReviewEditView({ setStage, displayData, onSave }) {
   const [localData, setLocalData] = useState(displayData);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -1299,7 +1321,7 @@ function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <div className="structra-review-edit" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
@@ -1308,7 +1330,7 @@ function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
       </div>
 
       {/* Editable Fields Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+      <div className="structra-review-edit-fields" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
         <EditableField icon={Building2} label="Vendor / Company" initialValue={localData.vendor} onChange={v => updateField('vendor', v)} />
         <EditableField icon={Calendar} label="Date" initialValue={localData.date} onChange={v => updateField('date', v)} />
         <EditableField icon={MapPin} label="Address" initialValue={localData.address} onChange={v => updateField('address', v)} />
@@ -1317,7 +1339,7 @@ function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
       </div>
 
       {/* Editable Line Items Scrollable */}
-      <div style={{ 
+      <div className="structra-review-edit-items" style={{
         flex: '0 0 auto', maxHeight: 360,
         background: 'rgba(255,255,255,0.045)', 
         backdropFilter: 'blur(24px)',
@@ -1330,7 +1352,7 @@ function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
           <h4 style={{ fontSize: 14, fontWeight: 600, color: '#fff', margin: 0 }}>Line Items ({localData.lineItems.length})</h4>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <table className="structra-review-edit-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr>
                 <th style={{ padding: '10px 16px', fontSize: 11, fontWeight: 500, color: 'rgba(255,240,220,0.5)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Item</th>
@@ -1350,7 +1372,7 @@ function ReviewEditView({ setStage, displayData, onSave, extractionResult }) {
       </div>
 
       {/* Sticky Action Bar (For Review Mode: Complete Review) */}
-      <div style={{ 
+      <div className="structra-review-edit-actions" style={{
         marginTop: 'auto', background: 'rgba(255,255,255,0.055)', 
         backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
@@ -1403,19 +1425,19 @@ function EditableRow({ initialItem, onChange }) {
   if (isEditing) {
     return (
       <tr style={{ background: 'rgba(249,115,22,0.05)', borderBottom: '1px solid rgba(249,115,22,0.2)' }}>
-        <td style={{ padding: '8px 16px' }}>
+        <td data-label="Item" style={{ padding: '8px 16px' }}>
           <input type="text" value={draft.item} onChange={e => setDraft({...draft, item: e.target.value})} style={inputStyle} />
         </td>
-        <td style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
+        <td data-label="Qty" style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
           <input type="text" value={draft.qty} onChange={e => setDraft({...draft, qty: e.target.value})} style={inputStyle} />
         </td>
-        <td style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
+        <td data-label="Rate" style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
           <input type="text" value={draft.rate} onChange={e => setDraft({...draft, rate: e.target.value})} style={inputStyle} />
         </td>
-        <td style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
+        <td data-label="Amount" style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
           <input type="text" value={draft.amount} onChange={e => setDraft({...draft, amount: e.target.value})} style={inputStyle} />
         </td>
-        <td style={{ padding: '8px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+        <td data-label="Actions" style={{ padding: '8px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
             <button 
               onClick={() => { setItem(draft); setIsEditing(false); if (onChange) onChange(draft); }}
@@ -1437,11 +1459,11 @@ function EditableRow({ initialItem, onChange }) {
 
   return (
     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.item}</td>
-      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.qty}</td>
-      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.rate}</td>
-      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.amount}</td>
-      <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+      <td data-label="Item" style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)' }}>{item.item}</td>
+      <td data-label="Qty" style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.qty}</td>
+      <td data-label="Rate" style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.rate}</td>
+      <td data-label="Amount" style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,250,242,0.95)', whiteSpace: 'nowrap' }}>{item.amount}</td>
+      <td data-label="Actions" style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
         <button 
           onClick={() => setIsEditing(true)}
           style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}
