@@ -5,7 +5,6 @@
 [![React 19](https://img.shields.io/badge/React-19.2+-61DAFB.svg)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-8.1+-646CFF.svg)](https://vitejs.dev)
 [![Machine Learning](https://img.shields.io/badge/ML-scikit--learn-F7931E.svg)](https://scikit-learn.org)
-[![Tests Passing](https://img.shields.io/badge/Backend%20Tests-721%20Passed-brightgreen.svg)]()
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-4.3+-38B2AC.svg)](https://tailwindcss.com)
 [![Framer Motion](https://img.shields.io/badge/Motion-Framer%20Motion%2012-FF0055.svg)](https://motion.dev)
 
@@ -523,11 +522,10 @@ STRUCTRA executes queries over Supabase PostgreSQL via PostgREST with service-ro
 - **Framework:** React 19.2.7 (Strict mode, ES Modules)
 - **Bundler:** Vite 8.1.5 (`@vitejs/plugin-react`)
 - **Styling:** Vanilla CSS & Tailwind CSS 4.3.3 (`@tailwindcss/vite`)
-- **Animations:** Framer Motion 12.43.0 & Motion 13.3.0
+- **Animations:** Framer Motion 12.43.0
 - **Icons:** Lucide React 1.28.0
 - **Routing:** React Router DOM 7.18.2
 - **Auth & Storage Client:** `@supabase/supabase-js` 2.112.2
-- **Image Utilities:** Jimp 1.6.1
 
 ---
 
@@ -572,7 +570,7 @@ STRUCTRA/
 │   │   ├── train.py                # 5-fold CV benchmark & pipeline serializer
 │   │   ├── evaluate.py             # Held-out test evaluation & confusion matrix
 │   │   └── predict.py              # CLI inference tool & interactive REPL
-│   ├── tests/                      # 58 test files (722 collected; 721 passed, 1 skipped)
+│   ├── tests/                      # 58 test files (722 tests collected)
 │   ├── .env.example                # Sample backend environment template
 │   └── pyproject.toml              # Packaging and dependency configuration
 ├── frontend/                       # React 19 / Vite single-page application
@@ -590,18 +588,23 @@ STRUCTRA/
 │   │   │   │   ├── shared/         # Sidebar, TopBar, NotificationPanel, MainLayout
 │   │   │   │   └── upload/         # Upload dropzone & side-by-side review workspace
 │   │   │   ├── auth/               # Login, Register, Forgot/Reset Password views
+│   │   │   ├── about/              # About STRUCTRA page
 │   │   │   └── landing/            # Landing page hero & feature showcases
 │   │   ├── context/                # React Contexts (Auth, Library, Upload, Dashboard)
+│   │   ├── config/                 # API configuration
 │   │   ├── hooks/                  # Custom React hooks (useAuth, useRecentDocuments)
-│   │   └── lib/                    # Supabase client singleton
+│   │   ├── lib/                    # Supabase client singleton
+│   │   └── utils/                  # Shared document and avatar utilities
+│   ├── .env.example                # Sample frontend environment template
 │   ├── index.html                  # HTML entry point with Michroma & Inter fonts
 │   ├── package.json                # Frontend dependencies and scripts
 │   └── vite.config.js              # Vite configuration with Tailwind CSS plugin
-├── docs/                           # System design and developer specifications
+├── docs/                           # Design, developer, and deployment documentation
 │   ├── assets-map.md               # Design asset specifications and mappings
 │   ├── design.md                   # Visual tokens, color palette, glassmorphism rules
 │   ├── instructions.md             # Permanent development guidelines
-│   └── motion.md                   # Framer Motion curves and interaction timings
+│   ├── motion.md                   # Framer Motion curves and interaction timings
+│   └── deployment.md               # Provider-neutral deployment checklist
 ├── Receipts/                       # Real-world receipt validation samples (9 files)
 ├── .gitignore                      # Authoritative repository-wide git ignore rules
 └── README.md                       # Master repository documentation (this file)
@@ -613,7 +616,7 @@ STRUCTRA/
 
 ### Prerequisites
 - **Python 3.12 (64-bit)** (Python 3.13+ is not supported due to ONNX runtime constraints)
-- **Node.js 20+** and **npm 10+**
+- **Node.js 20.19+ or 22.12+** and **npm 10+**
 - A Supabase project with PostgreSQL, Auth, and Storage enabled
 - Google Gemini API key (or Groq API key for fallback)
 
@@ -622,19 +625,14 @@ STRUCTRA/
 ### 1. Backend Setup
 
 ```powershell
-# Navigate to backend directory
+# Navigate to the backend directory and create an isolated environment
 cd C:\STRUCTRA\backend
-
-# Activate 64-bit virtual environment
+py -3.12 -m venv .venv-x64
 .\.venv-x64\Scripts\Activate.ps1
-
-# (Optional: If setting up from scratch)
-# py -3.12 -m venv .venv-x64
-# .\.venv-x64\Scripts\Activate.ps1
-# pip install -e ".[dev]"
+pip install -e ".[dev]"
 
 # Configure environment variables
-cp .env.example .env
+Copy-Item .env.example .env
 # Edit .env with your real Supabase and Gemini credentials
 
 # Run automated tests to verify installation
@@ -683,10 +681,11 @@ python ml/predict.py
 cd C:\STRUCTRA\frontend
 
 # Install dependencies
-npm install
+npm ci
 
-# Configure environment variables from frontend/.env.example
-# For production, VITE_API_URL is required and must point to the deployed API.
+# Create the local environment file and set its values before building
+Copy-Item .env.example .env
+# For production, VITE_API_URL must point to the deployed API.
 
 # Validate production build
 npm run build
@@ -703,10 +702,9 @@ npm run dev
 
 ### Automated Backend Test Suite
 The STRUCTRA backend includes an exhaustive test suite executed via `pytest`:
-- **Total Backend Tests:** **722 collected**
-- **Passing:** **721 passed, 1 skipped, 0 failures**
-- **Latest local run:** ~90 seconds on this Windows environment; timing varies by machine.
-- **Test Suites (59 files):**
+- **Current collection:** **722 tests across 58 files** (`pytest --collect-only -q`).
+- **Last recorded full run:** 721 passed, 1 skipped, 0 failures (722 collected). Run `pytest -q` to refresh this result for your environment.
+- **Test Suites (58 files):**
   - Authentication, token parsing, and JWKS verification (`test_auth.py`, `test_auth_dependency.py`)
   - Document lifecycle, extraction, and deletion (`test_documents.py`, `test_document_deletion.py`, `test_document_download.py`)
   - Gemini multimodal extraction & Groq fallback (`test_ai_extraction.py`, `test_gemini.py`, `test_ocr_service.py`)
@@ -723,7 +721,7 @@ The STRUCTRA backend includes an exhaustive test suite executed via `pytest`:
 
 ### Frontend Production Build
 - **Tool:** Vite 8.1.5 client production build (`npm run build`).
-- **Result:** **0 build errors, 2,316 modules transformed**. Route-level code splitting reduced the entry chunk from about 1.26 MB (302 kB gzip) to about 294 kB (90 kB gzip); the largest remaining shared chunk is about 208 kB.
+- **Result:** **0 build errors, 2,317 modules transformed**. Route-level code splitting reduced the entry chunk from about 1.26 MB (302 kB gzip) to about 294 kB (90 kB gzip); the largest remaining shared chunk is about 208 kB.
 - **Distribution:** Clean single-page bundle (`dist/index.html`, minified assets).
 - **Lint:** `npm run lint` currently passes with warnings. Review and reduce the React effect, dependency, and Fast Refresh warnings before treating the frontend as fully release-clean.
 
@@ -773,11 +771,12 @@ For local development, use `http://localhost:5173` for `CORS_ALLOWED_ORIGINS` an
 
 ## 📖 Design & Documentation References
 
-For visual tokens, motion specifications, and asset guidelines:
+For design, development, asset, and deployment guidance:
 - **[Design Specification](docs/design.md):** Dark-mode palette, glassmorphism tokens, typography, and component styling rules.
 - **[Motion Specification](docs/motion.md):** Framer Motion curves, entrance transitions, and micro-interaction timings.
 - **[Development Instructions](docs/instructions.md):** Architectural principles and permanent implementation guidelines.
 - **[Asset Map](docs/assets-map.md):** Mapping of visual image assets, backgrounds, and brand iconography.
+- **[Deployment Checklist](docs/deployment.md):** Provider-neutral frontend, backend, Supabase, and release setup.
 
 ---
 

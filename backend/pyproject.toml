@@ -5,9 +5,8 @@ build-backend = "hatchling.build"
 [project]
 name = "structra-backend"
 version = "0.1.0"
-description = "Backend foundation for Structra."
-readme = "README.md"
-requires-python = ">=3.12"
+description = "FastAPI backend for the STRUCTRA document intelligence platform."
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115,<1.0",
     "email-validator>=2.2,<3.0",
@@ -21,6 +20,8 @@ dependencies = [
     "opencv-python>=4.8.0",
     "pillow>=10.0.0",
     "openpyxl>=3.1.2,<4.0",
+    "joblib>=1.6,<2.0",
+    "scikit-learn>=1.9,<2.0",
     "tzdata>=2024.1",
 ]
 

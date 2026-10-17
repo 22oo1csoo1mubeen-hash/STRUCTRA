@@ -15,7 +15,7 @@ This checklist is provider-neutral. The repository does not contain a hosting ta
 
 ## Backend service
 
-1. Deploy `backend/` with Python 3.12 or newer, install `backend/requirements.txt`, and run `uvicorn app.main:app --host 0.0.0.0 --port $PORT` from the `backend/` directory (adapt the port syntax to the host).
+1. Deploy `backend/` with Python 3.12, install `backend/requirements.txt`, and run `uvicorn app.main:app --host 0.0.0.0 --port $PORT` from the `backend/` directory (adapt the port syntax to the host). Python 3.13 is not supported by the current ONNX runtime dependency set.
 2. Set server-side environment variables:
    - `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`
    - At least one extraction provider key: `GEMINI_API_KEY` or `GROQ_API_KEY`
