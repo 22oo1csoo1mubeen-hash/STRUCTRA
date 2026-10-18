@@ -10,12 +10,12 @@ This checklist is provider-neutral. The repository does not contain a hosting ta
    - `VITE_SUPABASE_URL`: the production Supabase project URL.
    - `VITE_SUPABASE_ANON_KEY`: the public/publishable key only.
    - `VITE_API_URL`: the HTTPS base URL of the deployed backend. Production builds fail if this is missing.
-4. Configure the static host to serve `index.html` for application routes such as `/login`, `/about`, and `/app/*`.
+4. Deploy the `frontend/` directory as the Vercel project root. Its `vercel.json` rewrites client routes such as `/login`, `/about`, and `/app/*` to `index.html` for SPA deep links.
 5. Configure HTTPS and a custom domain. Do not put backend or AI secrets in frontend variables.
 
 ## Backend service
 
-1. Deploy `backend/` with Python 3.12, install `backend/requirements.txt`, and run `uvicorn app.main:app --host 0.0.0.0 --port $PORT` from the `backend/` directory (adapt the port syntax to the host). Python 3.13 is not supported by the current ONNX runtime dependency set.
+1. Deploy `backend/` with Python 3.12 (pinned by `backend/.python-version`), install `backend/requirements.txt`, and run `uvicorn app.main:app --host 0.0.0.0 --port $PORT` from the `backend/` directory (adapt the port syntax to the host). Python 3.13 is not supported by the current ONNX runtime dependency set.
 2. Set server-side environment variables:
    - `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`
    - At least one extraction provider key: `GEMINI_API_KEY` or `GROQ_API_KEY`
