@@ -18,16 +18,75 @@ from app.schemas.profile import (
 from app.services.profile import (
     delete_user_account,
     delete_user_avatar,
+    end_other_security_sessions,
+    end_security_session,
     get_security_overview,
     get_user_avatar_content,
     get_user_profile_data,
     get_user_security_activity,
+    heartbeat_security_session,
     record_security_activity,
     update_user_profile,
     upload_user_avatar,
 )
 
 router = APIRouter(prefix="/profile", tags=["profile"])
+
+
+@router.post(
+    "/security/session/heartbeat",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Refresh the current device session",
+)
+async def security_session_heartbeat(
+    request: Request,
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Track the verified Supabase session and log its first observed sign-in."""
+    client_ip = request.client.host if request.client else None
+    await heartbeat_security_session(
+        user_id=current_user.user_id,
+        session_id=current_user.session_id,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=client_ip,
+        settings=settings,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/security/session/current",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove the current device session from the active list",
+)
+async def end_current_security_session(
+    request: Request,
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    client_ip = request.client.host if request.client else None
+    await end_security_session(
+        current_user.user_id,
+        current_user.session_id,
+        settings,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=client_ip,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/security/session/others",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove revoked device sessions from the active list",
+)
+async def end_other_security_devices(
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    await end_other_security_sessions(current_user.user_id, current_user.session_id, settings)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

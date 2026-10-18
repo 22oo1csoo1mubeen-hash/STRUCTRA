@@ -17,6 +17,18 @@ from app.schemas.auth import CurrentUser, SignupRequest
 
 _SHARED_AUTH_CLIENT: httpx.AsyncClient | None = None
 _TOKEN_CACHE: dict[str, tuple[CurrentUser, float]] = {}
+
+
+def _read_session_id_claim(access_token: str) -> str | None:
+    """Read the session_id claim from a JWT already validated by this auth flow."""
+    try:
+        payload_part = access_token.split(".")[1]
+        payload_part += "=" * (-len(payload_part) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_part).decode("utf-8"))
+        session_id = payload.get("session_id")
+        return str(session_id) if session_id else None
+    except (IndexError, ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
 _JWKS_KEYS: dict[str, Any] = {}
 _JWKS_LAST_FETCH: float = 0.0
 
@@ -186,6 +198,7 @@ async def get_authenticated_user(access_token: str) -> CurrentUser:
             app_metadata=payload.get("app_metadata") or {},
             created_at=payload.get("created_at"),
             last_sign_in_at=payload.get("last_sign_in_at"),
+            session_id=payload.get("session_id"),
         )
         _TOKEN_CACHE[access_token] = (current_user, min(exp, now + 300.0))
         return current_user
@@ -239,6 +252,7 @@ async def get_authenticated_user(access_token: str) -> CurrentUser:
             app_metadata=user_json.get("app_metadata") or {},
             created_at=user_json.get("created_at"),
             last_sign_in_at=user_json.get("last_sign_in_at"),
+            session_id=_read_session_id_claim(access_token),
         )
         _TOKEN_CACHE[access_token] = (current_user, now + 300.0)
         return current_user

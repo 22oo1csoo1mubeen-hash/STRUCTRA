@@ -24,6 +24,8 @@ import {
   getSecurityOverview,
   getSecurityActivity,
   recordSecurityActivity,
+  endOtherSecuritySessions,
+  heartbeatSecuritySession,
 } from '../../../api/profile';
 
 const SECURITY_ACTIVITY_TYPES = new Set([
@@ -159,6 +161,11 @@ export default function AccountSecurityCard({ user = null }) {
   const fetchSecurityState = useCallback(async () => {
     try {
       setLoadingOverview(true);
+      try {
+        await heartbeatSecuritySession();
+      } catch {
+        // The profile view should remain available if session tracking is unavailable.
+      }
       const data = await getSecurityOverview();
       setSecurityData(data);
     } catch (err) {
@@ -196,6 +203,7 @@ export default function AccountSecurityCard({ user = null }) {
     last_active: 'Active now',
     is_current: true,
   };
+  const otherSessions = Array.isArray(securityData?.other_sessions) ? securityData.other_sessions : [];
 
   /* ─── Password Modal Handlers ──────────────────────────────── */
   const openPasswordModal = () => {
@@ -387,6 +395,12 @@ export default function AccountSecurityCard({ user = null }) {
       if (error) throw error;
 
       try {
+        await endOtherSecuritySessions();
+      } catch (sessionCleanupError) {
+        console.warn('Other devices were signed out, but the session list could not be refreshed:', sessionCleanupError);
+      }
+
+      try {
         await recordSecurityActivity({
           event_type: 'sessions_revoked',
           description: 'Signed out of all other active device sessions',
@@ -413,6 +427,11 @@ export default function AccountSecurityCard({ user = null }) {
     setShowActivityModal(true);
     setLoadingActivity(true);
     try {
+      try {
+        await heartbeatSecuritySession();
+      } catch {
+        // Continue loading the existing audit log if session tracking is unavailable.
+      }
       const items = await getSecurityActivity();
       setActivityLogs(
         Array.isArray(items)
@@ -1142,6 +1161,51 @@ export default function AccountSecurityCard({ user = null }) {
             </div>
           </div>
         </div>
+
+        {otherSessions.map((deviceSession) => (
+          <div
+            key={deviceSession.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap',
+              padding: '12px 16px',
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {deviceSession.icon_type === 'smartphone' ? (
+                  <Smartphone size={18} color="rgba(255,255,255,0.75)" />
+                ) : (
+                  <Laptop size={18} color="rgba(255,255,255,0.75)" />
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                <span style={{ color: '#fff', fontSize: 13.5, fontWeight: 600 }}>{deviceSession.device}</span>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
+                  {deviceSession.ip} <span style={{ padding: '0 5px' }}>•</span> {deviceSession.last_active}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
 
         {/* Recent Security Activity Mini Strip */}
         <div

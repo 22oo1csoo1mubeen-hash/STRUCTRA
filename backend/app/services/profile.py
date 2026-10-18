@@ -685,6 +685,187 @@ async def get_user_security_activity(
     return items
 
 
+async def heartbeat_security_session(
+    user_id: str,
+    session_id: str | None,
+    user_agent: str | None,
+    ip_address: str | None,
+    settings: Settings,
+) -> None:
+    """Upsert the verified caller's device session and log its first observation."""
+    if not session_id:
+        return
+
+    supabase_url, secret_key = _extract_settings(settings)
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=minimal",
+    }
+    client = _get_shared_client()
+    table_url = f"{supabase_url.rstrip('/')}/rest/v1/security_sessions"
+    params = {
+        "select": "session_id",
+        "user_id": f"eq.{user_id}",
+        "session_id": f"eq.{session_id}",
+        "limit": "1",
+    }
+    try:
+        existing = await client.get(table_url, headers=headers, params=params)
+        if not existing.is_success:
+            logger.warning("Could not read security session [%s]: %s", existing.status_code, existing.text)
+            return
+        is_new_session = not existing.json()
+
+        device_label, _ = _parse_user_agent_device(user_agent)
+        payload = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "device_info": device_label,
+            "ip_address": ip_address,
+            "last_seen_at": datetime.now(timezone.utc).isoformat(),
+        }
+        saved = await client.post(
+            table_url,
+            headers=headers,
+            params={"on_conflict": "user_id,session_id"},
+            json=payload,
+        )
+        if not saved.is_success:
+            logger.warning("Could not save security session [%s]: %s", saved.status_code, saved.text)
+            return
+
+        if is_new_session:
+            await record_security_activity(
+                user_id=user_id,
+                event_type="sign_in",
+                description="Signed in to STRUCTRA",
+                device_info=device_label,
+                ip_address=ip_address,
+                settings=settings,
+            )
+    except Exception as exc:
+        logger.warning("Security session heartbeat failed: %s", exc)
+
+
+async def get_active_security_sessions(
+    user_id: str,
+    current_session_id: str | None,
+    settings: Settings,
+) -> list[SessionItem]:
+    """Return known device sessions, refreshed while their saved auth is used."""
+    if not current_session_id:
+        return []
+
+    supabase_url, secret_key = _extract_settings(settings)
+    headers = {"apikey": secret_key, "Authorization": f"Bearer {secret_key}"}
+    params = {
+        "select": "session_id,device_info,ip_address,last_seen_at",
+        "user_id": f"eq.{user_id}",
+        "order": "last_seen_at.desc",
+        "limit": "50",
+    }
+    try:
+        response = await _get_shared_client().get(
+            f"{supabase_url.rstrip('/')}/rest/v1/security_sessions",
+            headers=headers,
+            params=params,
+        )
+        if not response.is_success:
+            logger.warning("Could not load active security sessions [%s]: %s", response.status_code, response.text)
+            return []
+
+        sessions: list[SessionItem] = []
+        for row in response.json():
+            sid = str(row.get("session_id") or "")
+            device = row.get("device_info") or "Unknown device"
+            _, icon_type = _parse_user_agent_device(device)
+            last_seen = row.get("last_seen_at")
+            try:
+                seen_at = datetime.fromisoformat(str(last_seen).replace("Z", "+00:00"))
+                age_seconds = max(0, int((datetime.now(timezone.utc) - seen_at).total_seconds()))
+            except (TypeError, ValueError):
+                age_seconds = 0
+            if age_seconds < 60:
+                last_active = "Last active just now"
+            elif age_seconds < 3600:
+                last_active = f"Last active {age_seconds // 60} min ago"
+            elif age_seconds < 86400:
+                last_active = f"Last active {age_seconds // 3600} hr ago"
+            else:
+                last_active = f"Last active {age_seconds // 86400} days ago"
+            sessions.append(SessionItem(
+                id=sid,
+                device=device,
+                icon_type=icon_type,
+                location="Location unavailable",
+                ip=row.get("ip_address") or "Location unavailable",
+                last_active=last_active,
+                is_current=sid == current_session_id,
+            ))
+        return sessions
+    except Exception as exc:
+        logger.warning("Loading active security sessions failed: %s", exc)
+        return []
+
+
+async def end_security_session(
+    user_id: str,
+    session_id: str | None,
+    settings: Settings,
+    user_agent: str | None = None,
+    ip_address: str | None = None,
+) -> None:
+    """Remove the caller's device from the active-session list on sign-out."""
+    if not session_id:
+        return
+    supabase_url, secret_key = _extract_settings(settings)
+    headers = {"apikey": secret_key, "Authorization": f"Bearer {secret_key}"}
+    try:
+        response = await _get_shared_client().delete(
+            f"{supabase_url.rstrip('/')}/rest/v1/security_sessions",
+            headers=headers,
+            params={"user_id": f"eq.{user_id}", "session_id": f"eq.{session_id}"},
+        )
+        if not response.is_success:
+            logger.warning("Could not end security session [%s]: %s", response.status_code, response.text)
+        else:
+            device_label, _ = _parse_user_agent_device(user_agent)
+            await record_security_activity(
+                user_id=user_id,
+                event_type="sign_out",
+                description="Signed out of STRUCTRA",
+                device_info=device_label,
+                ip_address=ip_address,
+                settings=settings,
+            )
+    except Exception as exc:
+        logger.warning("Ending security session failed: %s", exc)
+
+
+async def end_other_security_sessions(
+    user_id: str,
+    current_session_id: str | None,
+    settings: Settings,
+) -> None:
+    """Remove sessions that Supabase has just revoked with scope='others'."""
+    if not current_session_id:
+        return
+    supabase_url, secret_key = _extract_settings(settings)
+    headers = {"apikey": secret_key, "Authorization": f"Bearer {secret_key}"}
+    try:
+        response = await _get_shared_client().delete(
+            f"{supabase_url.rstrip('/')}/rest/v1/security_sessions",
+            headers=headers,
+            params={"user_id": f"eq.{user_id}", "session_id": f"neq.{current_session_id}"},
+        )
+        if not response.is_success:
+            logger.warning("Could not clear revoked security sessions [%s]: %s", response.status_code, response.text)
+    except Exception as exc:
+        logger.warning("Clearing revoked security sessions failed: %s", exc)
+
+
 async def get_security_overview(
     user_id: str,
     current_user: CurrentUser | None = None,
@@ -791,8 +972,8 @@ async def get_security_overview(
     device_label, icon_type = _parse_user_agent_device(user_agent)
     ip_display = client_ip if client_ip and client_ip not in ("127.0.0.1", "::1", "testclient") else "Local Network"
 
-    current_session = SessionItem(
-        id=f"session-current-{user_id[:8]}",
+    fallback_session = SessionItem(
+        id=current_user.session_id if current_user and current_user.session_id else f"session-current-{user_id[:8]}",
         device=device_label,
         icon_type=icon_type,
         location="Location unavailable",
@@ -800,6 +981,14 @@ async def get_security_overview(
         last_active="Active now",
         is_current=True,
     )
+
+    tracked_sessions = await get_active_security_sessions(
+        user_id,
+        current_user.session_id if current_user else None,
+        settings,
+    ) if settings else []
+    current_session = next((item for item in tracked_sessions if item.is_current), fallback_session)
+    other_sessions = [item for item in tracked_sessions if not item.is_current]
 
     # If activity log is empty, provide authentic baseline events derived from account timestamps
     if not recent_activity:
@@ -834,7 +1023,7 @@ async def get_security_overview(
         google_email=google_email or (email if "google" in providers_set else None),
         password_last_changed=user_metadata.get("password_last_changed"),
         current_session=current_session,
-        other_sessions=[],
+        other_sessions=other_sessions,
         recent_activity=recent_activity,
     )
 
@@ -883,6 +1072,13 @@ async def delete_user_account(
     try:
         activity_url = f"{supabase_url.rstrip('/')}/rest/v1/security_activity"
         await client.delete(activity_url, headers=headers, params={"user_id": f"eq.{user_id}"})
+    except Exception:
+        pass
+
+    # 3b. Delete tracked device sessions.
+    try:
+        sessions_url = f"{supabase_url.rstrip('/')}/rest/v1/security_sessions"
+        await client.delete(sessions_url, headers=headers, params={"user_id": f"eq.{user_id}"})
     except Exception:
         pass
 

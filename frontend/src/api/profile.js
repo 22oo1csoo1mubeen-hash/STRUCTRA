@@ -144,6 +144,36 @@ export async function recordSecurityActivity(activityData) {
   });
 }
 
+/** Refresh the active-device heartbeat for the current Supabase session. */
+export async function heartbeatSecuritySession(accessToken = null) {
+  const token = accessToken || await getAuthToken();
+  const response = await fetch(`${API_URL}/profile/security/session/heartbeat`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to update the active device session.');
+}
+
+/** Remove this device from the active list before signing out. */
+export async function endSecuritySession() {
+  const token = await getAuthToken();
+  const response = await fetch(`${API_URL}/profile/security/session/current`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to close the active device session.');
+}
+
+/** Clear tracked devices after Supabase revokes every other refresh token. */
+export async function endOtherSecuritySessions() {
+  const token = await getAuthToken();
+  const response = await fetch(`${API_URL}/profile/security/session/others`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to refresh the active device list.');
+}
+
 /**
  * Permanently deletes the authenticated user account and all associated data.
  * @param {string} confirmation - Must be exactly 'DELETE'

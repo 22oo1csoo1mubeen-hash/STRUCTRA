@@ -7,6 +7,7 @@ import {
 } from 'react';
 import type { Session, User, AuthError } from '@supabase/supabase-js';
 import { supabase, STORAGE_PREF_KEY } from '../lib/supabase';
+import { endSecuritySession, heartbeatSecuritySession } from '../api/profile';
 
 /* ─── Types ───────────────────────────────────────────── */
 interface AuthContextValue {
@@ -90,6 +91,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let heartbeatTimer: number | null = null;
+    let activeAccessToken: string | null = null;
+    const queueHeartbeat = () => {
+      window.setTimeout(() => {
+        if (!activeAccessToken) return;
+        void heartbeatSecuritySession(activeAccessToken).catch(() => {
+          // Session tracking is best-effort; authentication must remain usable
+          // if the optional session table has not been migrated yet.
+        });
+      }, 0);
+    };
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
@@ -99,6 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(newSession);
         setUser(newSession?.user ?? null);
         setLoading(false);
+
+        if (newSession) {
+          activeAccessToken = newSession.access_token;
+          queueHeartbeat();
+          heartbeatTimer = window.setInterval(queueHeartbeat, 60_000);
+        }
 
         // Fetch fresh user record from Supabase Auth to ensure latest user_metadata
         if (newSession?.user) {
@@ -117,9 +136,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // All subsequent events (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, etc.)
       setSession(newSession);
       setUser(newSession?.user ?? null);
+      activeAccessToken = newSession?.access_token ?? null;
+      if (event === 'SIGNED_IN' && newSession) {
+        queueHeartbeat();
+        if (heartbeatTimer === null) heartbeatTimer = window.setInterval(queueHeartbeat, 60_000);
+      } else if (event === 'SIGNED_OUT') {
+        if (heartbeatTimer !== null) window.clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (heartbeatTimer !== null) window.clearInterval(heartbeatTimer);
+    };
   }, [setUser]);
 
   /* ── Login ──────────────────────────────────────────── */
@@ -307,6 +337,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /* ── Logout ─────────────────────────────────────────── */
   const logout = useCallback(async () => {
+    try {
+      await endSecuritySession();
+    } catch {
+      // Signing out should still work if the activity service is unavailable.
+    }
     await supabase.auth.signOut();
   }, []);
 

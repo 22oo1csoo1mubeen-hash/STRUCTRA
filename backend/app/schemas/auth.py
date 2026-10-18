@@ -29,3 +29,4 @@ class CurrentUser(BaseModel):
     app_metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: str | None = None
     last_sign_in_at: str | None = None
+    session_id: str | None = None
