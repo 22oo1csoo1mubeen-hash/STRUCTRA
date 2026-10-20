@@ -215,16 +215,20 @@ export default function AuthCallbackPage() {
       animate="visible"
       style={{
         position: 'relative',
-        width: '100vw',
-        height: '100vh',
-        overflow: 'hidden',
+        width: '100%',
+        minHeight: '100dvh',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        padding: 'max(76px, calc(env(safe-area-inset-top, 0px) + 68px)) 16px max(32px, env(safe-area-inset-bottom, 32px))',
+        boxSizing: 'border-box',
       }}
     >
       {/* Background */}
       <motion.img
+        className="auth-bg-img"
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.45 }}
         transition={{ duration: 0.65 }}
@@ -232,17 +236,8 @@ export default function AuthCallbackPage() {
         alt=""
         aria-hidden="true"
         draggable={false}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          objectPosition: 'center',
-          userSelect: 'none',
-          pointerEvents: 'none',
-        }}
       />
+      <div className="auth-bg-overlay" aria-hidden="true" />
 
       <motion.div
         initial={{ opacity: 0 }}
@@ -252,6 +247,7 @@ export default function AuthCallbackPage() {
         <NavBar />
       </motion.div>
 
+      <div style={{ margin: 'auto 0', width: '100%', display: 'flex', justifyContent: 'center' }}>
       <AuthGlassCard>
         {/* ── Brand header ──────────────────────────── */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -307,6 +303,7 @@ export default function AuthCallbackPage() {
           <ErrorState message={errorMessage} onBack={handleBackToLogin} />
         )}
       </AuthGlassCard>
+      </div>
     </motion.div>
   );
 }
