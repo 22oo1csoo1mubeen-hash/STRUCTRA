@@ -223,3 +223,23 @@ def test_security_activity_user_isolation():
         assert response.status_code == 200
         # Bob sees his own activity list (empty list), never Alice's
         assert response.json() == []
+
+
+# 7. Clear Security Activity
+def test_clear_security_activity():
+    app.dependency_overrides[get_settings] = get_mock_settings
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+        user_id=USER_A_ID,
+        email="alice@structra.io",
+    )
+
+    with patch("app.services.profile._get_shared_client") as mock_client:
+        mock_client.return_value.delete = AsyncMock(
+            return_value=SimpleNamespace(is_success=True, status_code=204)
+        )
+
+        client = TestClient(app)
+        response = client.delete("/profile/security/activity")
+
+        assert response.status_code == 200
+        assert "cleared" in response.json()["message"].lower()

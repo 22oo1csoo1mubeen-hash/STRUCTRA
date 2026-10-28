@@ -144,6 +144,15 @@ export async function recordSecurityActivity(activityData) {
   });
 }
 
+/**
+ * Clears all chronological security activity audit logs for the current user.
+ */
+export async function clearSecurityActivity() {
+  return await fetchJson('/profile/security/activity', {
+    method: 'DELETE',
+  });
+}
+
 /** Refresh the active-device heartbeat for the current Supabase session. */
 export async function heartbeatSecuritySession(accessToken = null) {
   const token = accessToken || await getAuthToken();

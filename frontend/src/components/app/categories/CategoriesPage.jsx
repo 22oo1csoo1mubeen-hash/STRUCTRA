@@ -644,6 +644,13 @@ export default function CategoriesPage() {
           animation: cat-shimmer 1.6s ease-in-out infinite;
         }
         
+        .category-subcategory-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          width: 100%;
+        }
+
         .cat-subcards-row-4 {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));

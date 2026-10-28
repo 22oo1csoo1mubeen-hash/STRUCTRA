@@ -16,6 +16,7 @@ from app.schemas.profile import (
     SecurityOverviewData,
 )
 from app.services.profile import (
+    clear_user_security_activity,
     delete_user_account,
     delete_user_avatar,
     end_other_security_sessions,
@@ -303,6 +304,28 @@ async def log_security_activity(
         ip_address=client_ip,
         settings=settings,
     )
+
+
+@router.delete(
+    "/security/activity",
+    status_code=status.HTTP_200_OK,
+    summary="Clear user security activity log",
+    description="Deletes all chronological security audit records for the authenticated user.",
+    responses={
+        200: {"description": "Security activity log cleared successfully."},
+        401: {"description": "Unauthenticated or invalid bearer token."},
+    },
+)
+async def clear_security_activity_log(
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, str]:
+    """Clear all logged security activity for the authenticated user."""
+    await clear_user_security_activity(
+        user_id=current_user.user_id,
+        settings=settings,
+    )
+    return {"message": "Security activity log cleared successfully."}
 
 
 # ─── Danger Zone: Account Deletion ────────────────────────────

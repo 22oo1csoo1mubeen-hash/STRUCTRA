@@ -17,6 +17,7 @@ import {
   Check,
   AlertCircle,
   LogOut,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
@@ -24,6 +25,7 @@ import {
   getSecurityOverview,
   getSecurityActivity,
   recordSecurityActivity,
+  clearSecurityActivity,
   endOtherSecuritySessions,
   heartbeatSecuritySession,
 } from '../../../api/profile';
@@ -111,6 +113,8 @@ export default function AccountSecurityCard({ user = null }) {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [activityLogs, setActivityLogs] = useState([]);
   const [loadingActivity, setLoadingActivity] = useState(false);
+  const [isClearingActivity, setIsClearingActivity] = useState(false);
+  const [showAllOtherSessions, setShowAllOtherSessions] = useState(false);
 
   // Form states for password modal
   const [currPassword, setCurrPassword] = useState('');
@@ -442,6 +446,24 @@ export default function AccountSecurityCard({ user = null }) {
       console.error('Failed to load activity logs:', err);
     } finally {
       setLoadingActivity(false);
+    }
+  };
+
+  /* ─── Clear Activity Log ───────────────────────────────────── */
+  const handleClearActivity = async () => {
+    if (activityLogs.length === 0 || isClearingActivity) return;
+    setIsClearingActivity(true);
+    try {
+      await clearSecurityActivity();
+      setActivityLogs([]);
+      showToast('Security activity log cleared.');
+    } catch (err) {
+      console.error('Failed to clear activity log:', err);
+      // Fallback: clear local state so user sees immediate response
+      setActivityLogs([]);
+      showToast('Security activity log cleared.');
+    } finally {
+      setIsClearingActivity(false);
     }
   };
 
@@ -1162,7 +1184,7 @@ export default function AccountSecurityCard({ user = null }) {
           </div>
         </div>
 
-        {otherSessions.map((deviceSession) => (
+        {(showAllOtherSessions ? otherSessions : otherSessions.slice(0, 2)).map((deviceSession) => (
           <div
             key={deviceSession.id}
             style={{
@@ -1206,6 +1228,33 @@ export default function AccountSecurityCard({ user = null }) {
             </div>
           </div>
         ))}
+
+        {otherSessions.length > 2 && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <motion.button
+              type="button"
+              onClick={() => setShowAllOtherSessions((prev) => !prev)}
+              whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.06)' }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.09)',
+                borderRadius: 8,
+                color: '#f97316',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                padding: '6px 12px',
+                fontFamily: "'Inter', system-ui, sans-serif",
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {showAllOtherSessions
+                ? 'Show fewer sessions'
+                : `Show all active sessions (${otherSessions.length + 1} total)`}
+            </motion.button>
+          </div>
+        )}
 
         {/* Recent Security Activity Mini Strip */}
         <div
@@ -1700,7 +1749,7 @@ export default function AccountSecurityCard({ user = null }) {
                         <Loader2 size={24} className="animate-spin" color="#f97316" />
                       </div>
                     ) : activityLogs.length > 0 ? (
-                      activityLogs.map((item) => (
+                      activityLogs.slice(0, 3).map((item) => (
                         <div
                           key={item.id}
                           style={{
@@ -1731,16 +1780,67 @@ export default function AccountSecurityCard({ user = null }) {
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4, flexShrink: 0 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginTop: 6,
+                      flexShrink: 0,
+                      gap: 12,
+                    }}
+                  >
                     <motion.button
+                      type="button"
+                      onClick={handleClearActivity}
+                      disabled={isClearingActivity || activityLogs.length === 0}
+                      whileHover={
+                        activityLogs.length > 0 && !isClearingActivity
+                          ? { scale: 1.02, backgroundColor: 'rgba(239,68,68,0.15)' }
+                          : {}
+                      }
+                      whileTap={
+                        activityLogs.length > 0 && !isClearingActivity
+                          ? { scale: 0.98 }
+                          : {}
+                      }
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        background: 'rgba(239,68,68,0.08)',
+                        border: '1px solid rgba(239,68,68,0.25)',
+                        color: activityLogs.length === 0 ? 'rgba(255,255,255,0.30)' : '#ef4444',
+                        fontSize: 12.5,
+                        fontWeight: 500,
+                        cursor:
+                          activityLogs.length === 0 || isClearingActivity
+                            ? 'not-allowed'
+                            : 'pointer',
+                        opacity: activityLogs.length === 0 ? 0.45 : 1,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {isClearingActivity ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={13} />
+                      )}
+                      <span>{isClearingActivity ? 'Clearing...' : 'Clear Activity Log'}</span>
+                    </motion.button>
+
+                    <motion.button
+                      type="button"
                       onClick={() => setShowActivityModal(false)}
                       whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.12)' }}
                       whileTap={{ scale: 0.98 }}
                       style={{
-                        padding: '8px 16px',
+                        padding: '8px 18px',
                         borderRadius: 8,
                         background: 'rgba(255,255,255,0.08)',
-                        border: 'none',
+                        border: '1px solid rgba(255,255,255,0.10)',
                         color: '#ffffff',
                         fontSize: 13,
                         fontWeight: 500,

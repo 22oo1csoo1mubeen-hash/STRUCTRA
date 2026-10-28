@@ -685,6 +685,33 @@ async def get_user_security_activity(
     return items
 
 
+async def clear_user_security_activity(
+    user_id: str,
+    settings: Settings = None,
+) -> bool:
+    """Clear all logged security activity events for the authenticated user."""
+    if settings:
+        supabase_url, secret_key = _extract_settings(settings)
+        headers = {
+            "apikey": secret_key,
+            "Authorization": f"Bearer {secret_key}",
+        }
+        activity_url = f"{supabase_url.rstrip('/')}/rest/v1/security_activity"
+        params = {
+            "user_id": f"eq.{user_id}",
+        }
+        try:
+            client = _get_shared_client()
+            resp = await client.delete(activity_url, headers=headers, params=params)
+            if not resp.is_success:
+                logger.warning("Supabase security_activity clear failed [%s]: %s", resp.status_code, resp.text)
+            return resp.is_success
+        except Exception as exc:
+            logger.warning("clear_user_security_activity exception: %s", exc)
+            return False
+    return True
+
+
 async def heartbeat_security_session(
     user_id: str,
     session_id: str | None,
